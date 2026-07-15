@@ -37,7 +37,7 @@ namespace pylorak.TinyWall.Prompting
             allowButton.Enabled = prompt.CanAllow;
             noticeLabel.Text = prompt.CanAllow
                 ? "Allow creates a permanent outbound TCP/UDP exception. Ignore keeps this connection blocked."
-                : "PromptWall could not identify one exact service. Allow is disabled to avoid broadly permitting a shared host.";
+                : "SecureWall could not identify one exact service. Allow is disabled to avoid broadly permitting a shared host.";
             toolTip.SetToolTip(
                 allowButton,
                 prompt.CanAllow
@@ -53,7 +53,7 @@ namespace pylorak.TinyWall.Prompting
         {
             statusLabel.Text = status switch
             {
-                PromptActionStatus.Locked => "PromptWall is locked. Unlock it from the tray, then try again.",
+                PromptActionStatus.Locked => "SecureWall is locked. Unlock it from the tray, then try again.",
                 PromptActionStatus.NotAllowable => "This shared-service identity cannot be safely allowed.",
                 PromptActionStatus.Expired => "This prompt expired; the connection remains blocked.",
                 _ => "The request could not be completed. The connection remains blocked.",

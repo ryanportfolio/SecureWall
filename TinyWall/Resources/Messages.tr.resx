@@ -121,20 +121,20 @@
     <value>Güncelleme için gereken özel hakka terfi edilemedi.</value>
   </data>
   <data name="TinyWallUpdater" xml:space="preserve">
-    <value>PromptWall Güncelleyici</value>
+    <value>SecureWall Güncelleyici</value>
   </data>
   <data name="ErrorCheckingForUpdates" xml:space="preserve">
     <value>Güncelleme sunucusuna erişilemedi.
-Sunucu kapalı olabilir yada PromptWall'ın kendine internet erişimi verdiğinden emin olun, sonra tekrar deneyin.</value>
+Sunucu kapalı olabilir yada SecureWall'ın kendine internet erişimi verdiğinden emin olun, sonra tekrar deneyin.</value>
   </data>
   <data name="UpdateAvailable" xml:space="preserve">
-    <value>PromptWall'ın {0} sürümü çıktı. Şimdi güncellemek istiyormusunuz ?</value>
+    <value>SecureWall'ın {0} sürümü çıktı. Şimdi güncellemek istiyormusunuz ?</value>
   </data>
   <data name="DownloadingUpdate" xml:space="preserve">
     <value>Güncelleme indiriliyor...</value>
   </data>
   <data name="NoUpdateAvailable" xml:space="preserve">
-    <value>PromptWall'ın en son sürümüne sahipsiniz. Şu an güncelleştirme yok.</value>
+    <value>SecureWall'ın en son sürümüne sahipsiniz. Şu an güncelleştirme yok.</value>
   </data>
   <data name="DownloadInterrupted" xml:space="preserve">
     <value>İndirme koptu.</value>
@@ -143,10 +143,10 @@ Sunucu kapalı olabilir yada PromptWall'ın kendine internet erişimi verdiğind
     <value>Güncelleme başlıyor...</value>
   </data>
   <data name="TinyWallIsCurrentlyLocked" xml:space="preserve">
-    <value>PromptWall şu an kilitli. Kilidi açıp tekrar deneyin.</value>
+    <value>SecureWall şu an kilitli. Kilidi açıp tekrar deneyin.</value>
   </data>
   <data name="PleaseWaitWhileTinyWallChecksForUpdates" xml:space="preserve">
-    <value>PromptWall güncelleme varmı diye kontrol ederken lütfen bekleyin.</value>
+    <value>SecureWall güncelleme varmı diye kontrol ederken lütfen bekleyin.</value>
   </data>
   <data name="CouldNotWhitelistProcess" xml:space="preserve">
     <value>{0} beyazliste işlemi yapılamadı.</value>
@@ -165,7 +165,7 @@ Sunucu kapalı olabilir yada PromptWall'ın kendine internet erişimi verdiğind
 Sistem menüsünden Yönetici olarak çalıştır'ı seçin ve tekrar deneyin.</value>
   </data>
   <data name="TinyWallSettingsFileFilter" xml:space="preserve">
-    <value>PromptWall Ayarları</value>
+    <value>SecureWall Ayarları</value>
   </data>
   <data name="AllFilesFileFilter" xml:space="preserve">
     <value>Bütün dosyalar</value>
@@ -189,7 +189,7 @@ Sistem menüsünden Yönetici olarak çalıştır'ı seçin ve tekrar deneyin.</
     <value>Kilit</value>
   </data>
   <data name="UpdateAvailableBubble" xml:space="preserve">
-    <value>PromptWall'ın {0} sürümü çıktı. Güncelleme işlemini başlatmak için burayı tıklayın.</value>
+    <value>SecureWall'ın {0} sürümü çıktı. Güncelleme işlemini başlatmak için burayı tıklayın.</value>
   </data>
   <data name="TheFirewallIsNowOperatingAsRecommended" xml:space="preserve">
     <value>Firewall şuan tavsiye modunda çalışıyor.</value>
@@ -204,7 +204,7 @@ Sistem menüsünden Yönetici olarak çalıştır'ı seçin ve tekrar deneyin.</
     <value>Firewall şuan aktif değil.</value>
   </data>
   <data name="TheTinyWallServiceIsUnavailable" xml:space="preserve">
-    <value>PromptWall servisi mevcut değil. PromptWall'ın kurulmuş ve servisin başlamış olduğundan emin olun.</value>
+    <value>SecureWall servisi mevcut değil. SecureWall'ın kurulmuş ve servisin başlamış olduğundan emin olun.</value>
   </data>
   <data name="TrafficIn" xml:space="preserve">
     <value>İç</value>
@@ -225,7 +225,7 @@ Sistem menüsünden Yönetici olarak çalıştır'ı seçin ve tekrar deneyin.</
     <value>İşlem başarısız</value>
   </data>
   <data name="CommunicationWithTheServiceError" xml:space="preserve">
-    <value>PromptWall hizmetiyle iletişim bir hatayla karşılaştı.</value>
+    <value>SecureWall hizmetiyle iletişim bir hatayla karşılaştı.</value>
   </data>
   <data name="ClickOnAWindowWhitelisting" xml:space="preserve">
     <value>Beyazlisteye almak istediğiniz uygulamanın açık penceresinin üstüne tıklayın.</value>
@@ -243,7 +243,7 @@ Sistem menüsünden Yönetici olarak çalıştır'ı seçin ve tekrar deneyin.</
     <value>Onaylanmamış firewall kuralı {0} değiştirildi. İstisnayı düzenlemek için bu pencereye tıklayın.</value>
   </data>
   <data name="TinyWallHasBeenUnlocked" xml:space="preserve">
-    <value>PromptWall'ın kilidi açıldı. Şimdi konfigürasyonu düzenleyebilirsiniz.</value>
+    <value>SecureWall'ın kilidi açıldı. Şimdi konfigürasyonu düzenleyebilirsiniz.</value>
   </data>
   <data name="UnlockFailed" xml:space="preserve">
     <value>Açma başarısız. Parolayı tekrar girmeyi deneyin.</value>
@@ -310,14 +310,14 @@ Sistem menüsünden Yönetici olarak çalıştır'ı seçin ve tekrar deneyin.</
   </data>
   <data name="YouAreAboutToEnterLearningMode" xml:space="preserve">
     <value>Otomatik öğrenme modunu başlatmak istediğinizden emin misiniz ?
-Otomatik öğrenme modunda PromptWall bütün trafiğe izin verecek ve hangi uygulamaların ağı kullandığını kayıt altına alacak. Öğrenme modundan çıktığınız zaman, PromptWall sizin için uygulamaları otomatik olarak kayıt edecektir. Ancak dikkat, kurallar konfigürasyona özel istisnalar içermez.
+Otomatik öğrenme modunda SecureWall bütün trafiğe izin verecek ve hangi uygulamaların ağı kullandığını kayıt altına alacak. Öğrenme modundan çıktığınız zaman, SecureWall sizin için uygulamaları otomatik olarak kayıt edecektir. Ancak dikkat, kurallar konfigürasyona özel istisnalar içermez.
 
 Öğrenme moduna girmeden önce, bilgisayarınızda virüs yada zararlı yazılım olmadığından emin olmalısınız. Öğrenme modunu en iyi şekilde kullanma yöntemi, yeni kurulmuş bir Windows ve bir virüs programıyla komple taranmış bilgisayarda çalıştırmaktır.
 
 Şimdi öğrenme modunu başlatmak istiyormusunuz ?</value>
   </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
-    <value>PromptWall'ın kaldırılıp güncellenmesi başlasın mı?</value>
+    <value>SecureWall'ın kaldırılıp güncellenmesi başlasın mı?</value>
   </data>
   <data name="PortListInvalid" xml:space="preserve">
     <value>Port listesi biçimi geçersiz.

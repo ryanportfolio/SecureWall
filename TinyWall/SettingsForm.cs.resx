@@ -235,6 +235,6 @@
     <value>Údržba</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Správa PromptWall Firewall</value>
+    <value>Správa SecureWall Firewall</value>
   </data>
 </root>

@@ -136,7 +136,7 @@
     <value>提交</value>
   </data>
   <data name="label3.Text" xml:space="preserve">
-    <value>编辑您希望对其授予网络使用权限的应用程序列表。只有该列表中的应用程序能够进行网络通信。使用检测按钮让PromptWall进行软件检测或手动添加应用程序。</value>
+    <value>编辑您希望对其授予网络使用权限的应用程序列表。只有该列表中的应用程序能够进行网络通信。使用检测按钮让SecureWall进行软件检测或手动添加应用程序。</value>
   </data>
   <data name="btnAppRemove.Text" xml:space="preserve">
     <value>删除</value>
@@ -256,6 +256,6 @@
     <value>维护</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>PromptWall防火墙设置</value>
+    <value>SecureWall防火墙设置</value>
   </data>
 </root>

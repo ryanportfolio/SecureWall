@@ -166,6 +166,6 @@
     <value>Ukončit</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Konfigurátor PromptWall</value>
+    <value>Konfigurátor SecureWall</value>
   </data>
 </root>

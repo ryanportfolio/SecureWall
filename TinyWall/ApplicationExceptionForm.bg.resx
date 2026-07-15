@@ -127,7 +127,7 @@
     <value>Блокирай Локалната Мрежа</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Добави/Модифицирай изключения - PromptWall</value>
+    <value>Добави/Модифицирай изключения - SecureWall</value>
   </data>
   <data name="radTcpUdpUnrestricted.Text" xml:space="preserve">
     <value>Неограничен UDP и TCP трафик</value>

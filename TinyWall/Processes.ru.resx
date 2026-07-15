@@ -130,6 +130,6 @@
     <value>Отменить</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Процессы - PromptWall</value>
+    <value>Процессы - SecureWall</value>
   </data>
 </root>

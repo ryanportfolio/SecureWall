@@ -181,6 +181,6 @@
     <value>Zeige gesperrte Anwendungen (der letzten 5 Minuten)</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Verbindungen - PromptWall</value>
+    <value>Verbindungen - SecureWall</value>
   </data>
 </root>

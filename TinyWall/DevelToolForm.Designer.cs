@@ -106,7 +106,7 @@ namespace pylorak.TinyWall
             this.txtAssocOutputPath.Name = "txtAssocOutputPath";
             this.txtAssocOutputPath.Size = new System.Drawing.Size(423, 20);
             this.txtAssocOutputPath.TabIndex = 8;
-            this.txtAssocOutputPath.Text = "C:\\data\\Nextcloud\\PromptWall\\PromptWall3\\PromptWall\\Database";
+            this.txtAssocOutputPath.Text = "C:\\data\\Nextcloud\\SecureWall\\SecureWall3\\SecureWall\\Database";
             // 
             // btnAssocOutputBrowse
             // 
@@ -133,7 +133,7 @@ namespace pylorak.TinyWall
             this.txtDBFolderPath.Name = "txtDBFolderPath";
             this.txtDBFolderPath.Size = new System.Drawing.Size(423, 20);
             this.txtDBFolderPath.TabIndex = 3;
-            this.txtDBFolderPath.Text = "C:\\data\\Nextcloud\\PromptWall\\PromptWall3\\PromptWall\\Database";
+            this.txtDBFolderPath.Text = "C:\\data\\Nextcloud\\SecureWall\\SecureWall3\\SecureWall\\Database";
             // 
             // btnCollectionsCreate
             // 
@@ -326,7 +326,7 @@ namespace pylorak.TinyWall
             this.txtUpdateOutput.Name = "txtUpdateOutput";
             this.txtUpdateOutput.Size = new System.Drawing.Size(423, 20);
             this.txtUpdateOutput.TabIndex = 19;
-            this.txtUpdateOutput.Text = "C:\\data\\Nextcloud\\PromptWall\\OnlineUpdate";
+            this.txtUpdateOutput.Text = "C:\\data\\Nextcloud\\SecureWall\\OnlineUpdate";
             // 
             // txtUpdateInstallerProjectDir
             // 
@@ -334,7 +334,7 @@ namespace pylorak.TinyWall
             this.txtUpdateInstallerProjectDir.Name = "txtUpdateInstallerProjectDir";
             this.txtUpdateInstallerProjectDir.Size = new System.Drawing.Size(423, 20);
             this.txtUpdateInstallerProjectDir.TabIndex = 12;
-            this.txtUpdateInstallerProjectDir.Text = "C:\\data\\Nextcloud\\PromptWall\\PromptWall3\\MsiSetup";
+            this.txtUpdateInstallerProjectDir.Text = "C:\\data\\Nextcloud\\SecureWall\\SecureWall3\\MsiSetup";
             // 
             // btnUpdateCreate
             // 
@@ -353,7 +353,7 @@ namespace pylorak.TinyWall
             this.label5.Name = "label5";
             this.label5.Size = new System.Drawing.Size(167, 13);
             this.label5.TabIndex = 13;
-            this.label5.Text = "PromptWall installer project directory:";
+            this.label5.Text = "SecureWall installer project directory:";
             // 
             // tabPage5
             // 
@@ -387,7 +387,7 @@ namespace pylorak.TinyWall
             this.txtOutputPath.Name = "txtOutputPath";
             this.txtOutputPath.Size = new System.Drawing.Size(349, 20);
             this.txtOutputPath.TabIndex = 12;
-            this.txtOutputPath.Text = "D:\\archive\\d0\\projects\\PromptWall";
+            this.txtOutputPath.Text = "D:\\archive\\d0\\projects\\SecureWall";
             // 
             // label9
             // 
@@ -530,7 +530,7 @@ namespace pylorak.TinyWall
             this.txtSignDir.Name = "txtSignDir";
             this.txtSignDir.Size = new System.Drawing.Size(329, 20);
             this.txtSignDir.TabIndex = 6;
-            this.txtSignDir.Text = "C:\\data\\Nextcloud\\PromptWall\\PromptWall3\\MsiSetup";
+            this.txtSignDir.Text = "C:\\data\\Nextcloud\\SecureWall\\SecureWall3\\MsiSetup";
             // 
             // label12
             // 
@@ -595,7 +595,7 @@ namespace pylorak.TinyWall
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
             this.MaximizeBox = false;
             this.Name = "DevelToolForm";
-            this.Text = "PromptWall Development Helper Tool";
+            this.Text = "SecureWall Development Helper Tool";
             this.tabControl1.ResumeLayout(false);
             this.tabPage1.ResumeLayout(false);
             this.tabPage1.PerformLayout();

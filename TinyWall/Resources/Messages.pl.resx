@@ -121,20 +121,20 @@
     <value>Nie udało się uzyskać uprawnień niezbędnych do aktualizacji.</value>
   </data>
   <data name="TinyWallUpdater" xml:space="preserve">
-    <value>Aktualizacja PromptWall</value>
+    <value>Aktualizacja SecureWall</value>
   </data>
   <data name="ErrorCheckingForUpdates" xml:space="preserve">
     <value>Nie można uzyskać dostępu do serwera aktualizacji.
-Serwer może być wyłączony bądź upewnij się, że PromptWall posiada dostęp do Internetu, a następnie spróbuj ponownie.</value>
+Serwer może być wyłączony bądź upewnij się, że SecureWall posiada dostęp do Internetu, a następnie spróbuj ponownie.</value>
   </data>
   <data name="UpdateAvailable" xml:space="preserve">
-    <value>Nowsza wersja {0} PromptWall jest dostępna. Czy chcesz zaktualizować teraz?</value>
+    <value>Nowsza wersja {0} SecureWall jest dostępna. Czy chcesz zaktualizować teraz?</value>
   </data>
   <data name="DownloadingUpdate" xml:space="preserve">
     <value>Pobieranie aktualizacji…</value>
   </data>
   <data name="NoUpdateAvailable" xml:space="preserve">
-    <value>Masz najnowszą wersję PromptWall. Aktualizacja nie jest potrzebna.</value>
+    <value>Masz najnowszą wersję SecureWall. Aktualizacja nie jest potrzebna.</value>
   </data>
   <data name="DownloadInterrupted" xml:space="preserve">
     <value>Pobieranie przerwane.</value>
@@ -143,10 +143,10 @@ Serwer może być wyłączony bądź upewnij się, że PromptWall posiada dostę
     <value>Rozpoczynanie aktualizacji…</value>
   </data>
   <data name="TinyWallIsCurrentlyLocked" xml:space="preserve">
-    <value>PromptWall jest obecnie zablokowany. Odblokuj i spróbuj ponownie.</value>
+    <value>SecureWall jest obecnie zablokowany. Odblokuj i spróbuj ponownie.</value>
   </data>
   <data name="PleaseWaitWhileTinyWallChecksForUpdates" xml:space="preserve">
-    <value>Proszę czekać… PromptWall sprawdza dostępne aktualizacje…</value>
+    <value>Proszę czekać… SecureWall sprawdza dostępne aktualizacje…</value>
   </data>
   <data name="CouldNotWhitelistProcess" xml:space="preserve">
     <value>Nie można dodać do białej listy procesu {0}.</value>
@@ -165,7 +165,7 @@ Serwer może być wyłączony bądź upewnij się, że PromptWall posiada dostę
 Wybierz z menu „podnieś uprawnienia do administrator” i spróbuj ponownie.</value>
   </data>
   <data name="TinyWallSettingsFileFilter" xml:space="preserve">
-    <value>Opcje PromptWall</value>
+    <value>Opcje SecureWall</value>
   </data>
   <data name="AllFilesFileFilter" xml:space="preserve">
     <value>Wszystkie pliki</value>
@@ -189,7 +189,7 @@ Wybierz z menu „podnieś uprawnienia do administrator” i spróbuj ponownie.<
     <value>Zablokuj</value>
   </data>
   <data name="UpdateAvailableBubble" xml:space="preserve">
-    <value>Nowsza wersja {0} PromptWall jest dostępna. Kliknij ten dymek, aby rozpocząć proces aktualizacji.</value>
+    <value>Nowsza wersja {0} SecureWall jest dostępna. Kliknij ten dymek, aby rozpocząć proces aktualizacji.</value>
   </data>
   <data name="TheFirewallIsNowOperatingAsRecommended" xml:space="preserve">
     <value>Zapora pracuje teraz w trybie zalecanym.</value>
@@ -204,7 +204,7 @@ Wybierz z menu „podnieś uprawnienia do administrator” i spróbuj ponownie.<
     <value>Zapora jest teraz wyłączona.</value>
   </data>
   <data name="TheTinyWallServiceIsUnavailable" xml:space="preserve">
-    <value>Usługa PromptWall jest niedostępna. Proszę upewnić się, że program jest zainstalowany i uruchomiony.</value>
+    <value>Usługa SecureWall jest niedostępna. Proszę upewnić się, że program jest zainstalowany i uruchomiony.</value>
   </data>
   <data name="TrafficIn" xml:space="preserve">
     <value>Przych.</value>
@@ -225,7 +225,7 @@ Wybierz z menu „podnieś uprawnienia do administrator” i spróbuj ponownie.<
     <value>Operacja nie powiodła się</value>
   </data>
   <data name="CommunicationWithTheServiceError" xml:space="preserve">
-    <value>Napotkano błąd podczas komunikacji z usługą PromptWall.</value>
+    <value>Napotkano błąd podczas komunikacji z usługą SecureWall.</value>
   </data>
   <data name="ClickOnAWindowWhitelisting" xml:space="preserve">
     <value>Kliknij w dowolne okno aplikacji, którą chcesz dodać do białej listy.</value>
@@ -243,7 +243,7 @@ Wybierz z menu „podnieś uprawnienia do administrator” i spróbuj ponownie.<
     <value>Reguła zapory dla „nierozpoznany {0}” została zmieniona. Kliknij ten dymek, aby edytować wyjątek.</value>
   </data>
   <data name="TinyWallHasBeenUnlocked" xml:space="preserve">
-    <value>PromptWall został odblokowany. Teraz możesz wydawać polecenia, które modyfikują konfigurację.</value>
+    <value>SecureWall został odblokowany. Teraz możesz wydawać polecenia, które modyfikują konfigurację.</value>
   </data>
   <data name="UnlockFailed" xml:space="preserve">
     <value>Odblokuj nie powiodło się. Spróbuj ponownie z innym hasłem.</value>
@@ -313,14 +313,14 @@ Wybierz z menu „podnieś uprawnienia do administrator” i spróbuj ponownie.<
   </data>
   <data name="YouAreAboutToEnterLearningMode" xml:space="preserve">
     <value>Czy na pewno chcesz, aby rozpocząć automatyczne uczenie się?
-W tym automatycznym trybie uczenia PromptWall pozwoli na cały ruch sieciowy i zapamięta, które aplikacje korzystają z sieci. Po wyjściu z trybu nauki, PromptWall automatycznie doda wyjątki za Ciebie. Należy jednak pamiętać, że reguł zostaną nauczone się reguły dla „wyjątków specjalnych” w opcjach konfiguracji.
+W tym automatycznym trybie uczenia SecureWall pozwoli na cały ruch sieciowy i zapamięta, które aplikacje korzystają z sieci. Po wyjściu z trybu nauki, SecureWall automatycznie doda wyjątki za Ciebie. Należy jednak pamiętać, że reguł zostaną nauczone się reguły dla „wyjątków specjalnych” w opcjach konfiguracji.
 
 Przed wejściem w tryb uczenia się, upewnij się, że Twój system jest wolny od szkodliwego oprogramowania. Najlepiej uruchomić tryb uczenia się na świeżo zainstalowanym systemie i zaleca się sprawdzić swój komputer w poszukiwaniu wirusów przed zastosowaniem tego trybu.
 
 Czy chcesz przejść do trybu uczenia się?</value>
   </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
-    <value>Czy rozpocząć dezinstalację/aktualizację PromptWall?</value>
+    <value>Czy rozpocząć dezinstalację/aktualizację SecureWall?</value>
   </data>
   <data name="PortListInvalid" xml:space="preserve">
     <value>Format portów jest nieprawidłowy.

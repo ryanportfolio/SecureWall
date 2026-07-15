@@ -184,6 +184,6 @@
     <value>Показать заблокированные приложения (за последние 5 минуты)</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Соединения - PromptWall</value>
+    <value>Соединения - SecureWall</value>
   </data>
 </root>

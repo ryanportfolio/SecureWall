@@ -118,7 +118,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="label1.Text" xml:space="preserve">
-    <value>PromptWall では、あなたのコンピュータ内のいくつかのソフトウエアについて検出、ブロック解除を自動的に行うことが出来ます. この機能によって、ブロックを解除するソフトウェアを手動で選択する手間を省くことが可能になります。(すべての変更は適用する前に結果の確認を行うことが出来ます)</value>
+    <value>SecureWall では、あなたのコンピュータ内のいくつかのソフトウエアについて検出、ブロック解除を自動的に行うことが出来ます. この機能によって、ブロックを解除するソフトウェアを手動で選択する手間を省くことが可能になります。(すべての変更は適用する前に結果の確認を行うことが出来ます)</value>
   </data>
   <data name="btnStartDetection.Text" xml:space="preserve">
     <value>開始</value>
@@ -149,6 +149,6 @@
 </value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>アプリケーションの検出 - PromptWall</value>
+    <value>アプリケーションの検出 - SecureWall</value>
   </data>
 </root>

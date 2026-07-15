@@ -325,7 +325,7 @@
     <value>16</value>
   </data>
   <data name="label3.Text" xml:space="preserve">
-    <value>Edit the list of applications that you'd like to grant network access. Only applications in this list will be able to communicate. Use the Detect button to let PromptWall detect some software, or add applications manually.</value>
+    <value>Edit the list of applications that you'd like to grant network access. Only applications in this list will be able to communicate. Use the Detect button to let SecureWall detect some software, or add applications manually.</value>
   </data>
   <data name="&gt;&gt;label3.Name" xml:space="preserve">
     <value>label3</value>
@@ -1597,7 +1597,7 @@
     <value>1</value>
   </data>
   <data name="lblVersion.Text" xml:space="preserve">
-    <value>PromptWall </value>
+    <value>SecureWall </value>
   </data>
   <data name="&gt;&gt;lblVersion.Name" xml:space="preserve">
     <value>lblVersion</value>
@@ -1786,7 +1786,7 @@
     <value>748, 438</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>PromptWall Firewall Settings</value>
+    <value>SecureWall Firewall Settings</value>
   </data>
   <data name="&gt;&gt;columnApp.Name" xml:space="preserve">
     <value>columnApp</value>

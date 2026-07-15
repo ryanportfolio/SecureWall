@@ -22,7 +22,7 @@ Invoke the `caveman` skill at **ultra** at session start. Applies to all prose r
 
 ## CRITICAL: Verification
 
-The pure prompt pipeline is verified by `tests/PromptWall.Core.Tests`. The full
+The pure prompt pipeline is verified by `tests/SecureWall.Core.Tests`. The full
 application is verified with Visual Studio Build Tools' .NET Framework MSBuild,
 not `dotnet build`, because the project contains COM references. The debug
 `/protocolselftest` switch verifies source-generated pipe-message round trips;
@@ -66,10 +66,10 @@ Overrides the Bash tool's built-in "commit only when asked" default: task comple
 
 ## Environment & deploy target
 
-PromptWall targets Windows 10 21H2+ and Windows 11. Its LocalSystem service owns
+SecureWall targets Windows 10 21H2+ and Windows 11. Its LocalSystem service owns
 WFP state; the interactive controller owns tray UI. Machine data lives under
-`%ProgramData%\PromptWall`; per-user controller data lives under
-`%AppData%\PromptWall`.
+`%ProgramData%\SecureWall`; per-user controller data lives under
+`%AppData%\SecureWall`.
 
 Ask before downloading runtime/build dependencies. Installing/uninstalling the
 service, registering WFP filters, changing audit policy outside a disposable VM,

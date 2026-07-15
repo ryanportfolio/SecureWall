@@ -116,7 +116,7 @@ namespace pylorak.TinyWall
                 return Path.GetDirectoryName(Utils.ExecutablePath);
 #else
                 string dir = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-                dir = System.IO.Path.Combine(dir, PromptWallProduct.AppDataFolderName);
+                dir = System.IO.Path.Combine(dir, SecureWallProduct.AppDataFolderName);
                 if (!Directory.Exists(dir))
                     Directory.CreateDirectory(dir);
                 return dir;

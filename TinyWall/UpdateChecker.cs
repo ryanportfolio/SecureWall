@@ -27,7 +27,7 @@ namespace pylorak.TinyWall
 
         internal static void StartUpdate()
         {
-            if (!PromptWallProduct.UpdateFeedEnabled)
+            if (!SecureWallProduct.UpdateFeedEnabled)
                 return;
 
             var updater = new Updater();

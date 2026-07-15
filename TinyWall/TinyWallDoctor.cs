@@ -13,7 +13,7 @@ namespace pylorak.TinyWall
 {
     internal static class TinyWallDoctor
     {
-        private static readonly string CONTROLLER_START_TASKSCH_NAME = "PromptWall Controller";
+        private static readonly string CONTROLLER_START_TASKSCH_NAME = "SecureWall Controller";
 
         internal static bool IsServiceRunning(string logContext, bool installing)
         {
@@ -136,7 +136,7 @@ namespace pylorak.TinyWall
             {
                 if (TinyWallDoctor.IsServiceRunning(Utils.LOG_ID_INSTALLER, false))
                 {
-                    var twController = new Controller(PromptWallProduct.ControllerPipeName);
+                    var twController = new Controller(SecureWallProduct.ControllerPipeName);
 
                     // Unlock server
                     while (twController.IsServerLocked)
@@ -181,7 +181,7 @@ namespace pylorak.TinyWall
                     {
                         try
                         {
-                            if (p.ProcessName.Contains(PromptWallProduct.Name) && (p.Id != ownPid))
+                            if (p.ProcessName.Contains(SecureWallProduct.Name) && (p.Id != ownPid))
                             {
                                 ProcessManager.TerminateProcess(p, 2000);
                             }
@@ -199,7 +199,7 @@ namespace pylorak.TinyWall
             try
             {
                 // Remove persistent WFP objects
-                using var WfpEngine = new Engine("PromptWall Uninstall Session", "", FWPM_SESSION_FLAGS.None, 5000);
+                using var WfpEngine = new Engine("SecureWall Uninstall Session", "", FWPM_SESSION_FLAGS.None, 5000);
                 using var trx = WfpEngine.BeginTransaction();
                 TinyWallServer.DeleteWfpObjects(WfpEngine, true);
                 trx.Commit();
@@ -280,8 +280,8 @@ namespace pylorak.TinyWall
                 var taskService = new TaskScheduler.TaskScheduler();
                 taskService.Connect();
                 var td = taskService.NewTask(0);
-                td.RegistrationInfo.Author = "PromptWall contributors; based on TinyWall by Károly Pados";
-                td.RegistrationInfo.Description = "This task starts the PromptWall tray icon when a user is logged in.";
+                td.RegistrationInfo.Author = "SecureWall contributors; based on TinyWall by Károly Pados";
+                td.RegistrationInfo.Description = "This task starts the SecureWall tray icon when a user is logged in.";
                 td.Settings.Enabled = true;
                 td.Principal.GroupId = INTERACTIVE_GROUP_SID;
                 td.Principal.LogonType = _TASK_LOGON_TYPE.TASK_LOGON_INTERACTIVE_TOKEN;

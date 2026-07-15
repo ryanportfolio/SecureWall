@@ -58,7 +58,9 @@
       "Bash(git push)",
       "Bash(git push *)",
       "Bash(git merge *)",
-      "Bash(gh pr create *)",
+      "Bash(gh pr create *)"
+    ],
+    "ask": [
       "Bash(gh pr merge *)"
     ],
     "deny": [

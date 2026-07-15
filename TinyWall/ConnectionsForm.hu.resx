@@ -184,6 +184,6 @@
     <value>Blokkolt alkalmazások (max. elmúlt 5 percben)</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Kapcsolatok - PromptWall</value>
+    <value>Kapcsolatok - SecureWall</value>
   </data>
 </root>

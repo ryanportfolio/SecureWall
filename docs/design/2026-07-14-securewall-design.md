@@ -1,4 +1,4 @@
-# PromptWall design
+# SecureWall design
 
 ## Goal
 
@@ -6,11 +6,11 @@ Build a Windows 10/11 desktop firewall that keeps TinyWall 3.5.1's secure-by-def
 
 ## Chosen foundation
 
-PromptWall is a GPLv3 fork of TinyWall 3.5.1, pinned initially to upstream commit `1df71b146d01d734d5b5a45a814b29e6a073f4d0` from `pylorak/TinyWall`.
+SecureWall is a GPLv3 fork of TinyWall 3.5.1, pinned initially to upstream commit `1df71b146d01d734d5b5a45a814b29e6a073f4d0` from `pylorak/TinyWall`.
 
 This is preferable to a clean-room implementation because TinyWall already handles boot-time filtering, IPv4/IPv6, raw sockets, WSL, UWP/AppContainers, local subnets, Windows services, temporary exceptions, installer recovery, blocklists, and Windows path translation. Reimplementing those details would create a much larger attack and regression surface.
 
-PromptWall uses a distinct product name and preserves upstream copyright, source notices, and GPLv3 terms. The repository records the upstream commit and marks PromptWall modifications by date.
+SecureWall uses a distinct product name and preserves upstream copyright, source notices, and GPLv3 terms. The repository records the upstream commit and marks SecureWall modifications by date.
 
 ## TinyWall research summary
 
@@ -48,7 +48,7 @@ Relevant primary sources:
 1. Normal mode remains default-deny for inbound and outbound non-loopback traffic.
 2. Enforcement stays in the LocalSystem service and Windows WFP; the UI cannot enforce or bypass policy by itself.
 3. Ignore performs no firewall-policy write.
-4. A prompt is emitted only for an outbound drop caused by PromptWall's default-block filter, never for an explicit user block, malware blocklist, raw-socket block, Windows Service Hardening block, or another provider's block.
+4. A prompt is emitted only for an outbound drop caused by SecureWall's default-block filter, never for an explicit user block, malware blocklist, raw-socket block, Windows Service Hardening block, or another provider's block.
 5. Allow is authorized with an opaque, single-use service-issued token. The controller cannot turn an arbitrary path string into an allow through the prompt endpoint.
 6. Allow creates only an outbound TCP/UDP exception. It does not open listeners or inbound traffic.
 7. UWP traffic is allowed by AppContainer SID, not by a mutable display name.
@@ -57,7 +57,7 @@ Relevant primary sources:
 10. Prompt queues are bounded, deduplicated, rate-limited, expiring, and fail closed.
 11. Password lock applies to Allow exactly as it applies to other privileged policy changes.
 12. Filter installation and configuration persistence remain transactional or atomic to the same extent as upstream.
-13. Uninstall removes PromptWall's WFP provider, filters, service, scheduled task, and audit-policy lease without disabling Windows Firewall.
+13. Uninstall removes SecureWall's WFP provider, filters, service, scheduled task, and audit-policy lease without disabling Windows Firewall.
 
 ## Prompt event pipeline
 
@@ -78,14 +78,14 @@ The existing WFP net-event subscription remains the authoritative signal that WF
 
 - runtime filter ID is in the current promptable set;
 - direction is outbound;
-- application identity is nonempty and not PromptWall itself;
+- application identity is nonempty and not SecureWall itself;
 - mode is still Normal.
 
 WFP supplies the application ID, AppContainer SID when applicable, tuple, protocol, timestamp, and blocking filter ID. It does not supply a process ID.
 
 ### 3. Enrich service identity
 
-Windows Security event 5157 supplies `ProcessID`, application path, direction, network tuple, protocol, and `FilterRTID`. PromptWall watches outbound 5157 failures and correlates them to recent WFP candidates by runtime filter ID, application path, protocol, tuple, and a short timestamp window.
+Windows Security event 5157 supplies `ProcessID`, application path, direction, network tuple, protocol, and `FilterRTID`. SecureWall watches outbound 5157 failures and correlates them to recent WFP candidates by runtime filter ID, application path, protocol, tuple, and a short timestamp window.
 
 The watcher leases only failure auditing for the `Filtering Platform Connection` subcategory. It first snapshots the existing system audit flags using `AuditQuerySystemPolicy`, adds failure auditing without removing existing flags, and restores exactly the captured flags during clean shutdown/uninstall. If auditing cannot be enabled, application and UWP prompts still work; service attribution safely degrades to ambiguous and cannot blanket-allow `svchost.exe`.
 
@@ -152,7 +152,7 @@ The popup never claims an executable is safe. Unsigned, invalid-signature, user-
 
 ### 8. Live network activity
 
-The existing Connections window becomes **PromptWall Network Activity** and refreshes once per second. It merges the service's bounded WFP net-event history with Windows TCP/UDP endpoint tables. Status labels state only observed facts:
+The existing Connections window becomes **SecureWall Network Activity** and refreshes once per second. It merges the service's bounded WFP net-event history with Windows TCP/UDP endpoint tables. Status labels state only observed facts:
 
 - `Allowed`: WFP observed a classify-allow decision;
 - `Blocked`: WFP observed a classify-drop decision;

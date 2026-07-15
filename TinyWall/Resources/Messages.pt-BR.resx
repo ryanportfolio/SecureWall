@@ -121,19 +121,19 @@
     <value>Não foi possível aumentar os privilégios necessários para a atualização.</value>
   </data>
   <data name="TinyWallUpdater" xml:space="preserve">
-    <value>Atualizador do PromptWall</value>
+    <value>Atualizador do SecureWall</value>
   </data>
   <data name="ErrorCheckingForUpdates" xml:space="preserve">
-    <value>Não foi possível acessar o servidor de atualização. O servidor pode estar fora do ar ou talvez o PromptWall não tem permissão de acesso à Internet. Favor verificar e tentar de novo.</value>
+    <value>Não foi possível acessar o servidor de atualização. O servidor pode estar fora do ar ou talvez o SecureWall não tem permissão de acesso à Internet. Favor verificar e tentar de novo.</value>
   </data>
   <data name="UpdateAvailable" xml:space="preserve">
-    <value>Saiu uma nova versão do PromptWall {0}. Gostaria de atualizá-lo agora?</value>
+    <value>Saiu uma nova versão do SecureWall {0}. Gostaria de atualizá-lo agora?</value>
   </data>
   <data name="DownloadingUpdate" xml:space="preserve">
     <value>Baixando atualização...</value>
   </data>
   <data name="NoUpdateAvailable" xml:space="preserve">
-    <value>Você tem a última versão do PromptWall. Nenhuma atualização necessária.</value>
+    <value>Você tem a última versão do SecureWall. Nenhuma atualização necessária.</value>
   </data>
   <data name="DownloadInterrupted" xml:space="preserve">
     <value>Download interrompido.</value>
@@ -142,10 +142,10 @@
     <value>Iniciando a atualização...</value>
   </data>
   <data name="TinyWallIsCurrentlyLocked" xml:space="preserve">
-    <value>O PromptWall está bloqueado. Desbloqueie-o e tente de novo.</value>
+    <value>O SecureWall está bloqueado. Desbloqueie-o e tente de novo.</value>
   </data>
   <data name="PleaseWaitWhileTinyWallChecksForUpdates" xml:space="preserve">
-    <value>Aguarde enquanto o PromptWall verifica se há atualização.</value>
+    <value>Aguarde enquanto o SecureWall verifica se há atualização.</value>
   </data>
   <data name="CouldNotWhitelistProcess" xml:space="preserve">
     <value>Não foi possível incluir na lista branca o executável {0}.</value>
@@ -165,7 +165,7 @@
     <value>Você não tem direitos administrativos necessários para realizar esta operação. Favor clicar em Elevar no menu da Área de Notificação e tentar de novo.</value>
   </data>
   <data name="TinyWallSettingsFileFilter" xml:space="preserve">
-    <value>Configurar o PromptWall</value>
+    <value>Configurar o SecureWall</value>
     <comment>File filter description</comment>
   </data>
   <data name="AllFilesFileFilter" xml:space="preserve">
@@ -194,7 +194,7 @@
     <comment>Tray menu text</comment>
   </data>
   <data name="UpdateAvailableBubble" xml:space="preserve">
-    <value>Saiu uma nova versão do PromptWall {0}. Clique neste balão se quiser iniciar a atualização.</value>
+    <value>Saiu uma nova versão do SecureWall {0}. Clique neste balão se quiser iniciar a atualização.</value>
     <comment>Param0 is version number of new version</comment>
   </data>
   <data name="TheFirewallIsNowOperatingAsRecommended" xml:space="preserve">
@@ -210,7 +210,7 @@
     <value>O firewall está desativado.</value>
   </data>
   <data name="TheTinyWallServiceIsUnavailable" xml:space="preserve">
-    <value>O serviço do PromptWall está inacessível. Favor verificar se está instalado e iniciado. Depois, tente de novo.</value>
+    <value>O serviço do SecureWall está inacessível. Favor verificar se está instalado e iniciado. Depois, tente de novo.</value>
   </data>
   <data name="TrafficIn" xml:space="preserve">
     <value>Entrada</value>
@@ -233,7 +233,7 @@
     <value>Falha na operação.</value>
   </data>
   <data name="CommunicationWithTheServiceError" xml:space="preserve">
-    <value>Erro na tentativa de comunicação com o serviço do PromptWall. </value>
+    <value>Erro na tentativa de comunicação com o serviço do SecureWall. </value>
   </data>
   <data name="ClickOnAWindowWhitelisting" xml:space="preserve">
     <value>Clique na área interna de qualquer janela aberta para escolher o aplicativo para inclusão na lista branca. </value>
@@ -251,7 +251,7 @@
     <value>Regras de controle de desconhecidos {0} foram modificadas. Clique neste balão para editar as exceções.</value>
   </data>
   <data name="TinyWallHasBeenUnlocked" xml:space="preserve">
-    <value>O PromptWall foi desbloqueado. Agora você pode efetuar comandos que modifiquem sua configuração.</value>
+    <value>O SecureWall foi desbloqueado. Agora você pode efetuar comandos que modifiquem sua configuração.</value>
   </data>
   <data name="UnlockFailed" xml:space="preserve">
     <value>Falha ao tentar desbloquear. Tente de novo com outra senha.</value>
@@ -324,14 +324,14 @@
   </data>
   <data name="YouAreAboutToEnterLearningMode" xml:space="preserve">
     <value>Quer mesmo entrar no modo de configuração automática ("aprendizado")?
-Neste modo, o PromptWall autorizará todo tipo de tráfego e memorizará todos os aplicativos que acessarem a rede. Quando sair desse modo de operação, o PromptWall adicionará exceções para você automaticamente. Note, porém, que regras de controle não podem ser "aprendidas" no caso de "Controle de Tráfego/Exceções Especiais" da configuração.
+Neste modo, o SecureWall autorizará todo tipo de tráfego e memorizará todos os aplicativos que acessarem a rede. Quando sair desse modo de operação, o SecureWall adicionará exceções para você automaticamente. Note, porém, que regras de controle não podem ser "aprendidas" no caso de "Controle de Tráfego/Exceções Especiais" da configuração.
 
 Antes de entrar neste modo, verifique se seu computador está livre de vírus. É melhor executar o modo de config automática em sistemas recém-instalados, limpos e  executar um antivírus no computador antes de usar este modo.
 
 Gostaria de entrar no modo de config automática agora?</value>
   </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
-    <value>Foi você mesmo quem iniciou a desinstalação do PromptWall?</value>
+    <value>Foi você mesmo quem iniciou a desinstalação do SecureWall?</value>
   </data>
   <data name="PortListInvalid" xml:space="preserve">
     <value>O formato da lista de portas é inválido. 

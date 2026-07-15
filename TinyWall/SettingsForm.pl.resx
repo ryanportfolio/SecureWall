@@ -136,7 +136,7 @@
     <value>Dodaj</value>
   </data>
   <data name="label3.Text" xml:space="preserve">
-    <value>Edytuj listę aplikacji, którym chcesz udzielić dostępu do sieci. Tylko aplikacje z tej listy będą mogły się komunikować. Użyj przycisku „wykryj“ żeby pozwolić PromptWall wykryć jakiś program lub ręcznie dodaj aplikację.</value>
+    <value>Edytuj listę aplikacji, którym chcesz udzielić dostępu do sieci. Tylko aplikacje z tej listy będą mogły się komunikować. Użyj przycisku „wykryj“ żeby pozwolić SecureWall wykryć jakiś program lub ręcznie dodaj aplikację.</value>
   </data>
   <data name="btnAppRemove.Text" xml:space="preserve">
     <value>Usuń</value>
@@ -241,6 +241,6 @@
     <value>Obsługa</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Opcje zapory PromptWall</value>
+    <value>Opcje zapory SecureWall</value>
   </data>
 </root>

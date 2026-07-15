@@ -166,6 +166,6 @@
     <value>Beenden</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Hauptfenster der PromptWall</value>
+    <value>Hauptfenster der SecureWall</value>
   </data>
 </root>

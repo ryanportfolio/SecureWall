@@ -118,7 +118,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="label1.Text" xml:space="preserve">
-    <value>PromptWall може спробувати автоматично виявити та розблокувати деякі програми на вашому комп'ютері. Це заощадить вам час на розблокування цих програм по одній. Ви матимете можливість переглянути результати перед внесенням будь-яких змін.</value>
+    <value>SecureWall може спробувати автоматично виявити та розблокувати деякі програми на вашому комп'ютері. Це заощадить вам час на розблокування цих програм по одній. Ви матимете можливість переглянути результати перед внесенням будь-яких змін.</value>
   </data>
   <data name="btnStartDetection.Text" xml:space="preserve">
     <value>Почати</value>
@@ -148,6 +148,6 @@
     <value>Щоб розблокувати програму в результатах пошуку, виберіть її, поставивши позначку в чекбоксі.</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Пошук програм — PromptWall</value>
+    <value>Пошук програм — SecureWall</value>
   </data>
 </root>

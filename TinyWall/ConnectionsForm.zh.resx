@@ -184,6 +184,6 @@
     <value>显示拦截应用（最近5分钟）</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>连接 - PromptWall</value>
+    <value>连接 - SecureWall</value>
   </data>
 </root>

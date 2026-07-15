@@ -250,6 +250,6 @@
     <value>Karbantartás</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>PromptWall Firewall Beállítások</value>
+    <value>SecureWall Firewall Beállítások</value>
   </data>
 </root>

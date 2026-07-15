@@ -127,7 +127,7 @@
     <value>Ограничить локальную сеть</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Добавить/Изменить исключения фаервола PromptWall</value>
+    <value>Добавить/Изменить исключения фаервола SecureWall</value>
   </data>
   <data name="radTcpUdpUnrestricted.Text" xml:space="preserve">
     <value>Неограниченный UDP и TCP трафик</value>

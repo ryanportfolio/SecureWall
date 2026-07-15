@@ -121,20 +121,20 @@
     <value>Не вдалося підвищити привілеї, необхідні для оновлення.</value>
   </data>
   <data name="TinyWallUpdater" xml:space="preserve">
-    <value>Оновлювач PromptWall</value>
+    <value>Оновлювач SecureWall</value>
   </data>
   <data name="ErrorCheckingForUpdates" xml:space="preserve">
     <value>Не вдається підключитися до сервера оновлень.
-Сервер може бути недоступний, або переконайтеся, що PromptWall має доступ до інтернету, і спробуйте знову.</value>
+Сервер може бути недоступний, або переконайтеся, що SecureWall має доступ до інтернету, і спробуйте знову.</value>
   </data>
   <data name="UpdateAvailable" xml:space="preserve">
-    <value>Доступна новіша версія {0} PromptWall. Бажаєте оновити зараз?</value>
+    <value>Доступна новіша версія {0} SecureWall. Бажаєте оновити зараз?</value>
   </data>
   <data name="DownloadingUpdate" xml:space="preserve">
     <value>Завантаження оновлення...</value>
   </data>
   <data name="NoUpdateAvailable" xml:space="preserve">
-    <value>У вас встановлена найновіша версія PromptWall. Оновлення не потрібне.</value>
+    <value>У вас встановлена найновіша версія SecureWall. Оновлення не потрібне.</value>
   </data>
   <data name="DownloadInterrupted" xml:space="preserve">
     <value>Завантаження перервано.</value>
@@ -143,10 +143,10 @@
     <value>Запуск оновлення...</value>
   </data>
   <data name="TinyWallIsCurrentlyLocked" xml:space="preserve">
-    <value>PromptWall наразі заблоковано. Розблокуйте та повторіть спробу.</value>
+    <value>SecureWall наразі заблоковано. Розблокуйте та повторіть спробу.</value>
   </data>
   <data name="PleaseWaitWhileTinyWallChecksForUpdates" xml:space="preserve">
-    <value>Будь ласка, зачекайте, доки PromptWall перевіряє наявність оновлень.</value>
+    <value>Будь ласка, зачекайте, доки SecureWall перевіряє наявність оновлень.</value>
   </data>
   <data name="CouldNotWhitelistProcess" xml:space="preserve">
     <value>Не вдалося додати процес {0} до білого списку.</value>
@@ -167,7 +167,7 @@
 Оберіть «Підвищити права» в меню трею та спробуйте знову.</value>
   </data>
   <data name="TinyWallSettingsFileFilter" xml:space="preserve">
-    <value>Налаштування PromptWall</value>
+    <value>Налаштування SecureWall</value>
     <comment>File filter description</comment>
   </data>
   <data name="AllFilesFileFilter" xml:space="preserve">
@@ -196,7 +196,7 @@
     <comment>Tray menu text</comment>
   </data>
   <data name="UpdateAvailableBubble" xml:space="preserve">
-    <value>Доступна новіша версія {0} PromptWall. Натисніть на це сповіщення, щоб розпочати процес оновлення.</value>
+    <value>Доступна новіша версія {0} SecureWall. Натисніть на це сповіщення, щоб розпочати процес оновлення.</value>
     <comment>Param0 is version number of new version</comment>
   </data>
   <data name="TheFirewallIsNowOperatingAsRecommended" xml:space="preserve">
@@ -212,7 +212,7 @@
     <value>Брандмауер тепер вимкнено.</value>
   </data>
   <data name="TheTinyWallServiceIsUnavailable" xml:space="preserve">
-    <value>Служба PromptWall недоступна. Переконайтеся, що вона встановлена та запущена, потім повторіть спробу.</value>
+    <value>Служба SecureWall недоступна. Переконайтеся, що вона встановлена та запущена, потім повторіть спробу.</value>
   </data>
   <data name="TrafficIn" xml:space="preserve">
     <value>Вх</value>
@@ -235,7 +235,7 @@
     <value>Операція не вдалася.</value>
   </data>
   <data name="CommunicationWithTheServiceError" xml:space="preserve">
-    <value>Під час зв’язку зі службою PromptWall сталася помилка.</value>
+    <value>Під час зв’язку зі службою SecureWall сталася помилка.</value>
   </data>
   <data name="ClickOnAWindowWhitelisting" xml:space="preserve">
     <value>Натисніть на внутрішню область будь-якого відкритого вікна, щоб вибрати його програму для додавання до білого списку.</value>
@@ -253,7 +253,7 @@
     <value>Правила брандмауера для нерозпізнаної {0} було змінено. Натисніть на це сповіщення, щоб відредагувати виняток.</value>
   </data>
   <data name="TinyWallHasBeenUnlocked" xml:space="preserve">
-    <value>PromptWall було розблоковано. Тепер ви можете виконувати команди, які змінюють конфігурацію.</value>
+    <value>SecureWall було розблоковано. Тепер ви можете виконувати команди, які змінюють конфігурацію.</value>
     <comment>Deprecated</comment>
   </data>
   <data name="UnlockFailed" xml:space="preserve">
@@ -330,14 +330,14 @@
   </data>
   <data name="YouAreAboutToEnterLearningMode" xml:space="preserve">
     <value>Ви впевнені, що хочете запустити автоматичне навчання?
-У режимі автоматичного навчання PromptWall дозволятиме весь трафік і запам’ятовуватиме, які програми використовували мережу. Коли ви вийдете з режиму навчання, PromptWall автоматично додасть винятки. Зауважте, що правила не можуть бути вивчені для «Спеціальних винятків» конфігурації.
+У режимі автоматичного навчання SecureWall дозволятиме весь трафік і запам’ятовуватиме, які програми використовували мережу. Коли ви вийдете з режиму навчання, SecureWall автоматично додасть винятки. Зауважте, що правила не можуть бути вивчені для «Спеціальних винятків» конфігурації.
 
 Перед входом у режим навчання переконайтеся, що ваша система вільна від шкідливого ПЗ. Найкраще запускати режим навчання на свіжовстановлених системах. Рекомендується перевірити комп’ютер на віруси перед використанням цього режиму.
 
 Бажаєте увійти в режим навчання зараз?</value>
   </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
-    <value>Ви ініціювали видалення/оновлення PromptWall?</value>
+    <value>Ви ініціювали видалення/оновлення SecureWall?</value>
   </data>
   <data name="PortListInvalid" xml:space="preserve">
     <value>Формат списку портів недійсний.

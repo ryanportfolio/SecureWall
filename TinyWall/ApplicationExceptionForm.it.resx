@@ -127,7 +127,7 @@
     <value>Restringi al network locale</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Aggiungi/Modifica eccezione - PromptWall</value>
+    <value>Aggiungi/Modifica eccezione - SecureWall</value>
   </data>
   <data name="radTcpUdpUnrestricted.Text" xml:space="preserve">
     <value>Traffico UDP e TCP senza restrizioni</value>

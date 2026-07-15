@@ -130,6 +130,6 @@
     <value>発行者</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>UWP パッケージ - PromptWall</value>
+    <value>UWP パッケージ - SecureWall</value>
   </data>
 </root>

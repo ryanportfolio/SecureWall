@@ -133,7 +133,7 @@
     <value>Senden</value>
   </data>
   <data name="label3.Text" xml:space="preserve">
-    <value>Editieren Sie die Liste der Anwendungen, denen Sie Zugriff zum Netzwerk erlauben. Nur Anwendungen von dieser Liste dürfen im Netzwerk kommunizieren. Benutzen Sie den Erkennen-Knopf, damit PromptWall diese Anwendungen erkennt oder fügen Sie die Anwendungen selber hinzu.</value>
+    <value>Editieren Sie die Liste der Anwendungen, denen Sie Zugriff zum Netzwerk erlauben. Nur Anwendungen von dieser Liste dürfen im Netzwerk kommunizieren. Benutzen Sie den Erkennen-Knopf, damit SecureWall diese Anwendungen erkennt oder fügen Sie die Anwendungen selber hinzu.</value>
   </data>
   <data name="btnAppRemove.Text" xml:space="preserve">
     <value>Entfernen</value>
@@ -241,6 +241,6 @@
     <value>Wartung</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>PromptWall Firewall Einstellungen</value>
+    <value>SecureWall Firewall Einstellungen</value>
   </data>
 </root>

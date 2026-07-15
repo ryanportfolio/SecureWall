@@ -181,6 +181,6 @@
     <value>Voir applications bloquées (durant les 5 dernières minutes)</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Connexions - PromptWall</value>
+    <value>Connexions - SecureWall</value>
   </data>
 </root>

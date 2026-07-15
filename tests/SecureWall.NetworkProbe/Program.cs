@@ -3,7 +3,7 @@ using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 
-namespace PromptWall.NetworkProbe
+namespace SecureWall.NetworkProbe
 {
     internal static class Program
     {
@@ -16,7 +16,7 @@ namespace PromptWall.NetworkProbe
         {
             if (args.Length != 3)
             {
-                Console.Error.WriteLine("Usage: PromptWall.NetworkProbe.exe <IP address> <port> <timeout-ms>");
+                Console.Error.WriteLine("Usage: SecureWall.NetworkProbe.exe <IP address> <port> <timeout-ms>");
                 return UsageError;
             }
 

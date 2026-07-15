@@ -121,15 +121,15 @@
     <value>Privilegi mancanti per aggiornare.</value>
   </data>
   <data name="TinyWallUpdater" xml:space="preserve">
-    <value>Aggiornamento di PromptWall</value>
+    <value>Aggiornamento di SecureWall</value>
   </data>
   <data name="ErrorCheckingForUpdates" xml:space="preserve">
     <value>Non è possibile accedere al server di aggiornamento.
-Il server potrebbe essere assente o assicurarsi che a PromptWall sia stato concesso l'accesso a internet, quindi riprovare.
+Il server potrebbe essere assente o assicurarsi che a SecureWall sia stato concesso l'accesso a internet, quindi riprovare.
 </value>
   </data>
   <data name="UpdateAvailable" xml:space="preserve">
-    <value>La versione aggiornata {0} di PromptWall è disponibile, vuoi aggiornare adesso ?</value>
+    <value>La versione aggiornata {0} di SecureWall è disponibile, vuoi aggiornare adesso ?</value>
   </data>
   <data name="DownloadingUpdate" xml:space="preserve">
     <value>Scaricamento dell'aggiornamento...</value>
@@ -144,7 +144,7 @@ Il server potrebbe essere assente o assicurarsi che a PromptWall sia stato conce
     <value>Avvio aggiornamento...</value>
   </data>
   <data name="TinyWallIsCurrentlyLocked" xml:space="preserve">
-    <value>PromptWall è attualmente bloccato, sbloccarlo e ritentare.</value>
+    <value>SecureWall è attualmente bloccato, sbloccarlo e ritentare.</value>
   </data>
   <data name="PleaseWaitWhileTinyWallChecksForUpdates" xml:space="preserve">
     <value>Verifica degli aggiornamenti in corso...</value>
@@ -168,7 +168,7 @@ Selezionare Eleva dal menu, quindi riprovare.
  </value>
   </data>
   <data name="TinyWallSettingsFileFilter" xml:space="preserve">
-    <value>Impostazioni di PromptWall</value>
+    <value>Impostazioni di SecureWall</value>
   </data>
   <data name="AllFilesFileFilter" xml:space="preserve">
     <value>Tutti i file</value>
@@ -192,7 +192,7 @@ Selezionare Eleva dal menu, quindi riprovare.
     <value>Blocca</value>
   </data>
   <data name="UpdateAvailableBubble" xml:space="preserve">
-    <value>La versione aggiornata {0} di PromptWall è disponibile, clicca questo fumetto per aggiornare.</value>
+    <value>La versione aggiornata {0} di SecureWall è disponibile, clicca questo fumetto per aggiornare.</value>
   </data>
   <data name="TheFirewallIsNowOperatingAsRecommended" xml:space="preserve">
     <value>Il firewall sta operando nella configurazione raccomandata.</value>
@@ -207,7 +207,7 @@ Selezionare Eleva dal menu, quindi riprovare.
     <value>Il firewall è stato disabilitato.</value>
   </data>
   <data name="TheTinyWallServiceIsUnavailable" xml:space="preserve">
-    <value>Servizio di PromptWall assente, verificare che sia avviato correttamente.</value>
+    <value>Servizio di SecureWall assente, verificare che sia avviato correttamente.</value>
   </data>
   <data name="TrafficIn" xml:space="preserve">
     <value>Ingresso</value>
@@ -228,7 +228,7 @@ Selezionare Eleva dal menu, quindi riprovare.
     <value>Operazione fallita.</value>
   </data>
   <data name="CommunicationWithTheServiceError" xml:space="preserve">
-    <value>Comunicazione con il processo di PromptWall fallita.</value>
+    <value>Comunicazione con il processo di SecureWall fallita.</value>
   </data>
   <data name="ClickOnAWindowWhitelisting" xml:space="preserve">
     <value>Clicca sulla zona interna di qualsiasi finestra aperta per aggiungerla alla whitelist.

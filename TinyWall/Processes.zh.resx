@@ -130,6 +130,6 @@
     <value>取消</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>进程 - PromptWall</value>
+    <value>进程 - SecureWall</value>
   </data>
 </root>

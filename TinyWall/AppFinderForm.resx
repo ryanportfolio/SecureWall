@@ -133,7 +133,7 @@
     <value>0</value>
   </data>
   <data name="label1.Text" xml:space="preserve">
-    <value>PromptWall can try to automatically detect and unblock some software on your computer. This saves you from having to unblock these applications one by one. You will have a chance to review the results before committing any changes.</value>
+    <value>SecureWall can try to automatically detect and unblock some software on your computer. This saves you from having to unblock these applications one by one. You will have a chance to review the results before committing any changes.</value>
   </data>
   <data name="&gt;&gt;label1.Name" xml:space="preserve">
     <value>label1</value>
@@ -422,7 +422,7 @@
     <value>524, 477</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Application Finder - PromptWall</value>
+    <value>Application Finder - SecureWall</value>
   </data>
   <data name="&gt;&gt;columnHeader1.Name" xml:space="preserve">
     <value>columnHeader1</value>

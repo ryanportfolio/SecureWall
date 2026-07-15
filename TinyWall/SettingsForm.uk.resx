@@ -136,7 +136,7 @@
     <value>Надіслати</value>
   </data>
   <data name="label3.Text" xml:space="preserve">
-    <value>Редагуйте список програм, яким ви хочете надати доступ до мережі. Лише програми з цього списку зможуть обмінюватися даними. Використовуйте кнопку «Виявити», щоб PromptWall автоматично знайшов деякі програми, або додайте їх вручну.</value>
+    <value>Редагуйте список програм, яким ви хочете надати доступ до мережі. Лише програми з цього списку зможуть обмінюватися даними. Використовуйте кнопку «Виявити», щоб SecureWall автоматично знайшов деякі програми, або додайте їх вручну.</value>
   </data>
   <data name="btnAppRemove.Text" xml:space="preserve">
     <value>Видалити</value>
@@ -256,6 +256,6 @@
     <value>Обслуговування</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Налаштування PromptWall Firewall</value>
+    <value>Налаштування SecureWall Firewall</value>
   </data>
 </root>

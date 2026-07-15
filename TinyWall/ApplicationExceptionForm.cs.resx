@@ -124,7 +124,7 @@
     <value>Omezit na lokální síť</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Přidat/Upravit vyjímku firewallu - PromptWall</value>
+    <value>Přidat/Upravit vyjímku firewallu - SecureWall</value>
   </data>
   <data name="radTcpUdpUnrestricted.Text" xml:space="preserve">
     <value>Neomezená UDP a TCP komunikace</value>

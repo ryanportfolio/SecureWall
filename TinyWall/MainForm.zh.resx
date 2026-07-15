@@ -172,6 +172,6 @@
     <value>全部文件|*.*</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>PromptWall控制器</value>
+    <value>SecureWall控制器</value>
   </data>
 </root>

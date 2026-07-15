@@ -121,20 +121,20 @@
     <value>לצערנו אין לך הרשאות ניהול הנחוצות לעדכון. ניתן לנסות פעולה שוב, כמנהל-מערכת.</value>
   </data>
   <data name="TinyWallUpdater" xml:space="preserve">
-    <value>עדכון PromptWall</value>
+    <value>עדכון SecureWall</value>
   </data>
   <data name="ErrorCheckingForUpdates" xml:space="preserve">
-    <value>לא ניתן לגשת לשרת-העדכונים של PromptWall.
-כדאי לוודא שליישום PromptWall יש רשות לגשת לאינטרנט, שהאינטרנט מחובר, ולנסות שוב.</value>
+    <value>לא ניתן לגשת לשרת-העדכונים של SecureWall.
+כדאי לוודא שליישום SecureWall יש רשות לגשת לאינטרנט, שהאינטרנט מחובר, ולנסות שוב.</value>
   </data>
   <data name="UpdateAvailable" xml:space="preserve">
-    <value>גרסה חדשה זמינה ({0}), האם לעדכן את PromptWall?</value>
+    <value>גרסה חדשה זמינה ({0}), האם לעדכן את SecureWall?</value>
   </data>
   <data name="DownloadingUpdate" xml:space="preserve">
     <value>מוריד עדכון חדש...</value>
   </data>
   <data name="NoUpdateAvailable" xml:space="preserve">
-    <value>PromptWall מעודכן לגרסה החדשה ביותר.</value>
+    <value>SecureWall מעודכן לגרסה החדשה ביותר.</value>
   </data>
   <data name="DownloadInterrupted" xml:space="preserve">
     <value>ההורדה הופסקה...</value>
@@ -143,10 +143,10 @@
     <value>ההורדה החלה...</value>
   </data>
   <data name="TinyWallIsCurrentlyLocked" xml:space="preserve">
-    <value>PromptWall נעול כרגע. ניתן להסיר את הנעילה ולנסות שוב.</value>
+    <value>SecureWall נעול כרגע. ניתן להסיר את הנעילה ולנסות שוב.</value>
   </data>
   <data name="PleaseWaitWhileTinyWallChecksForUpdates" xml:space="preserve">
-    <value>יש להמתין, PromptWall בודק האם קיימים עדכונים זמינים.</value>
+    <value>יש להמתין, SecureWall בודק האם קיימים עדכונים זמינים.</value>
   </data>
   <data name="CouldNotWhitelistProcess" xml:space="preserve">
     <value>לא ניתן להוסיף את היישום {0} לרשימת היישומים-המותרים</value>
@@ -165,7 +165,7 @@
     <value>יש צורך בהרשאת מנהל-מערכת כדי לבצע פעולה זו. בחירה ב Elevate מהתפריט-הקופץ בתחתית המסך יכולה לעזור, לאחר מכן יש לנסות שוב.</value>
   </data>
   <data name="TinyWallSettingsFileFilter" xml:space="preserve">
-    <value>הגדרות PromptWall</value>
+    <value>הגדרות SecureWall</value>
     <comment>File filter description</comment>
   </data>
   <data name="AllFilesFileFilter" xml:space="preserve">
@@ -194,7 +194,7 @@
     <comment>Tray menu text</comment>
   </data>
   <data name="UpdateAvailableBubble" xml:space="preserve">
-    <value>גרסה חדשה {0} של PromptWall זמינה להורדה. ניתן ללחוץ כאן לעדכון.</value>
+    <value>גרסה חדשה {0} של SecureWall זמינה להורדה. ניתן ללחוץ כאן לעדכון.</value>
     <comment>Param0 is version number of new version</comment>
   </data>
   <data name="TheFirewallIsNowOperatingAsRecommended" xml:space="preserve">
@@ -210,7 +210,7 @@
     <value>חומת-האש מבוטלת כעת.</value>
   </data>
   <data name="TheTinyWallServiceIsUnavailable" xml:space="preserve">
-    <value>יישום מסוג-שירות PromptWall לא זמין. יש לוודא כי היישום מסוג-שירות של PromptWall מותקן ורץ. ניתן להשתמש ב services.msc כדי לברר זאת, ולנסות שוב.</value>
+    <value>יישום מסוג-שירות SecureWall לא זמין. יש לוודא כי היישום מסוג-שירות של SecureWall מותקן ורץ. ניתן להשתמש ב services.msc כדי לברר זאת, ולנסות שוב.</value>
   </data>
   <data name="TrafficIn" xml:space="preserve">
     <value>תעבורת-רשת נכנסת</value>
@@ -233,7 +233,7 @@
     <value>הפעולה לא-הצליחה!</value>
   </data>
   <data name="CommunicationWithTheServiceError" xml:space="preserve">
-    <value>היישום מסוג-שירות של PromptWall מדווח על שגיאה.</value>
+    <value>היישום מסוג-שירות של SecureWall מדווח על שגיאה.</value>
   </data>
   <data name="ClickOnAWindowWhitelisting" xml:space="preserve">
     <value>באמצעות מצביע העכבר הקלק על חלקו הפנימי של חלון פתוח לבחירתך, כדי להוסיף לרשימת היישומים המותרים.</value>
@@ -251,10 +251,10 @@
     <value>כלל חומת-האש מזוהה {0} השתנה. הקלד על הודעה זו כדי לערוך מחדש את כלל החריגה.</value>
   </data>
   <data name="TinyWallHasBeenUnlocked" xml:space="preserve">
-    <value>PromptWall פתוח לשינויים, כעת באפשרותך לשנות הגדרות.</value>
+    <value>SecureWall פתוח לשינויים, כעת באפשרותך לשנות הגדרות.</value>
   </data>
   <data name="UnlockFailed" xml:space="preserve">
-    <value>הסיסמה שהוכנסה לא מאפשרת לפתוח את נעילת PromptWall, ניתן לנסות שוב עם הסיסמה הנכונה.</value>
+    <value>הסיסמה שהוכנסה לא מאפשרת לפתוח את נעילת SecureWall, ניתן לנסות שוב עם הסיסמה הנכונה.</value>
   </data>
   <data name="CouldNotElevatePrivileges" xml:space="preserve">
     <value>פעולת elevate נכשלה, לא ניתן לקבל הרשאות ניהול.</value>
@@ -335,7 +335,7 @@
 האם להפעיל מצב למידה-אוטומטית?</value>
   </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
-    <value>הפעלת עדכון/הסרה של PromptWall?</value>
+    <value>הפעלת עדכון/הסרה של SecureWall?</value>
   </data>
   <data name="PortListInvalid" xml:space="preserve">
     <value>רשימת-הפורטים לא תקינה.

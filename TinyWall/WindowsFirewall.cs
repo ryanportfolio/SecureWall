@@ -14,7 +14,7 @@ namespace pylorak.TinyWall
         private static readonly string[] WhitelistedApps = new string[]
         {
 #if DEBUG
-            Path.Combine(Path.GetDirectoryName(Utils.ExecutablePath), "PromptWall.vshost.exe"),
+            Path.Combine(Path.GetDirectoryName(Utils.ExecutablePath), "SecureWall.vshost.exe"),
 #endif
             Utils.ExecutablePath,
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "dllhost.exe")
@@ -116,7 +116,7 @@ namespace pylorak.TinyWall
             rule.Name = name;
             rule.Action = action;
             rule.Direction = dir;
-            rule.Grouping = PromptWallProduct.Name;
+            rule.Grouping = SecureWallProduct.Name;
             rule.Profiles = (int)NET_FW_PROFILE_TYPE2_.NET_FW_PROFILE2_PRIVATE | (int)NET_FW_PROFILE_TYPE2_.NET_FW_PROFILE2_PUBLIC | (int)NET_FW_PROFILE_TYPE2_.NET_FW_PROFILE2_DOMAIN;
             rule.Enabled = true;
             if ((NET_FW_RULE_DIRECTION_.NET_FW_RULE_DIR_IN == dir) && (NET_FW_ACTION_.NET_FW_ACTION_ALLOW == action))
@@ -145,7 +145,7 @@ namespace pylorak.TinyWall
                 MpsNotificationsDisable(fwPolicy2, true);
 
                 // Add new rules
-                string newRuleId = $"PromptWall Compat [{Utils.RandomString(6)}]";
+                string newRuleId = $"SecureWall Compat [{Utils.RandomString(6)}]";
                 fwPolicy2.Rules.Add(CreateFwRule(newRuleId, NET_FW_ACTION_.NET_FW_ACTION_ALLOW, NET_FW_RULE_DIRECTION_.NET_FW_RULE_DIR_IN));
                 fwPolicy2.Rules.Add(CreateFwRule(newRuleId, NET_FW_ACTION_.NET_FW_ACTION_ALLOW, NET_FW_RULE_DIRECTION_.NET_FW_RULE_DIR_OUT));
 
@@ -154,7 +154,7 @@ namespace pylorak.TinyWall
                 foreach (INetFwRule rule in rules)
                 {
                     string ruleName = rule.Name;
-                    if (!string.IsNullOrEmpty(ruleName) && ruleName.Contains(PromptWallProduct.Name) && (ruleName != newRuleId))
+                    if (!string.IsNullOrEmpty(ruleName) && ruleName.Contains(SecureWallProduct.Name) && (ruleName != newRuleId))
                         rules.Remove(rule.Name);
                 }
             }
@@ -174,7 +174,7 @@ namespace pylorak.TinyWall
                 INetFwRules rules = fwPolicy2.Rules;
                 foreach (INetFwRule rule in rules)
                 {
-                    if ((rule.Grouping != null) && rule.Grouping.Equals(PromptWallProduct.Name))
+                    if ((rule.Grouping != null) && rule.Grouping.Equals(SecureWallProduct.Name))
                         rules.Remove(rule.Name);
                 }
             }

@@ -1,7 +1,7 @@
 # Deployment
 
-PromptWall is a Windows desktop/controller plus LocalSystem service packaged as a per-machine WiX MSI. Debug output is `TinyWall/bin/Debug/PromptWall.exe`; the source directory retains its upstream name to minimize fork churn.
+SecureWall is a Windows desktop/controller plus LocalSystem service packaged as a per-machine WiX MSI. Debug output is `TinyWall/bin/Debug/SecureWall.exe`; the source directory retains its upstream name to minimize fork churn.
 
-There is no PromptWall binary update feed. Upstream TinyWall updates are disabled and must never replace this fork. The MSI has a distinct product name, installation/data paths, service, named pipe, WFP provider GUID, scheduled task, UpgradeCode, and auto-generated component GUIDs.
+There is no SecureWall binary update feed. Upstream TinyWall updates are disabled and must never replace this fork. The MSI has a distinct product name, installation/data paths, service, named pipe, WFP provider GUID, scheduled task, UpgradeCode, and auto-generated component GUIDs.
 
 No signing, publishing, deployment, or real firewall activation is authorized by ordinary build work. Local unsigned test MSIs may be built without installing them. Public shipping requires a successful release build, signed artifacts, GPL source availability, and the complete local-console matrix in `docs/TESTING.md`.

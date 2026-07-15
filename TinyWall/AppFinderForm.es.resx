@@ -118,7 +118,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="label1.Text" xml:space="preserve">
-    <value>PromptWall puede intentar detectar y desbloquear cualquier programa del ordenador automáticamente. Esto ayuda a no tener que desbloquear los programas uno a uno. Se podrán revisar los resultados antes de confirmar los cambios.</value>
+    <value>SecureWall puede intentar detectar y desbloquear cualquier programa del ordenador automáticamente. Esto ayuda a no tener que desbloquear los programas uno a uno. Se podrán revisar los resultados antes de confirmar los cambios.</value>
   </data>
   <data name="btnStartDetection.Text" xml:space="preserve">
     <value>Comenzar</value>
@@ -148,6 +148,6 @@
     <value>Para desbloquear un programa encontrado, marcar su casilla correspondiente.</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Buscador de programas - PromptWall</value>
+    <value>Buscador de programas - SecureWall</value>
   </data>
 </root>

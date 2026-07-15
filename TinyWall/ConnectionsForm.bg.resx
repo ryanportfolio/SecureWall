@@ -181,6 +181,6 @@
     <value>Покажи блокирани апликации (в последните 5 мин.)</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Конекции - PromptWall</value>
+    <value>Конекции - SecureWall</value>
   </data>
 </root>

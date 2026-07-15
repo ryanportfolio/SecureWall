@@ -166,6 +166,6 @@
     <value>Выход</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Управление PromptWall</value>
+    <value>Управление SecureWall</value>
   </data>
 </root>

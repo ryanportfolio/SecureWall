@@ -244,6 +244,6 @@
     <value>Entretien</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Paramètres pare-feu - PromptWall</value>
+    <value>Paramètres pare-feu - SecureWall</value>
   </data>
 </root>

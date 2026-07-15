@@ -118,7 +118,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="label1.Text" xml:space="preserve">
-    <value>A PromptWall megpróbálhatja automatikusan felderíteni a feloldandó programokat a számítógépen, ezzel elkerülheted, hogy egyesével kelljen feloldanod őket. A végleges mentés előtt még ellenőrizheted az eredményeket.</value>
+    <value>A SecureWall megpróbálhatja automatikusan felderíteni a feloldandó programokat a számítógépen, ezzel elkerülheted, hogy egyesével kelljen feloldanod őket. A végleges mentés előtt még ellenőrizheted az eredményeket.</value>
   </data>
   <data name="columnHeader1.Text" xml:space="preserve">
     <value>Név</value>
@@ -145,6 +145,6 @@
     <value>Egy alkalmazás feloldásához jelöld ki a hozzá tartozó választódobozt az eredménylistában.</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Alkalmazás kereső - PromptWall</value>
+    <value>Alkalmazás kereső - SecureWall</value>
   </data>
 </root>

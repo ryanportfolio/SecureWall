@@ -253,6 +253,6 @@
     <value>メンテナンス</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>PromptWall ファイアウォール設定</value>
+    <value>SecureWall ファイアウォール設定</value>
   </data>
 </root>

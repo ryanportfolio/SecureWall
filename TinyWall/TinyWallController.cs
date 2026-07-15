@@ -419,7 +419,7 @@ namespace pylorak.TinyWall
 
         private void UpdateTimerTick(object state)
         {
-            if (!PromptWallProduct.UpdateFeedEnabled)
+            if (!SecureWallProduct.UpdateFeedEnabled)
                 return;
 
             // This is an automatic update check in the background.
@@ -622,7 +622,7 @@ namespace pylorak.TinyWall
                     break;
             }
 
-            Tray.Text = string.Format(CultureInfo.CurrentCulture, "PromptWall\r\n{0}: {1}",
+            Tray.Text = string.Format(CultureInfo.CurrentCulture, "SecureWall\r\n{0}: {1}",
                 Resources.Messages.Mode, FirewallModeName);
 
             // Find out if we are locked and if we have a password
@@ -1204,7 +1204,7 @@ namespace pylorak.TinyWall
         {
             BalloonClickedCallback = balloonClicked;
             BalloonClickedCallbackArgument = handlerArg;
-            Tray.ShowBalloonTip(period_ms, PromptWallProduct.Name, msg, icon);
+            Tray.ShowBalloonTip(period_ms, SecureWallProduct.Name, msg, icon);
             Thread.Sleep(500);
         }
 

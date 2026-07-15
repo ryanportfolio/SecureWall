@@ -118,7 +118,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="label1.Text" xml:space="preserve">
-    <value>PromptWall יכול לנסות לגלות ולבטל את החסימה של תוכנות מסויימות המותקנות במחשבך. באופן זה תחסוך זמן בכך שלא תצטרך לבטל את חסימה של תוכנות בטוחות באופן ידני. אנו נבקש את אישורך לפני ביצוע שינויים כלהם.</value>
+    <value>SecureWall יכול לנסות לגלות ולבטל את החסימה של תוכנות מסויימות המותקנות במחשבך. באופן זה תחסוך זמן בכך שלא תצטרך לבטל את חסימה של תוכנות בטוחות באופן ידני. אנו נבקש את אישורך לפני ביצוע שינויים כלהם.</value>
   </data>
   <data name="btnStartDetection.Text" xml:space="preserve">
     <value>התחלה</value>
@@ -145,9 +145,9 @@
     <value>ביטול בחירת הכול</value>
   </data>
   <data name="label2.Text" xml:space="preserve">
-    <value>PromptWall יכול לנסות לגלות ולבטל את החסימה של תוכנות מסויימות המותקנות במחשבך. באופן זה תחסוך זמן בכך שלא תצטרך לבטל את חסימה של תוכנות בטוחות באופן ידני. אנו נבקש את אישורך לפני ביצוע שינויים כלהם.</value>
+    <value>SecureWall יכול לנסות לגלות ולבטל את החסימה של תוכנות מסויימות המותקנות במחשבך. באופן זה תחסוך זמן בכך שלא תצטרך לבטל את חסימה של תוכנות בטוחות באופן ידני. אנו נבקש את אישורך לפני ביצוע שינויים כלהם.</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>חיפוש יישום - PromptWall</value>
+    <value>חיפוש יישום - SecureWall</value>
   </data>
 </root>

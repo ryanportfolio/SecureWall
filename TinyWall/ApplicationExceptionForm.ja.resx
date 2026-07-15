@@ -127,7 +127,7 @@
     <value>ローカルネットワークに制限</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>除外項目の追加/変更 - PromptWall</value>
+    <value>除外項目の追加/変更 - SecureWall</value>
   </data>
   <data name="radTcpUdpUnrestricted.Text" xml:space="preserve">
     <value>UDP と TCP トラフィックの制限なし</value>

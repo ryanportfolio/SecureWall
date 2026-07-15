@@ -12,7 +12,7 @@
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <RootNamespace>pylorak.TinyWall</RootNamespace>
-    <AssemblyName>PromptWall</AssemblyName>
+    <AssemblyName>SecureWall</AssemblyName>
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
 
     <!-- Used for WinRT access in .Net 4.8, not needed with .NET 5+ -->
@@ -20,11 +20,11 @@
     
   </PropertyGroup>
   <PropertyGroup>
-    <Product>PromptWall</Product>
-    <AssemblyTitle>PromptWall</AssemblyTitle>
-    <Company>Károly Pados and PromptWall contributors</Company>
+    <Product>SecureWall</Product>
+    <AssemblyTitle>SecureWall</AssemblyTitle>
+    <Company>Károly Pados and SecureWall contributors</Company>
     <Description>A default-deny Windows firewall with explicit outbound connection prompts.</Description>
-    <Copyright>Copyright © 2011 Károly Pados; PromptWall modifications © 2026 PromptWall contributors</Copyright>
+    <Copyright>Copyright © 2011 Károly Pados; SecureWall modifications © 2026 SecureWall contributors</Copyright>
     <Version>0.1.0</Version>
   </PropertyGroup>
   <PropertyGroup>

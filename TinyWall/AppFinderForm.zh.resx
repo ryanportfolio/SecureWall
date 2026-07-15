@@ -118,7 +118,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="label1.Text" xml:space="preserve">
-    <value>PromptWall能够自动地对电脑上的软件进行扫描并对部分软件取消拦截，从而让您不需要逐一地对这些应用程序取消拦截。在执行任何更改前，您可以首先对最终结果进行审核。</value>
+    <value>SecureWall能够自动地对电脑上的软件进行扫描并对部分软件取消拦截，从而让您不需要逐一地对这些应用程序取消拦截。在执行任何更改前，您可以首先对最终结果进行审核。</value>
   </data>
   <data name="btnStartDetection.Text" xml:space="preserve">
     <value>开始</value>
@@ -148,6 +148,6 @@
     <value>要对搜索结果中的应用程序取消拦截，请选中对应的复选框。</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>应用程序搜索器 - PromptWall</value>
+    <value>应用程序搜索器 - SecureWall</value>
   </data>
 </root>

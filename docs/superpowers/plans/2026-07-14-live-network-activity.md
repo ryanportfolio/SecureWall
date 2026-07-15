@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make PromptWall's existing Connections window a live, explicit view of observed blocked, allowed, active, and listening network activity.
+**Goal:** Make SecureWall's existing Connections window a live, explicit view of observed blocked, allowed, active, and listening network activity.
 
 **Architecture:** Keep LocalSystem as telemetry authority and reuse its bounded WFP event log. Normalize firewall decision events in a pure helper, then merge those observations with Windows TCP/UDP endpoint tables in the existing unprivileged WinForms window. A UI timer refreshes once per second; it never installs filters or changes policy.
 
@@ -14,7 +14,7 @@
 
 **Files:**
 - Create: `TinyWall/Prompting/NetworkActivityStatus.cs`
-- Modify: `tests/PromptWall.Core.Tests/Program.cs`
+- Modify: `tests/SecureWall.Core.Tests/Program.cs`
 
 - [x] **Step 1: Write the failing test**
 
@@ -28,7 +28,7 @@ AssertEx.Equal("Listening (local endpoint)", NetworkActivityStatusClassifier.ToD
 
 - [x] **Step 2: Run test to verify it fails**
 
-Run: `rtk test dotnet run --project tests\PromptWall.Core.Tests\PromptWall.Core.Tests.csproj`
+Run: `rtk test dotnet run --project tests\SecureWall.Core.Tests\SecureWall.Core.Tests.csproj`
 
 Expected: compile failure because `NetworkActivityStatusClassifier` is undefined.
 
@@ -54,7 +54,7 @@ internal static class NetworkActivityStatusClassifier
 
 - [x] **Step 4: Run test to verify it passes**
 
-Run: `dotnet run --project tests\PromptWall.Core.Tests\PromptWall.Core.Tests.csproj`
+Run: `dotnet run --project tests\SecureWall.Core.Tests\SecureWall.Core.Tests.csproj`
 
 Expected: all tests pass.
 
@@ -82,7 +82,7 @@ Use `Allowed`, `Blocked`, and `Listening (local endpoint)` for decision/listener
 
 - [x] **Step 3: Clarify visible labels**
 
-Set the neutral-resource checkbox text to `Show active + allowed` and form title to `PromptWall Network Activity`. Keep localized resources unchanged so they continue to fall back safely.
+Set the neutral-resource checkbox text to `Show active + allowed` and form title to `SecureWall Network Activity`. Keep localized resources unchanged so they continue to fall back safely.
 
 ### Task 3: Make the view live
 
@@ -118,11 +118,11 @@ Run pure tests, Debug/Release native MSBuild, `/protocolselftest`, and normal-to
 
 - [x] **Step 2: Verify UI resources without enforcement**
 
-Compile the neutral resources and inspect the status contract without installing PromptWall or touching WFP. Do not claim live firewall behavior from static/resource verification.
+Compile the neutral resources and inspect the status contract without installing SecureWall or touching WFP. Do not claim live firewall behavior from static/resource verification.
 
 - [x] **Step 3: Refresh packaging**
 
-Build `PromptWall.NetworkProbe`, stage MSI sources, and regenerate the hash-manifested VM/manual-test bundle.
+Build `SecureWall.NetworkProbe`, stage MSI sources, and regenerate the hash-manifested VM/manual-test bundle.
 
 - [x] **Step 4: Document manual acceptance**
 

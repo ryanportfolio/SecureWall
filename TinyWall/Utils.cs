@@ -636,7 +636,7 @@ namespace pylorak.TinyWall
             Utils.Log(
                 string.Join(
                     Environment.NewLine, new string[] {
-                    $"PromptWall version: {Utils.TinyWallVersion}",
+                    $"SecureWall version: {Utils.TinyWallVersion}",
                     $"Windows version: {VersionInfo.WindowsVersionString}",
                     e.ToString()
                 }),
@@ -721,7 +721,7 @@ namespace pylorak.TinyWall
 #if DEBUG
                 return Path.GetDirectoryName(Utils.ExecutablePath);
 #else
-                string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), PromptWallProduct.AppDataFolderName);
+                string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), SecureWallProduct.AppDataFolderName);
                 if (!Directory.Exists(dir))
                     Directory.CreateDirectory(dir);
                 return dir;

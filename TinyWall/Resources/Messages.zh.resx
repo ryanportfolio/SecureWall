@@ -121,19 +121,19 @@
     <value>无法提升更新所需的权限。</value>
   </data>
   <data name="TinyWallUpdater" xml:space="preserve">
-    <value>PromptWall更新程序</value>
+    <value>SecureWall更新程序</value>
   </data>
   <data name="ErrorCheckingForUpdates" xml:space="preserve">
-    <value>无法连接更新服务器。服务器可能停止服务器，请确保PromptWall已获得网络使用权，然后重试。</value>
+    <value>无法连接更新服务器。服务器可能停止服务器，请确保SecureWall已获得网络使用权，然后重试。</value>
   </data>
   <data name="UpdateAvailable" xml:space="preserve">
-    <value>有可用的PromptWall更新版本{0}。您希望立即更新吗？</value>
+    <value>有可用的SecureWall更新版本{0}。您希望立即更新吗？</value>
   </data>
   <data name="DownloadingUpdate" xml:space="preserve">
     <value>正在下载更新...</value>
   </data>
   <data name="NoUpdateAvailable" xml:space="preserve">
-    <value>您获得了最新版本的PromptWall。无需进行更新。</value>
+    <value>您获得了最新版本的SecureWall。无需进行更新。</value>
   </data>
   <data name="DownloadInterrupted" xml:space="preserve">
     <value>下载已中断。</value>
@@ -142,10 +142,10 @@
     <value>开始更新...</value>
   </data>
   <data name="TinyWallIsCurrentlyLocked" xml:space="preserve">
-    <value>PromptWall已被锁定。请解锁并重试。</value>
+    <value>SecureWall已被锁定。请解锁并重试。</value>
   </data>
   <data name="PleaseWaitWhileTinyWallChecksForUpdates" xml:space="preserve">
-    <value>PromptWall正在检测可用更新，请稍等。</value>
+    <value>SecureWall正在检测可用更新，请稍等。</value>
   </data>
   <data name="CouldNotWhitelistProcess" xml:space="preserve">
     <value>无法把进程{0}添加至白名单。</value>
@@ -163,7 +163,7 @@
     <value>您不具备进行此操作所需的管理员权限。请从托盘菜单中选择提升并重试。</value>
   </data>
   <data name="TinyWallSettingsFileFilter" xml:space="preserve">
-    <value>PromptWall设置</value>
+    <value>SecureWall设置</value>
   </data>
   <data name="AllFilesFileFilter" xml:space="preserve">
     <value>全部文件</value>
@@ -187,7 +187,7 @@
     <value>锁定</value>
   </data>
   <data name="UpdateAvailableBubble" xml:space="preserve">
-    <value>有可用的PromptWall更新版本{0}。点击泡泡开始更新进程。</value>
+    <value>有可用的SecureWall更新版本{0}。点击泡泡开始更新进程。</value>
   </data>
   <data name="TheFirewallIsNowOperatingAsRecommended" xml:space="preserve">
     <value>防火墙正以推荐的模式运行。</value>
@@ -202,7 +202,7 @@
     <value>防火墙已被禁用。</value>
   </data>
   <data name="TheTinyWallServiceIsUnavailable" xml:space="preserve">
-    <value>PromptWall服务不可用。请确保已安装并启用后再试。</value>
+    <value>SecureWall服务不可用。请确保已安装并启用后再试。</value>
   </data>
   <data name="TrafficIn" xml:space="preserve">
     <value>接收</value>
@@ -223,7 +223,7 @@
     <value>操作失败。</value>
   </data>
   <data name="CommunicationWithTheServiceError" xml:space="preserve">
-    <value>PromptWall服务在通信时遇到错误。</value>
+    <value>SecureWall服务在通信时遇到错误。</value>
   </data>
   <data name="ClickOnAWindowWhitelisting" xml:space="preserve">
     <value>点击任何打开窗口的内部添加该应用程序至白名单。</value>
@@ -241,7 +241,7 @@
     <value>受认可的{0}防火墙规则已被更改。点击弹出窗口编辑例外。</value>
   </data>
   <data name="TinyWallHasBeenUnlocked" xml:space="preserve">
-    <value>PromptWall已被取消拦截。您现在可以使用命令对配置进行更改。</value>
+    <value>SecureWall已被取消拦截。您现在可以使用命令对配置进行更改。</value>
   </data>
   <data name="UnlockFailed" xml:space="preserve">
     <value>取消拦截失败。请使用另一个密码重试。</value>
@@ -311,14 +311,14 @@
   </data>
   <data name="YouAreAboutToEnterLearningMode" xml:space="preserve">
     <value>您确定要开始自动学习吗？
-在自动学习模式中，PromptWall将允许所有流量的通过并记住哪些应用程序使用了网络。当您退出学习模式时，PromptWall将自动为您添加例外。但是，请注意，针对配置的“特殊例外”的规则是无法被学习的。
+在自动学习模式中，SecureWall将允许所有流量的通过并记住哪些应用程序使用了网络。当您退出学习模式时，SecureWall将自动为您添加例外。但是，请注意，针对配置的“特殊例外”的规则是无法被学习的。
 
 在进入学习模式前，请确保您的系统不存在任何恶意软件。最好的做法是在全新安装的系统上运行学习模式，我们建议您在使用该模式前先对系统进行病毒扫描。
 
 您希望立即进入学习模式吗？</value>
   </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
-    <value>您希望卸载PromptWall吗？</value>
+    <value>您希望卸载SecureWall吗？</value>
   </data>
   <data name="PortListInvalid" xml:space="preserve">
     <value>端口列表格式无效。

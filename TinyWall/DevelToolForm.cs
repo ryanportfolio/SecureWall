@@ -145,15 +145,15 @@ namespace pylorak.TinyWall
             const string HOSTS_OUT_NAME = "hosts.def";
             const string DESCRIPTOR_NAME = "update.json";
             const string DESCRIPTOR_TEMPLATE_NAME = "update_template.json";
-            const string MSI_FILENAME_X86 = "PromptWall_x86.msi";
-            const string MSI_FILENAME_ARM64 = "PromptWall_arm64.msi";
+            const string MSI_FILENAME_X86 = "SecureWall_x86.msi";
+            const string MSI_FILENAME_ARM64 = "SecureWall_arm64.msi";
 
             string projectDir = txtUpdateInstallerProjectDir.Text;
             string msiX86Path = Path.Combine(projectDir, @"bin\Release\" + MSI_FILENAME_X86);
             string msiArm64Path = Path.Combine(projectDir, @"bin\Release\" + MSI_FILENAME_ARM64);
-            string hostsPath = Path.Combine(projectDir, @"Sources\CommonAppData\PromptWall\hosts.bck");
-            string profilesPath = Path.Combine(projectDir, @"Sources\CommonAppData\PromptWall\profiles.json");
-            string twAssemblyPath = Path.Combine(projectDir, @"Sources\ProgramFiles\PromptWall\PromptWall.exe");
+            string hostsPath = Path.Combine(projectDir, @"Sources\CommonAppData\SecureWall\hosts.bck");
+            string profilesPath = Path.Combine(projectDir, @"Sources\CommonAppData\SecureWall\profiles.json");
+            string twAssemblyPath = Path.Combine(projectDir, @"Sources\ProgramFiles\SecureWall\SecureWall.exe");
 
             UpdateModule prepare_module(string component_id, string src_filepath, string dst_filename, string version, bool compress)
             {
@@ -188,8 +188,8 @@ namespace pylorak.TinyWall
                 {
                     Modules = new UpdateModule[4]
                     {
-                        prepare_module("PromptWall_x86", msiX86Path, MSI_FILENAME_X86, version_info, false),
-                        prepare_module("PromptWall_arm64", msiArm64Path, MSI_FILENAME_ARM64, version_info, false),
+                        prepare_module("SecureWall_x86", msiX86Path, MSI_FILENAME_X86, version_info, false),
+                        prepare_module("SecureWall_arm64", msiArm64Path, MSI_FILENAME_ARM64, version_info, false),
                         prepare_module("Database", profilesPath, DB_OUT_NAME, timestamp, true),
                         prepare_module("HostsFile", hostsPath, HOSTS_OUT_NAME, timestamp, true)
                     }
@@ -411,7 +411,7 @@ namespace pylorak.TinyWall
             }
 
             // Assemble signtool command
-            string signParams = string.Format("sign /d PromptWall /n \"{0}\" /tr \"{1}\" /td sha256 /fd sha256 /v {2}",
+            string signParams = string.Format("sign /d SecureWall /n \"{0}\" /tr \"{1}\" /td sha256 /fd sha256 /v {2}",
                     txtCert.Text,
                     txtTimestampingServ.Text,
                     string.Join(" ", filesToSign));
