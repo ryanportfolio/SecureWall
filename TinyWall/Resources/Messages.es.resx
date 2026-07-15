@@ -121,20 +121,20 @@
     <value>No se pudieron obtener los privilegios necesarios para realizar la actualización.</value>
   </data>
   <data name="TinyWallUpdater" xml:space="preserve">
-    <value>Actualizador de PromptWall</value>
+    <value>Actualizador de SecureWall</value>
   </data>
   <data name="ErrorCheckingForUpdates" xml:space="preserve">
     <value>Imposible acceder al servidor de actualizaciones. 
-El servidor puede estar caído, verificar que PromptWall no tenga bloqueado el acceso a Internet y volver a intentarlo.</value>
+El servidor puede estar caído, verificar que SecureWall no tenga bloqueado el acceso a Internet y volver a intentarlo.</value>
   </data>
   <data name="UpdateAvailable" xml:space="preserve">
-    <value>La nueva versión {0} de PromptWall está disponible. ¿Actualizar ahora?</value>
+    <value>La nueva versión {0} de SecureWall está disponible. ¿Actualizar ahora?</value>
   </data>
   <data name="DownloadingUpdate" xml:space="preserve">
     <value>Descargando actualización...</value>
   </data>
   <data name="NoUpdateAvailable" xml:space="preserve">
-    <value>Esta es la última versión de PromptWall. No hay más actualizaciones.</value>
+    <value>Esta es la última versión de SecureWall. No hay más actualizaciones.</value>
   </data>
   <data name="DownloadInterrupted" xml:space="preserve">
     <value>Descarga interrumpida.</value>
@@ -143,10 +143,10 @@ El servidor puede estar caído, verificar que PromptWall no tenga bloqueado el a
     <value>Comenzando actualización...</value>
   </data>
   <data name="TinyWallIsCurrentlyLocked" xml:space="preserve">
-    <value>PromptWall está bloqueado. Desbloquear y reintentar.</value>
+    <value>SecureWall está bloqueado. Desbloquear y reintentar.</value>
   </data>
   <data name="PleaseWaitWhileTinyWallChecksForUpdates" xml:space="preserve">
-    <value>Esperar mientras PromptWall busca las actualizaciones disponibles.</value>
+    <value>Esperar mientras SecureWall busca las actualizaciones disponibles.</value>
   </data>
   <data name="CouldNotWhitelistProcess" xml:space="preserve">
     <value>No se pudo añadir a la lista blanca el proceso {0}.</value>
@@ -164,7 +164,7 @@ El servidor puede estar caído, verificar que PromptWall no tenga bloqueado el a
     <value>No hay suficientes privilegios para realizar la operación. Seleccionar Elevar privilegios del menú y reintentar.</value>
   </data>
   <data name="TinyWallSettingsFileFilter" xml:space="preserve">
-    <value>Opciones de PromptWall</value>
+    <value>Opciones de SecureWall</value>
   </data>
   <data name="AllFilesFileFilter" xml:space="preserve">
     <value>Todos los archivos</value>
@@ -188,7 +188,7 @@ El servidor puede estar caído, verificar que PromptWall no tenga bloqueado el a
     <value>Bloquear</value>
   </data>
   <data name="UpdateAvailableBubble" xml:space="preserve">
-    <value>La nueva versión {0} de PromptWall está disponible. Pinchar en el cuadro para comenzar la descarga.</value>
+    <value>La nueva versión {0} de SecureWall está disponible. Pinchar en el cuadro para comenzar la descarga.</value>
   </data>
   <data name="TheFirewallIsNowOperatingAsRecommended" xml:space="preserve">
     <value>El cortafuegos está trabajando en el modo recomendado.</value>
@@ -203,7 +203,7 @@ El servidor puede estar caído, verificar que PromptWall no tenga bloqueado el a
     <value>El cortafuegos está desactivado.</value>
   </data>
   <data name="TheTinyWallServiceIsUnavailable" xml:space="preserve">
-    <value>El servicio de PromptWall no está disponible. Verificar que está instalado y en ejecución y reintentar.</value>
+    <value>El servicio de SecureWall no está disponible. Verificar que está instalado y en ejecución y reintentar.</value>
   </data>
   <data name="TrafficIn" xml:space="preserve">
     <value>Entrada</value>
@@ -224,7 +224,7 @@ El servidor puede estar caído, verificar que PromptWall no tenga bloqueado el a
     <value>Operación fallida.</value>
   </data>
   <data name="CommunicationWithTheServiceError" xml:space="preserve">
-    <value>La comunicación con el servicio de PromptWall falló.</value>
+    <value>La comunicación con el servicio de SecureWall falló.</value>
   </data>
   <data name="ClickOnAWindowWhitelisting" xml:space="preserve">
     <value>Pinchar dentro de una ventana abierta para añadirla a la lista blanca.</value>
@@ -242,7 +242,7 @@ El servidor puede estar caído, verificar que PromptWall no tenga bloqueado el a
     <value>Las reglas del cortafuegos no reconocidas para {0} han cambiado. Pinchar en esta notificación para modificar la excepción.</value>
   </data>
   <data name="TinyWallHasBeenUnlocked" xml:space="preserve">
-    <value>PromptWall está desbloqueado. Se pueden ejecutar comandos que modifiquen la configuración.</value>
+    <value>SecureWall está desbloqueado. Se pueden ejecutar comandos que modifiquen la configuración.</value>
   </data>
   <data name="UnlockFailed" xml:space="preserve">
     <value>Fallo de desbloqueo. Reintentar con otra contraseña.</value>
@@ -309,14 +309,14 @@ El servidor puede estar caído, verificar que PromptWall no tenga bloqueado el a
   </data>
   <data name="YouAreAboutToEnterLearningMode" xml:space="preserve">
     <value>¿Comenzar el auto aprendizaje?
-En este modo PromptWall admite todo el tráfico y recuerda qué aplicaciones han utilizado la red. Cuando se cierra el modo de aprendizaje, PromptWall añadirá excepciones al cortafuegos automáticamente. Pero para "Excepciones especiales" las reglas aprendidas no se tendrán en cuenta.
+En este modo SecureWall admite todo el tráfico y recuerda qué aplicaciones han utilizado la red. Cuando se cierra el modo de aprendizaje, SecureWall añadirá excepciones al cortafuegos automáticamente. Pero para "Excepciones especiales" las reglas aprendidas no se tendrán en cuenta.
 
 Antes de ejecutar el modo auto aprendizaje, asegurarse de que el sistema está libre de cualquier malware. Es mejor activar este modo en sistemas recientemente instalados y es recomendable examinar su equipo en busca de virus antes de usar este modo.
 
 ¿Activar el modo auto aprendizaje ahora?</value>
   </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
-    <value>¿Se inició la desinstalación/actualización de PromptWall?</value>
+    <value>¿Se inició la desinstalación/actualización de SecureWall?</value>
   </data>
   <data name="PortListInvalid" xml:space="preserve">
     <value>El formato de la lista de puertos es inválido.

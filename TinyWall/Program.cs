@@ -31,7 +31,7 @@ namespace pylorak.TinyWall
             }
 #endif
 
-            using var SingleInstanceMutex = new Mutex(true, PromptWallProduct.ServiceMutexName, out bool mutexok);
+            using var SingleInstanceMutex = new Mutex(true, SecureWallProduct.ServiceMutexName, out bool mutexok);
             if (!mutexok)
             {
                 return -1;
@@ -152,7 +152,7 @@ namespace pylorak.TinyWall
 
         private static int RunPipeIntegrationSelfTestCore()
         {
-            string pipeName = $"PromptWallPipeSelfTest-{Guid.NewGuid():N}";
+            string pipeName = $"SecureWallPipeSelfTest-{Guid.NewGuid():N}";
             Guid token = Guid.NewGuid();
             var prompt = new PromptWireDto
             {
@@ -217,7 +217,7 @@ namespace pylorak.TinyWall
             }
             catch (Exception exception)
             {
-                Utils.Log("Cannot verify that TinyWall is absent; refusing to install PromptWall.", Utils.LOG_ID_INSTALLER);
+                Utils.Log("Cannot verify that TinyWall is absent; refusing to install SecureWall.", Utils.LOG_ID_INSTALLER);
                 Utils.LogException(exception, Utils.LOG_ID_INSTALLER);
                 return -1;
             }
@@ -230,7 +230,7 @@ namespace pylorak.TinyWall
 
                 if (InstallationConflictGuard.HasTinyWallService(serviceNames))
                 {
-                    Utils.Log("TinyWall is installed. Uninstall TinyWall and reboot before installing PromptWall.", Utils.LOG_ID_INSTALLER);
+                    Utils.Log("TinyWall is installed. Uninstall TinyWall and reboot before installing SecureWall.", Utils.LOG_ID_INSTALLER);
                     return -1;
                 }
             }

@@ -127,7 +127,7 @@
     <value>Restringir a red local</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Añadir/modificar excepción del cortafuegos - PromptWall</value>
+    <value>Añadir/modificar excepción del cortafuegos - SecureWall</value>
   </data>
   <data name="radTcpUdpUnrestricted.Text" xml:space="preserve">
     <value>Sin restricciones de tráfico UDP y TCP</value>

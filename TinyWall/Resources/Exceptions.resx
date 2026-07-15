@@ -127,7 +127,7 @@
     <value>Pingable local machine</value>
   </data>
   <data name="TinyWall" xml:space="preserve">
-    <value>PromptWall</value>
+    <value>SecureWall</value>
   </data>
   <data name="VPN_L2TP_IPSec" xml:space="preserve">
     <value>VPN L2TP/IPSec</value>

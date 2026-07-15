@@ -121,19 +121,19 @@
     <value>Няма права за извършване на ъпдейт.</value>
   </data>
   <data name="TinyWallUpdater" xml:space="preserve">
-    <value>Обнови PromptWall</value>
+    <value>Обнови SecureWall</value>
   </data>
   <data name="ErrorCheckingForUpdates" xml:space="preserve">
-    <value>Няма връзка със сървъра, спрян е, или се уверете, че PromptWall има нужните привилегии и опитайте отново.</value>
+    <value>Няма връзка със сървъра, спрян е, или се уверете, че SecureWall има нужните привилегии и опитайте отново.</value>
   </data>
   <data name="UpdateAvailable" xml:space="preserve">
-    <value>Има нова версия на {0}PromptWall. Желаете ли ъпдейт?</value>
+    <value>Има нова версия на {0}SecureWall. Желаете ли ъпдейт?</value>
   </data>
   <data name="DownloadingUpdate" xml:space="preserve">
     <value>Сваляне...</value>
   </data>
   <data name="NoUpdateAvailable" xml:space="preserve">
-    <value>Имате последната версия на PromptWall. Ъпдейт не е нужен.</value>
+    <value>Имате последната версия на SecureWall. Ъпдейт не е нужен.</value>
   </data>
   <data name="DownloadInterrupted" xml:space="preserve">
     <value>Свалянето е прекъснато.</value>
@@ -142,7 +142,7 @@
     <value>Стартиране на ъпдейт...</value>
   </data>
   <data name="TinyWallIsCurrentlyLocked" xml:space="preserve">
-    <value>PromptWall е блокиран. Отблокирайте и пробвайте пак.</value>
+    <value>SecureWall е блокиран. Отблокирайте и пробвайте пак.</value>
   </data>
   <data name="PleaseWaitWhileTinyWallChecksForUpdates" xml:space="preserve">
     <value>Проверка за нова версия, моля изчакайте.</value>
@@ -163,7 +163,7 @@
     <value>Нямате администраторски права за операцяита. Изберете "Elevate" от трей менюто и пробвайте отново.</value>
   </data>
   <data name="TinyWallSettingsFileFilter" xml:space="preserve">
-    <value>Настройки PromptWall </value>
+    <value>Настройки SecureWall </value>
   </data>
   <data name="AllFilesFileFilter" xml:space="preserve">
     <value>Всички файлове</value>
@@ -187,7 +187,7 @@
     <value>Блокирай</value>
   </data>
   <data name="UpdateAvailableBubble" xml:space="preserve">
-    <value>Нова версия на {0} PromptWall е налична. Натиснете за старт на ъпдейта.</value>
+    <value>Нова версия на {0} SecureWall е налична. Натиснете за старт на ъпдейта.</value>
   </data>
   <data name="TheFirewallIsNowOperatingAsRecommended" xml:space="preserve">
     <value>Апликацията сега е в препоръчан режим</value>
@@ -202,7 +202,7 @@
     <value>Апликацията е спряна.</value>
   </data>
   <data name="TheTinyWallServiceIsUnavailable" xml:space="preserve">
-    <value>PromptWall услугата е недостъпна. Моля уверете се, че е инсталиран и пробвайте отново. </value>
+    <value>SecureWall услугата е недостъпна. Моля уверете се, че е инсталиран и пробвайте отново. </value>
   </data>
   <data name="TrafficIn" xml:space="preserve">
     <value>Входящ</value>
@@ -223,7 +223,7 @@
     <value>Операцията е неуспешна.</value>
   </data>
   <data name="CommunicationWithTheServiceError" xml:space="preserve">
-    <value>Проблем при комуникацията с услугата на PromptWall.</value>
+    <value>Проблем при комуникацията с услугата на SecureWall.</value>
   </data>
   <data name="ClickOnAWindowWhitelisting" xml:space="preserve">
     <value>Натиснете в/у избрания прозорец за да бъде добавен в белия списък.</value>
@@ -241,7 +241,7 @@
     <value>Правилата за {0} се промениха. Натиснете тук за да редактирате изключенията.</value>
   </data>
   <data name="TinyWallHasBeenUnlocked" xml:space="preserve">
-    <value>PromptWall е отключен, сега може да издадете команди за смяна на настройките.</value>
+    <value>SecureWall е отключен, сега може да издадете команди за смяна на настройките.</value>
   </data>
   <data name="UnlockFailed" xml:space="preserve">
     <value>Отблокиране неуспешно. Пробвайте с друга парола.</value>
@@ -307,14 +307,14 @@
     <value>Апликацията сега се обучава докато позволява трафик.</value>
   </data>
   <data name="YouAreAboutToEnterLearningMode" xml:space="preserve">
-    <value>Сигурни ли сте, че искате режим на авто-обучение? По този начин PromptWall ще позволи целия трафик и запомни кои приложения са използвали мрежата. След излизане от режима, PromptWall ще добавя изкючения автоматично. Забележка: Правила не могат да бъдат добавяни за "Специални Икзлючения".
+    <value>Сигурни ли сте, че искате режим на авто-обучение? По този начин SecureWall ще позволи целия трафик и запомни кои приложения са използвали мрежата. След излизане от режима, SecureWall ще добавя изкючения автоматично. Забележка: Правила не могат да бъдат добавяни за "Специални Икзлючения".
 
 Преди стартиране на авто-обучаващ режим, убедете се, че нямате вируси. Този режим е най-подходящ за прясно инсталирана ОС. 
 
 Желаете ли да влезете в режим авто-обучение?</value>
   </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
-    <value>Започнахте ли деинсталация/ъпдейт на PromptWall?</value>
+    <value>Започнахте ли деинсталация/ъпдейт на SecureWall?</value>
   </data>
   <data name="PortListInvalid" xml:space="preserve">
     <value>Грешен формат на порта. Използвайте една или повече цифри от 1-65535, разделени със запетаи. Звезда (*) се използва за всички портове.</value>

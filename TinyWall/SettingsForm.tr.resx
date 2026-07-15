@@ -136,7 +136,7 @@
     <value>Uygula</value>
   </data>
   <data name="label3.Text" xml:space="preserve">
-    <value>Ağ erişimine onay vereceğiniz uygulamaların listesini düzenleyin. Sadece bu listedeki uygulamalar bağlantı kurabilecektir. PromptWall'ın bazı yazılımları tespit etmesi için Tespit et düğmesini kullanın yada yazılımları kendiniz elle girin.</value>
+    <value>Ağ erişimine onay vereceğiniz uygulamaların listesini düzenleyin. Sadece bu listedeki uygulamalar bağlantı kurabilecektir. SecureWall'ın bazı yazılımları tespit etmesi için Tespit et düğmesini kullanın yada yazılımları kendiniz elle girin.</value>
   </data>
   <data name="btnAppRemove.Text" xml:space="preserve">
     <value>Kaldır</value>
@@ -244,6 +244,6 @@
     <value>Bakım</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>PromptWall Firewall ayarları</value>
+    <value>SecureWall Firewall ayarları</value>
   </data>
 </root>

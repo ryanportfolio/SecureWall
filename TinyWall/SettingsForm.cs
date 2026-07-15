@@ -121,10 +121,10 @@ namespace pylorak.TinyWall
             try
             {
                 // General page
-                chkAutoUpdateCheck.Enabled = PromptWallProduct.UpdateFeedEnabled;
-                chkAutoUpdateCheck.Checked = PromptWallProduct.UpdateFeedEnabled && TmpConfig.Service.AutoUpdateCheck;
-                btnUpdate.Enabled = PromptWallProduct.UpdateFeedEnabled;
-                btnUpdate.Visible = PromptWallProduct.UpdateFeedEnabled;
+                chkAutoUpdateCheck.Enabled = SecureWallProduct.UpdateFeedEnabled;
+                chkAutoUpdateCheck.Checked = SecureWallProduct.UpdateFeedEnabled && TmpConfig.Service.AutoUpdateCheck;
+                btnUpdate.Enabled = SecureWallProduct.UpdateFeedEnabled;
+                btnUpdate.Visible = SecureWallProduct.UpdateFeedEnabled;
                 btnWeb.Visible = false;
                 btnDonate.Visible = false;
                 label10.Visible = false;
@@ -473,7 +473,7 @@ namespace pylorak.TinyWall
 
         private void btnUpdate_Click(object sender, EventArgs e)
         {
-            if (PromptWallProduct.UpdateFeedEnabled)
+            if (SecureWallProduct.UpdateFeedEnabled)
                 Updater.StartUpdate();
         }
 
@@ -504,7 +504,7 @@ namespace pylorak.TinyWall
 
         private void btnDonate_Click(object sender, EventArgs e)
         {
-            // PromptWall has no donation endpoint. This inherited control stays hidden.
+            // SecureWall has no donation endpoint. This inherited control stays hidden.
         }
 
         private void btnDonate_MouseEnter(object sender, EventArgs e)

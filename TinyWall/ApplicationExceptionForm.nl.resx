@@ -127,7 +127,7 @@
     <value>Beperk tot LAN</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>toevoegen/wijzig Firewall Uitzondering - PromptWall</value>
+    <value>toevoegen/wijzig Firewall Uitzondering - SecureWall</value>
   </data>
   <data name="radTcpUdpUnrestricted.Text" xml:space="preserve">
     <value>Onbeperkt UDP en TCP verkeer</value>

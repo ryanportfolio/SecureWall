@@ -184,6 +184,6 @@
     <value>차단된 앱 표시 (지난 2분 동안)</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>인터넷 연결된 앱 - PromptWall</value>
+    <value>인터넷 연결된 앱 - SecureWall</value>
   </data>
 </root>

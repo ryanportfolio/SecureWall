@@ -127,7 +127,7 @@
     <value>Reguła aktywna w sieci lokalnej</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Dodaj/modyfikuj regułę zapory - PromptWall</value>
+    <value>Dodaj/modyfikuj regułę zapory - SecureWall</value>
   </data>
   <data name="radTcpUdpUnrestricted.Text" xml:space="preserve">
     <value>Reguła: nieograniczony ruch UDP i TCP</value>

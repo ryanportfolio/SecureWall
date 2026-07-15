@@ -2,7 +2,7 @@ using pylorak.TinyWall.Prompting;
 using pylorak.TinyWall;
 using System.Text.Json;
 
-namespace PromptWall.Core.Tests;
+namespace SecureWall.Core.Tests;
 
 internal static class Program
 {
@@ -628,24 +628,24 @@ internal static class Program
     private static void PipeAuthorizationRequiresExactExecutablePath()
     {
         AssertEx.True(PipeClientAuthorization.IsExpectedExecutable(
-            @"C:\Program Files\PromptWall\PromptWall.exe",
-            @"c:\program files\promptwall\PROMPTWALL.EXE"));
+            @"C:\Program Files\SecureWall\SecureWall.exe",
+            @"c:\program files\securewall\SECUREWALL.EXE"));
         AssertEx.False(PipeClientAuthorization.IsExpectedExecutable(
-            @"C:\Users\Guest\PromptWall.exe",
-            @"C:\Program Files\PromptWall\PromptWall.exe"));
+            @"C:\Users\Guest\SecureWall.exe",
+            @"C:\Program Files\SecureWall\SecureWall.exe"));
         AssertEx.False(PipeClientAuthorization.IsExpectedExecutable(
             string.Empty,
-            @"C:\Program Files\PromptWall\PromptWall.exe"));
+            @"C:\Program Files\SecureWall\SecureWall.exe"));
     }
 
     private static void InstallationConflictGuardDetectsTinyWall()
     {
         AssertEx.True(InstallationConflictGuard.HasTinyWallService(
-            new[] { "EventLog", "TinyWall", "PromptWall" }));
+            new[] { "EventLog", "TinyWall", "SecureWall" }));
         AssertEx.True(InstallationConflictGuard.HasTinyWallService(
             new[] { "tinywall" }));
         AssertEx.False(InstallationConflictGuard.HasTinyWallService(
-            new[] { "EventLog", "PromptWall" }));
+            new[] { "EventLog", "SecureWall" }));
     }
 
     private static void CandidateBufferEnrichesBeforeDeadline()

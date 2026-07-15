@@ -118,7 +118,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="label1.Text" xml:space="preserve">
-    <value>PromptWall może spróbować automatycznie wykryć i odblokować oprogramowanie na Twoim komputerze. To pozwala uniknąć konieczności odblokowania każdej aplikacji z osobna. Będziesz mieć możliwość oceny wyników przed wprowadzeniem jakichkolwiek zmian.</value>
+    <value>SecureWall może spróbować automatycznie wykryć i odblokować oprogramowanie na Twoim komputerze. To pozwala uniknąć konieczności odblokowania każdej aplikacji z osobna. Będziesz mieć możliwość oceny wyników przed wprowadzeniem jakichkolwiek zmian.</value>
   </data>
   <data name="btnStartDetection.Text" xml:space="preserve">
     <value>Rozpocznij</value>
@@ -148,6 +148,6 @@
     <value>Aby odblokować znalezioną aplikację, zaznacz ją i wybierz „zastosuj”.</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Wyszukaj aplikacje - PromptWall</value>
+    <value>Wyszukaj aplikacje - SecureWall</value>
   </data>
 </root>

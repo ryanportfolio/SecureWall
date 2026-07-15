@@ -1,5 +1,5 @@
 ---
-description: Security, correctness, and performance checklist for PromptWall's C#/.NET Framework WinForms service, WFP filters, named-pipe protocol, and event correlation. Use before non-trivial changes and reviews.
+description: Security, correctness, and performance checklist for SecureWall's C#/.NET Framework WinForms service, WFP filters, named-pipe protocol, and event correlation. Use before non-trivial changes and reviews.
 ---
 
 # Applying best practices

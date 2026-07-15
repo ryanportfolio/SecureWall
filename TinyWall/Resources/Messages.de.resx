@@ -121,16 +121,16 @@
     <value>Konnte die Rechte für die Aktuaklisierung nicht anheben.</value>
   </data>
   <data name="ErrorCheckingForUpdates" xml:space="preserve">
-    <value>Der Update Server konnte nicht erreicht werden. Der Server könnte down sein oder stellen Sie sicher, dass PromptWall Zugriff aufs Internet hat und versuchen Sie es erneut.</value>
+    <value>Der Update Server konnte nicht erreicht werden. Der Server könnte down sein oder stellen Sie sicher, dass SecureWall Zugriff aufs Internet hat und versuchen Sie es erneut.</value>
   </data>
   <data name="UpdateAvailable" xml:space="preserve">
-    <value>Eine neue Version {0} von PromptWall ist verfügbar. Wollen Sie die Aktualisierung jetzt starten?</value>
+    <value>Eine neue Version {0} von SecureWall ist verfügbar. Wollen Sie die Aktualisierung jetzt starten?</value>
   </data>
   <data name="DownloadingUpdate" xml:space="preserve">
     <value>Lade Aktualisierung herunter...</value>
   </data>
   <data name="NoUpdateAvailable" xml:space="preserve">
-    <value>Sie benutzen die aktuellste Version von PromptWall. Keine Aktualisierung nötig.</value>
+    <value>Sie benutzen die aktuellste Version von SecureWall. Keine Aktualisierung nötig.</value>
   </data>
   <data name="DownloadInterrupted" xml:space="preserve">
     <value>Download unterbrochen.</value>
@@ -139,10 +139,10 @@
     <value>Beginne mit der Aktualisierung...</value>
   </data>
   <data name="TinyWallIsCurrentlyLocked" xml:space="preserve">
-    <value>PromptWall ist gesperrt. Entsperren Sie und versuchen Sie es erneut.</value>
+    <value>SecureWall ist gesperrt. Entsperren Sie und versuchen Sie es erneut.</value>
   </data>
   <data name="PleaseWaitWhileTinyWallChecksForUpdates" xml:space="preserve">
-    <value>Bitte warten Sie während PromptWall nach Updates sucht.</value>
+    <value>Bitte warten Sie während SecureWall nach Updates sucht.</value>
   </data>
   <data name="CouldNotWhitelistProcess" xml:space="preserve">
     <value>Konnte Prozess {0} nicht zur Whitelist hinzufügen.</value>
@@ -160,7 +160,7 @@
     <value>Sie haben nicht die benötigten Rechte um diese Aktion durchzuführen. Wählen Sie "als Administrator ausführen" vom Tray Menü und versuchen Sie es erneut.</value>
   </data>
   <data name="TinyWallSettingsFileFilter" xml:space="preserve">
-    <value>PromptWall Einstellungen</value>
+    <value>SecureWall Einstellungen</value>
   </data>
   <data name="AllFilesFileFilter" xml:space="preserve">
     <value>Alle Dateien</value>
@@ -184,7 +184,7 @@
     <value>Sperren</value>
   </data>
   <data name="UpdateAvailableBubble" xml:space="preserve">
-    <value>Eine neue Version {0} von PromptWall ist verfügbar. Klicken Sie hier um die Aktualisierung zu starten.</value>
+    <value>Eine neue Version {0} von SecureWall ist verfügbar. Klicken Sie hier um die Aktualisierung zu starten.</value>
   </data>
   <data name="TheFirewallIsNowOperatingAsRecommended" xml:space="preserve">
     <value>Die Firewall befindet sich im empfohlenen Modus.</value>
@@ -199,7 +199,7 @@
     <value>Die Firewall ist nun deaktiviert.</value>
   </data>
   <data name="TheTinyWallServiceIsUnavailable" xml:space="preserve">
-    <value>Der PromptWall Dienst ist nicht erreichbar. Bitte vergewissern Sie sich, dass er installiert und gestartet ist und versuchen Sie es erneut.</value>
+    <value>Der SecureWall Dienst ist nicht erreichbar. Bitte vergewissern Sie sich, dass er installiert und gestartet ist und versuchen Sie es erneut.</value>
   </data>
   <data name="TrafficIn" xml:space="preserve">
     <value>Eingehend</value>
@@ -220,7 +220,7 @@
     <value>Operation fehlgeschlagen.</value>
   </data>
   <data name="CommunicationWithTheServiceError" xml:space="preserve">
-    <value>Es gab Probleme mit der Kommunikation zum PromptWall Dienst.</value>
+    <value>Es gab Probleme mit der Kommunikation zum SecureWall Dienst.</value>
   </data>
   <data name="ClickOnAWindowWhitelisting" xml:space="preserve">
     <value>Klicke auf ein geöffnetes Fenster um die dazugehörige Anwendung auf die Whitelist zu setzen.</value>
@@ -238,7 +238,7 @@
     <value>Firewall Regeln für unbekannte {0} wurden geändert. Klicke auf dieses Popup um die Ausnahme anzupassen.</value>
   </data>
   <data name="TinyWallHasBeenUnlocked" xml:space="preserve">
-    <value>PromptWall wurde entsperrt. Sie können nun die Einstellungen verändern.</value>
+    <value>SecureWall wurde entsperrt. Sie können nun die Einstellungen verändern.</value>
   </data>
   <data name="UnlockFailed" xml:space="preserve">
     <value>Entsperren fehlgeschlagen. Versuchen Sie es mit einem anderen Passwort erneut.</value>
@@ -292,14 +292,14 @@
     <value>Lernmodus</value>
   </data>
   <data name="YouAreAboutToEnterLearningMode" xml:space="preserve">
-    <value>Sind Sie sich sicher, dass Sie zum Lernmodus wechseln wollen? In Lernmodus wird PromptWall jeglichen Datenverkehr erlauben und sich merken, welche Anwendungen das Netzwerk benutzt haben. Wenn Sie dann den Lernmodus beenden, wird PromptWall die Anwendungen automatisch zu den Ausnahmen hinzufügen. Merke: Regeln für spezielle Ausnahmen können nicht erlernt werden.
+    <value>Sind Sie sich sicher, dass Sie zum Lernmodus wechseln wollen? In Lernmodus wird SecureWall jeglichen Datenverkehr erlauben und sich merken, welche Anwendungen das Netzwerk benutzt haben. Wenn Sie dann den Lernmodus beenden, wird SecureWall die Anwendungen automatisch zu den Ausnahmen hinzufügen. Merke: Regeln für spezielle Ausnahmen können nicht erlernt werden.
 
 Bevor Sie zum Lernmodus wechseln, sollten Sie sicherstellen, dass ihr System frei von Malware ist. Es ist am besten den Lernmodus auf ein frisch installiertes System zu benutzen und es wird empfohlen den Computer vorher auf Viren zu prüfen bevor Sie diesen Modus benutzen.
 
 Wollen Sie in den Lernmodus wechseln?</value>
   </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
-    <value>Haben Sie die Deinstallation/Aktualisierung von PromptWall gestartet?</value>
+    <value>Haben Sie die Deinstallation/Aktualisierung von SecureWall gestartet?</value>
   </data>
   <data name="PortListInvalid" xml:space="preserve">
     <value>Das Format der Portliste ist falsch.

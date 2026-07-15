@@ -43,6 +43,6 @@ Thumbs.db
 /pylorak.Windows.WFP/bin/
 /MsiSetup/obj/
 /MsiSetup/bin/
-/MsiSetup/Sources/ProgramFiles/PromptWall/PromptWall.exe.config
+/MsiSetup/Sources/ProgramFiles/SecureWall/SecureWall.exe.config
 /tests/**/bin/
 /tests/**/obj/

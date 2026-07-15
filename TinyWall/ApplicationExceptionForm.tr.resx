@@ -127,7 +127,7 @@
     <value>Yerel ağı kısıtla</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Firewall istisnası Ekle/Düzenle - PromptWall</value>
+    <value>Firewall istisnası Ekle/Düzenle - SecureWall</value>
   </data>
   <data name="radTcpUdpUnrestricted.Text" xml:space="preserve">
     <value>Sınırsız UDP ve TCP trafiği</value>

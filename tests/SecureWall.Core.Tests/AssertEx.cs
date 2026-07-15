@@ -1,6 +1,6 @@
 using System.Collections;
 
-namespace PromptWall.Core.Tests;
+namespace SecureWall.Core.Tests;
 
 internal static class AssertEx
 {

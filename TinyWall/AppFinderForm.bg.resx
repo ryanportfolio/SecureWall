@@ -118,7 +118,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="label1.Text" xml:space="preserve">
-    <value>PromptWall може да се опита автоматично да засече и отблокира софтуер на компютъра ви. Това спестява отблокирването му едно по едно. Ще имате възможност да удобрите промените преди да бъдат възприети.</value>
+    <value>SecureWall може да се опита автоматично да засече и отблокира софтуер на компютъра ви. Това спестява отблокирването му едно по едно. Ще имате възможност да удобрите промените преди да бъдат възприети.</value>
   </data>
   <data name="btnStartDetection.Text" xml:space="preserve">
     <value>Старт</value>
@@ -148,6 +148,6 @@
     <value>За да отблокирате програма, натиснете отметката ѝ.</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Намиране на софтуер - PromptWall</value>
+    <value>Намиране на софтуер - SecureWall</value>
   </data>
 </root>

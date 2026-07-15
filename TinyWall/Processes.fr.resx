@@ -130,6 +130,6 @@
     <value>Annuler</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Processus - PromptWall</value>
+    <value>Processus - SecureWall</value>
   </data>
 </root>

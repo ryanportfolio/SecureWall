@@ -127,7 +127,7 @@
     <value>Beschränke auf lokales Netzwerk</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Hinzufügen/Ändern einer Firewallausnahme - PromptWall</value>
+    <value>Hinzufügen/Ändern einer Firewallausnahme - SecureWall</value>
   </data>
   <data name="radTcpUdpUnrestricted.Text" xml:space="preserve">
     <value>Unbeschränkter UDP und TCP Datenverkehr</value>

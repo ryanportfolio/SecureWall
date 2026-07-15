@@ -172,6 +172,6 @@
     <value>Todos los archivos |*.*</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Controlador de PromptWall</value>
+    <value>Controlador de SecureWall</value>
   </data>
 </root>

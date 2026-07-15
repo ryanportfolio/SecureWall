@@ -130,6 +130,6 @@
     <value>취소</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>프로세스 - PromptWall</value>
+    <value>프로세스 - SecureWall</value>
   </data>
 </root>

@@ -127,7 +127,7 @@
     <value>Restringir o tráfego à rede local</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Adição/Modificação de Aplicativo Controlado - Exceções - PromptWall</value>
+    <value>Adição/Modificação de Aplicativo Controlado - Exceções - SecureWall</value>
   </data>
   <data name="radTcpUdpUnrestricted.Text" xml:space="preserve">
     <value>Permitir tráfego por UDP e TCP irrestrito (entrada e saída)</value>

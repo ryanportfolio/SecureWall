@@ -127,7 +127,7 @@
     <value>只限于本地网络</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>添加/更改防火墙例外 - PromptWall</value>
+    <value>添加/更改防火墙例外 - SecureWall</value>
   </data>
   <data name="radTcpUdpUnrestricted.Text" xml:space="preserve">
     <value>允许UDP和TCP所有进出流量</value>

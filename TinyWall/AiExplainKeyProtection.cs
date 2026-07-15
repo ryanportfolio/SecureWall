@@ -9,7 +9,7 @@ namespace pylorak.TinyWall
     // never logged, and never sent to the LocalSystem service over the pipe.
     internal static class AiExplainKeyProtection
     {
-        private static readonly byte[] Entropy = Encoding.UTF8.GetBytes("PromptWall.AiExplain.ApiKey.v1");
+        private static readonly byte[] Entropy = Encoding.UTF8.GetBytes("SecureWall.AiExplain.ApiKey.v1");
 
         internal static string Protect(string? apiKey)
         {

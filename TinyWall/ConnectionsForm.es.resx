@@ -184,6 +184,6 @@
     <value>Mostrar programas bloqueados (en los últimos 5 minutos)</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Conexiones - PromptWall</value>
+    <value>Conexiones - SecureWall</value>
   </data>
 </root>

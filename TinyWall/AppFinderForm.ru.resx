@@ -118,7 +118,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="label1.Text" xml:space="preserve">
-    <value>PromptWall может автоматически определить программы, установленные на вашем компьютере, и разблокировать некоторые из них. Это намного проще, чем добавлять приложения по одному. Программа ознакомит вас с результатами до того, как они вступят в силу.</value>
+    <value>SecureWall может автоматически определить программы, установленные на вашем компьютере, и разблокировать некоторые из них. Это намного проще, чем добавлять приложения по одному. Программа ознакомит вас с результатами до того, как они вступят в силу.</value>
   </data>
   <data name="btnStartDetection.Text" xml:space="preserve">
     <value>      Запустить</value>
@@ -148,6 +148,6 @@
     <value>Чтобы разблокировать приложение в результате поиска, выберите его, установив флажок рядом с ним.</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Поиск приложений - PromptWall</value>
+    <value>Поиск приложений - SecureWall</value>
   </data>
 </root>

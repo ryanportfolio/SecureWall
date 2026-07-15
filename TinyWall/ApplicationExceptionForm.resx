@@ -250,7 +250,7 @@
     <value>btnProcess</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Add/Modify Firewall Exception - PromptWall</value>
+    <value>Add/Modify Firewall Exception - SecureWall</value>
   </data>
   <data name="&gt;&gt;radUnrestricted.Name" xml:space="preserve">
     <value>radUnrestricted</value>

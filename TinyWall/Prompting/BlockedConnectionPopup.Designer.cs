@@ -53,7 +53,7 @@ namespace pylorak.TinyWall.Prompting
             titleLabel.Location = new Point(14, 10);
             titleLabel.Name = "titleLabel";
             titleLabel.Size = new Size(392, 23);
-            titleLabel.Text = "PromptWall blocked an outgoing connection";
+            titleLabel.Text = "SecureWall blocked an outgoing connection";
 
             closeButton.AccessibleName = "Ignore and close";
             closeButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
@@ -139,8 +139,8 @@ namespace pylorak.TinyWall.Prompting
             timeoutTimer.Tick += TimeoutTimerTick;
 
             AcceptButton = allowButton;
-            AccessibleDescription = "Shows an outgoing connection that PromptWall blocked.";
-            AccessibleName = "PromptWall blocked connection";
+            AccessibleDescription = "Shows an outgoing connection that SecureWall blocked.";
+            AccessibleName = "SecureWall blocked connection";
             AutoScaleDimensions = new SizeF(96F, 96F);
             AutoScaleMode = AutoScaleMode.Dpi;
             BackColor = Color.White;

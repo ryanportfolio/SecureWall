@@ -118,7 +118,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="label1.Text" xml:space="preserve">
-    <value>PromptWall può tentare di rilevare automaticamente e sbloccare alcuni software sul tuo computer. Questo consente di risparmiare tempo nel doverle sbloccare una ad una. Avrete la possibilità di rivedere i risultati prima di confermare qualsiasi modifica.
+    <value>SecureWall può tentare di rilevare automaticamente e sbloccare alcuni software sul tuo computer. Questo consente di risparmiare tempo nel doverle sbloccare una ad una. Avrete la possibilità di rivedere i risultati prima di confermare qualsiasi modifica.
 </value>
   </data>
   <data name="btnStartDetection.Text" xml:space="preserve">
@@ -150,6 +150,6 @@
 </value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Ricercatore applicazioni - PromptWall</value>
+    <value>Ricercatore applicazioni - SecureWall</value>
   </data>
 </root>

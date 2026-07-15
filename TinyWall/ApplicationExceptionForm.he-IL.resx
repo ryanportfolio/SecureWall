@@ -127,7 +127,7 @@
     <value>הגבלה לרשת-מקומית</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>הוספה/שינוי של חריגי חומת-אש - PromptWall</value>
+    <value>הוספה/שינוי של חריגי חומת-אש - SecureWall</value>
   </data>
   <data name="radTcpUdpUnrestricted.Text" xml:space="preserve">
     <value>תעבורת-רשת מסוג UDP ו- TCP לא מוגבלת</value>

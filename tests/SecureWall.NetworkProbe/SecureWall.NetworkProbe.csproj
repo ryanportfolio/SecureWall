@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <AssemblyName>PromptWall.NetworkProbe</AssemblyName>
-    <RootNamespace>PromptWall.NetworkProbe</RootNamespace>
+    <AssemblyName>SecureWall.NetworkProbe</AssemblyName>
+    <RootNamespace>SecureWall.NetworkProbe</RootNamespace>
   </PropertyGroup>
 </Project>

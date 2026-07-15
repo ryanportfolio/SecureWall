@@ -31,7 +31,7 @@ namespace pylorak.TinyWall
             DefaultBlock = 3000000,
         }
 
-        private static readonly Guid PROMPTWALL_PROVIDER_KEY = new("{053FC8F9-9052-4B2F-9B24-7DE3A2BED6E0}");
+        private static readonly Guid SECUREWALL_PROVIDER_KEY = new("{053FC8F9-9052-4B2F-9B24-7DE3A2BED6E0}");
 
         private readonly BlockingCollection<TwRequest> Q = new(32);
         private readonly PipeServerEndpoint ServerPipe;
@@ -66,7 +66,7 @@ namespace pylorak.TinyWall
         private bool DisplayCurrentlyOn = true;
         private readonly ServerState VisibleState = new();
 
-        private readonly Engine WfpEngine = new("PromptWall Session", "", FWPM_SESSION_FLAGS.None, 5000);
+        private readonly Engine WfpEngine = new("SecureWall Session", "", FWPM_SESSION_FLAGS.None, 5000);
         private readonly ManagementEventWatcher ProcessStartWatcher = new(new WqlEventQuery("SELECT * FROM Win32_ProcessStartTrace"));
         private readonly EventMerger RuleReloadEventMerger = new(1000);
 
@@ -359,23 +359,23 @@ namespace pylorak.TinyWall
 
             // Install provider
             var provider = new FWPM_PROVIDER0();
-            provider.displayData.name = "PromptWall";
-            provider.displayData.description = "PromptWall Provider";
+            provider.displayData.name = "SecureWall";
+            provider.displayData.description = "SecureWall Provider";
             provider.serviceName = TinyWallService.SERVICE_NAME;
             provider.flags = FWPM_PROVIDER_FLAGS.FWPM_PROVIDER_FLAG_PERSISTENT;
-            provider.providerKey = PROMPTWALL_PROVIDER_KEY;
+            provider.providerKey = SECUREWALL_PROVIDER_KEY;
             var providerKey = WfpEngine.RegisterProvider(ref provider);
-            Debug.Assert(PROMPTWALL_PROVIDER_KEY == providerKey);
+            Debug.Assert(SECUREWALL_PROVIDER_KEY == providerKey);
 
             // Install sublayers
             var layerKeys = (LayerKeyEnum[])Enum.GetValues(typeof(LayerKeyEnum));
             foreach (var layer in layerKeys)
             {
                 var slKey = GetSublayerKey(layer);
-                using var wfpSublayer = new Sublayer($"PromptWall Sublayer for {layer}");
+                using var wfpSublayer = new Sublayer($"SecureWall Sublayer for {layer}");
                 wfpSublayer.Weight = ushort.MaxValue >> 4;
                 wfpSublayer.SublayerKey = slKey;
-                wfpSublayer.ProviderKey = PROMPTWALL_PROVIDER_KEY;
+                wfpSublayer.ProviderKey = SECUREWALL_PROVIDER_KEY;
                 wfpSublayer.Flags = FWPM_SUBLAYER_FLAGS.FWPM_SUBLAYER_FLAG_PERSISTENT;
                 WfpEngine.RegisterSublayer(wfpSublayer);
             }
@@ -680,7 +680,7 @@ namespace pylorak.TinyWall
             using var f = new Filter(
                 r.ExceptionId.ToString(),
                 r.Name,
-                PROMPTWALL_PROVIDER_KEY,
+                SECUREWALL_PROVIDER_KEY,
                 (r.Action == RuleAction.Allow) ? FilterActions.FWP_ACTION_PERMIT : FilterActions.FWP_ACTION_BLOCK,
                 r.Weight,
                 conditions
@@ -712,7 +712,7 @@ namespace pylorak.TinyWall
             using var f = new Filter(
                 "Raw socket block",
                 string.Empty,
-                PROMPTWALL_PROVIDER_KEY,
+                SECUREWALL_PROVIDER_KEY,
                 FilterActions.FWP_ACTION_BLOCK,
                 (ulong)FilterWeights.RawSocketBlock
             );
@@ -751,7 +751,7 @@ namespace pylorak.TinyWall
             using var f = new Filter(
                 "Allow WSL2",
                 string.Empty,
-                PROMPTWALL_PROVIDER_KEY,
+                SECUREWALL_PROVIDER_KEY,
                 action,
                 weight
             );
@@ -785,7 +785,7 @@ namespace pylorak.TinyWall
                     using var f = new Filter(
                         "Raw socket permit",
                         string.Empty,
-                        PROMPTWALL_PROVIDER_KEY,
+                        SECUREWALL_PROVIDER_KEY,
                         FilterActions.FWP_ACTION_PERMIT,
                         (ulong)FilterWeights.RawSocketPermit,
                         conditions
@@ -810,7 +810,7 @@ namespace pylorak.TinyWall
             using var f = new Filter(
                 "Port Scanning Protection",
                 string.Empty,
-                PROMPTWALL_PROVIDER_KEY,
+                SECUREWALL_PROVIDER_KEY,
                 FilterActions.FWP_ACTION_CALLOUT_TERMINATING,
                 (ulong)FilterWeights.Blocklist
             );
@@ -1162,7 +1162,7 @@ namespace pylorak.TinyWall
 
         private void UpdaterMethod()
         {
-            if (!PromptWallProduct.UpdateFeedEnabled)
+            if (!SecureWallProduct.UpdateFeedEnabled)
                 return;
 
             // This is an automatic update check in the background.
@@ -1388,7 +1388,7 @@ namespace pylorak.TinyWall
         {
             try
             {
-                const string ATOM_NAME = "PromptWall-NoMachineReboot";
+                const string ATOM_NAME = "SecureWall-NoMachineReboot";
                 bool rebooted = !GlobalAtomTable.Exists(ATOM_NAME);
                 if (rebooted)
                     GlobalAtomTable.Add(ATOM_NAME);
@@ -1755,7 +1755,7 @@ namespace pylorak.TinyWall
                 Guid subLayerKey = GetSublayerKey(layer);
 
                 // Remove filters in the sublayer
-                foreach (var filterKey in wfp.EnumerateFilterKeys(PROMPTWALL_PROVIDER_KEY, layerKey))
+                foreach (var filterKey in wfp.EnumerateFilterKeys(SECUREWALL_PROVIDER_KEY, layerKey))
                     wfp.UnregisterFilter(filterKey);
 
                 // Remove sublayer
@@ -1765,7 +1765,7 @@ namespace pylorak.TinyWall
 
             // Remove provider
             if (removeLayersAndProvider)
-                try { wfp.UnregisterProvider(PROMPTWALL_PROVIDER_KEY); } catch { }
+                try { wfp.UnregisterProvider(SECUREWALL_PROVIDER_KEY); } catch { }
         }
 
         public TinyWallServer()
@@ -1797,7 +1797,7 @@ namespace pylorak.TinyWall
                 ReenumerateAdresses();
 
                 // Fire up pipe
-                serverPipe = new PipeServerEndpoint(new PipeDataReceived(PipeServerDataReceived), PromptWallProduct.ControllerPipeName);
+                serverPipe = new PipeServerEndpoint(new PipeDataReceived(PipeServerDataReceived), SecureWallProduct.ControllerPipeName);
                 MinuteTimer = minuteTimer;
                 PromptCandidateTimer = promptCandidateTimer;
                 ServerPipe = serverPipe;
@@ -2203,7 +2203,7 @@ namespace pylorak.TinyWall
             // Basic software health checks
             TinyWallDoctor.EnsureHealth(Utils.LOG_ID_SERVICE);
 #else
-                using (var wfp = new Engine("PromptWall Cleanup Session", "", FWPM_SESSION_FLAGS.None, 5000))
+                using (var wfp = new Engine("SecureWall Cleanup Session", "", FWPM_SESSION_FLAGS.None, 5000))
                 using (var trx = wfp.BeginTransaction())
                 {
                     DeleteWfpObjects(wfp, true);
@@ -2224,8 +2224,8 @@ namespace pylorak.TinyWall
             "BFE"
         };
 
-        internal const string SERVICE_NAME = "PromptWall";
-        internal const string SERVICE_DISPLAY_NAME = "PromptWall Service";
+        internal const string SERVICE_NAME = "SecureWall";
+        internal const string SERVICE_DISPLAY_NAME = "SecureWall Service";
 
         private TinyWallServer? Server;
         private Thread? FirewallWorkerThread;

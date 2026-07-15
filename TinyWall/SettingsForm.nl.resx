@@ -133,7 +133,7 @@
     <value>Pas toe</value>
   </data>
   <data name="label3.Text" xml:space="preserve">
-    <value>Bewerk de lijst van toepassingen waaraan je netwerktoegang wil toestaan. Enkel toepassingen uit deze lijst zullen in staat zijn het netwerk te gebruiken. Gebruik de [Detecteren] knop om PromptWall toepassingen te laten vinden, of voeg de toepassing manueel toe.</value>
+    <value>Bewerk de lijst van toepassingen waaraan je netwerktoegang wil toestaan. Enkel toepassingen uit deze lijst zullen in staat zijn het netwerk te gebruiken. Gebruik de [Detecteren] knop om SecureWall toepassingen te laten vinden, of voeg de toepassing manueel toe.</value>
   </data>
   <data name="btnAppRemove.Text" xml:space="preserve">
     <value>Verwijder</value>
@@ -223,6 +223,6 @@
     <value>Onderhoud</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>PromptWall Firewall Instellingen</value>
+    <value>SecureWall Firewall Instellingen</value>
   </data>
 </root>

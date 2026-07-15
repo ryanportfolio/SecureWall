@@ -5,7 +5,7 @@ Run from repository root in PowerShell.
 ## Pure tests
 
 ```powershell
-dotnet run --project tests\PromptWall.Core.Tests\PromptWall.Core.Tests.csproj
+dotnet run --project tests\SecureWall.Core.Tests\SecureWall.Core.Tests.csproj
 ```
 
 ## Restore
@@ -27,7 +27,7 @@ $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild 
 ## Safe debug verification
 
 ```powershell
-$exe = Resolve-Path TinyWall\bin\Debug\PromptWall.exe
+$exe = Resolve-Path TinyWall\bin\Debug\SecureWall.exe
 (Start-Process $exe -ArgumentList '/protocolselftest' -Wait -PassThru).ExitCode
 (Start-Process $exe -ArgumentList '/pipeintegrationtest' -Wait -PassThru).ExitCode
 & $exe /promptpreview
@@ -37,11 +37,11 @@ $exe = Resolve-Path TinyWall\bin\Debug\PromptWall.exe
 
 ## Isolated-VM bundle
 
-After Release builds of PromptWall and the dependency-free network probe:
+After Release builds of SecureWall and the dependency-free network probe:
 
 ```powershell
-dotnet build tests\PromptWall.NetworkProbe\PromptWall.NetworkProbe.csproj --configuration Release
-& .\tools\vm\Prepare-PromptWallVmBundle.ps1 -Configuration Release
+dotnet build tests\SecureWall.NetworkProbe\SecureWall.NetworkProbe.csproj --configuration Release
+& .\tools\vm\Prepare-SecureWallVmBundle.ps1 -Configuration Release
 ```
 
 Move the emitted zip to an expendable snapshotted Windows VM. Follow `tools\vm\README.md`; never run the privileged validation runner on the development host.
@@ -57,14 +57,14 @@ foreach ($platform in 'x86', 'x64', 'arm64') {
 }
 ```
 
-Expected output: `MsiSetup\bin\Release\PromptWall_x86.msi`, `PromptWall_x64.msi`, and `PromptWall_arm64.msi`, with no ICE warnings or errors.
+Expected output: `MsiSetup\bin\Release\SecureWall_x86.msi`, `SecureWall_x64.msi`, and `SecureWall_arm64.msi`, with no ICE warnings or errors.
 
 ## Manual acceptance bundle
 
-After Release builds of PromptWall and the network probe:
+After Release builds of SecureWall and the network probe:
 
 ```powershell
-& .\tools\manual\Prepare-PromptWallManualTestBundle.ps1 -Configuration Release
+& .\tools\manual\Prepare-SecureWallManualTestBundle.ps1 -Configuration Release
 ```
 
-The emitted ignored zip contains all three unsigned MSIs, the unpackaged app, distinct Allow/Ignore probes, hashes, and a short physical/spare-PC test and recovery guide. Building or extracting it does not install PromptWall or touch WFP.
+The emitted ignored zip contains all three unsigned MSIs, the unpackaged app, distinct Allow/Ignore probes, hashes, and a short physical/spare-PC test and recovery guide. Building or extracting it does not install SecureWall or touch WFP.

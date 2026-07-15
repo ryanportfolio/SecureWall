@@ -21,9 +21,9 @@ $providerGuid = '053FC8F9-9052-4B2F-9B24-7DE3A2BED6E0'
 $auditSubcategory = '{0CCE9226-69AE-11D9-BED3-505054503030}'
 $started = Get-Date
 $resultRoot = Join-Path $PSScriptRoot ('results\' + $started.ToString('yyyyMMdd-HHmmss'))
-$app = Join-Path $PSScriptRoot 'app\PromptWall.exe'
-$allowProbe = Join-Path $PSScriptRoot 'probes\PromptWall.AllowProbe.exe'
-$ignoreProbe = Join-Path $PSScriptRoot 'probes\PromptWall.IgnoreProbe.exe'
+$app = Join-Path $PSScriptRoot 'app\SecureWall.exe'
+$allowProbe = Join-Path $PSScriptRoot 'probes\SecureWall.AllowProbe.exe'
+$ignoreProbe = Join-Path $PSScriptRoot 'probes\SecureWall.IgnoreProbe.exe'
 $controller = $null
 $installedByScript = $false
 $testFailure = $null
@@ -82,14 +82,14 @@ foreach ($path in @($app, $allowProbe, $ignoreProbe)) {
         throw "Missing validation file: $path"
     }
 }
-if ((Get-Item -LiteralPath $app).VersionInfo.ProductName -ne 'PromptWall') {
+if ((Get-Item -LiteralPath $app).VersionInfo.ProductName -ne 'SecureWall') {
     throw 'Executable identity check failed.'
 }
 if (Get-Service -Name TinyWall -ErrorAction SilentlyContinue) {
     throw 'TinyWall is installed in this VM. Use a clean snapshot; the script will not layer firewalls.'
 }
-if (Get-Service -Name PromptWall -ErrorAction SilentlyContinue) {
-    throw 'PromptWall is already installed. Revert to the clean snapshot first.'
+if (Get-Service -Name SecureWall -ErrorAction SilentlyContinue) {
+    throw 'SecureWall is already installed. Revert to the clean snapshot first.'
 }
 
 New-Item -ItemType Directory -Force -Path $resultRoot | Out-Null
@@ -99,7 +99,7 @@ $preflight = [ordered]@{
     SnapshotReference = $SnapshotReference
     VmDescription = $vmDescription
     Target = "${TargetAddress}:$TargetPort"
-    PromptWallSha256 = (Get-FileHash -LiteralPath $app -Algorithm SHA256).Hash
+    SecureWallSha256 = (Get-FileHash -LiteralPath $app -Algorithm SHA256).Hash
 }
 $preflight | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $resultRoot 'preflight.json') -Encoding UTF8
 Write-EvidenceText 'audit-before.csv' @(& "$env:SystemRoot\System32\auditpol.exe" /get "/subcategory:$auditSubcategory" /r)
@@ -107,21 +107,21 @@ Save-WfpState 'wfp-before.xml'
 
 try {
     if ((Invoke-Probe $allowProbe) -ne 0 -or (Invoke-Probe $ignoreProbe) -ne 0) {
-        throw 'Baseline probes cannot reach the target before PromptWall installation.'
+        throw 'Baseline probes cannot reach the target before SecureWall installation.'
     }
 
     $install = Start-Process -FilePath $app -ArgumentList '/install' -Wait -PassThru
     if ($install.ExitCode -ne 0) {
-        throw "PromptWall /install failed with exit code $($install.ExitCode)."
+        throw "SecureWall /install failed with exit code $($install.ExitCode)."
     }
     $installedByScript = $true
 
-    $service = Get-Service -Name PromptWall -ErrorAction Stop
+    $service = Get-Service -Name SecureWall -ErrorAction Stop
     $service.WaitForStatus([ServiceProcess.ServiceControllerStatus]::Running, [TimeSpan]::FromSeconds(120))
     Save-WfpState 'wfp-installed.xml'
     $providerPresent = Select-String -LiteralPath (Join-Path $resultRoot 'wfp-installed.xml') -SimpleMatch $providerGuid -Quiet
     if (-not $providerPresent) {
-        throw 'PromptWall WFP provider was not found after service startup.'
+        throw 'SecureWall WFP provider was not found after service startup.'
     }
 
     $controller = Start-Process -FilePath $app -PassThru
@@ -154,12 +154,12 @@ try {
     $events = Get-WinEvent -FilterHashtable @{ LogName = 'Security'; Id = 5157; StartTime = $started } -ErrorAction SilentlyContinue
     $events | Select-Object TimeCreated, Id, RecordId, ProviderName, Message | Export-Csv -LiteralPath (Join-Path $resultRoot 'security-5157.csv') -NoTypeInformation -Encoding UTF8
     $eventText = ($events.Message -join [Environment]::NewLine)
-    if ($eventText -notmatch 'PromptWall\.AllowProbe\.exe' -or
-        $eventText -notmatch 'PromptWall\.IgnoreProbe\.exe') {
+    if ($eventText -notmatch 'SecureWall\.AllowProbe\.exe' -or
+        $eventText -notmatch 'SecureWall\.IgnoreProbe\.exe') {
         throw 'Security log does not contain 5157 evidence for both validation probes.'
     }
-    if (Test-Path -LiteralPath "$env:ProgramData\PromptWall") {
-        Copy-Item -LiteralPath "$env:ProgramData\PromptWall" -Destination (Join-Path $resultRoot 'programdata') -Recurse -Force
+    if (Test-Path -LiteralPath "$env:ProgramData\SecureWall") {
+        Copy-Item -LiteralPath "$env:ProgramData\SecureWall" -Destination (Join-Path $resultRoot 'programdata') -Recurse -Force
     }
 
     [ordered]@{
@@ -183,17 +183,17 @@ finally {
         }
     }
 
-    $serviceBeforeCleanup = Get-Service -Name PromptWall -ErrorAction SilentlyContinue
+    $serviceBeforeCleanup = Get-Service -Name SecureWall -ErrorAction SilentlyContinue
     if (-not $KeepInstalled -and ($installedByScript -or $serviceBeforeCleanup)) {
         try {
             $uninstall = Start-Process -FilePath $app -ArgumentList '/uninstall' -Wait -PassThru
             Write-EvidenceText 'uninstall.txt' @("ExitCode=$($uninstall.ExitCode)")
             if ($uninstall.ExitCode -ne 0) {
-                $cleanupFailures += "PromptWall /uninstall failed with exit code $($uninstall.ExitCode)."
+                $cleanupFailures += "SecureWall /uninstall failed with exit code $($uninstall.ExitCode)."
             }
         }
         catch {
-            $cleanupFailures += "Could not run PromptWall /uninstall: $($_.Exception.Message)"
+            $cleanupFailures += "Could not run SecureWall /uninstall: $($_.Exception.Message)"
         }
     }
 
@@ -214,7 +214,7 @@ finally {
         $cleanupFailures += "Could not capture final WFP state: $($_.Exception.Message)"
     }
 
-    $remainingService = Get-Service -Name PromptWall -ErrorAction SilentlyContinue
+    $remainingService = Get-Service -Name SecureWall -ErrorAction SilentlyContinue
     $providerRemaining = $false
     $wfpAfterPath = Join-Path $resultRoot 'wfp-after.xml'
     if (Test-Path -LiteralPath $wfpAfterPath -PathType Leaf) {
@@ -232,10 +232,10 @@ finally {
 
     if (-not $KeepInstalled) {
         if ($remainingService) {
-            $cleanupFailures += 'PromptWall service remains after cleanup.'
+            $cleanupFailures += 'SecureWall service remains after cleanup.'
         }
         if ($providerRemaining) {
-            $cleanupFailures += 'PromptWall WFP provider remains after cleanup.'
+            $cleanupFailures += 'SecureWall WFP provider remains after cleanup.'
         }
         if ($auditRestored -ne $true) {
             $cleanupFailures += 'Audit policy was not proven to match its pre-test state.'
@@ -243,8 +243,8 @@ finally {
     }
 
     Write-EvidenceText 'postflight.txt' @(
-        "PromptWallServicePresent=$([bool]$remainingService)",
-        "PromptWallProviderPresent=$providerRemaining",
+        "SecureWallServicePresent=$([bool]$remainingService)",
+        "SecureWallProviderPresent=$providerRemaining",
         "AuditPolicyRestored=$auditRestored",
         "KeepInstalled=$KeepInstalled",
         "CleanupFailures=$($cleanupFailures.Count)"

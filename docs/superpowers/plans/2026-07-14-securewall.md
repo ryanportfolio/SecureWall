@@ -1,8 +1,8 @@
-# PromptWall Implementation Plan
+# SecureWall Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Fork TinyWall 3.5.1 into PromptWall and add secure, deduplicated Allow-outgoing/Ignore notifications for newly default-blocked outbound applications and services.
+**Goal:** Fork TinyWall 3.5.1 into SecureWall and add secure, deduplicated Allow-outgoing/Ignore notifications for newly default-blocked outbound applications and services.
 
 **Architecture:** Keep TinyWall's LocalSystem service, persistent/boot-time WFP filters, weighted rule precedence, transactional reloads, and unprivileged tray controller. Add a service-owned prompt queue keyed by opaque tokens, enrich WFP drop events with event 5157 process/service context, and render a non-activating WinForms popup from the controller.
 
@@ -27,11 +27,11 @@ Copy from commit `1df71b146d01d734d5b5a45a814b29e6a073f4d0`, excluding its `.git
 
 - [ ] **Step 2: Apply licensing and attribution**
 
-Use upstream `LICENSE.txt` as root `LICENSE`. State in `README.md` that PromptWall is a modified GPLv3 fork, retain Károly Pados's copyright, and mark PromptWall changes dated 2026-07-14.
+Use upstream `LICENSE.txt` as root `LICENSE`. State in `README.md` that SecureWall is a modified GPLv3 fork, retain Károly Pados's copyright, and mark SecureWall changes dated 2026-07-14.
 
 - [ ] **Step 3: Establish distinct runtime identity**
 
-Set assembly/product/title to `PromptWall`, service name to `PromptWall`, display name to `PromptWall Service`, controller pipe to `PromptWallController`, scheduled task to `PromptWall Controller`, and use a new WFP provider GUID. Preserve internal namespace names initially to minimize security-sensitive churn.
+Set assembly/product/title to `SecureWall`, service name to `SecureWall`, display name to `SecureWall Service`, controller pipe to `SecureWallController`, scheduled task to `SecureWall Controller`, and use a new WFP provider GUID. Preserve internal namespace names initially to minimize security-sensitive churn.
 
 - [ ] **Step 4: Verify import identity**
 
@@ -46,9 +46,9 @@ Expected: no runtime-identity matches.
 ### Task 2: Add a dependency-free test harness
 
 **Files:**
-- Create: `tests/PromptWall.Core.Tests/PromptWall.Core.Tests.csproj`
-- Create: `tests/PromptWall.Core.Tests/Program.cs`
-- Create: `tests/PromptWall.Core.Tests/AssertEx.cs`
+- Create: `tests/SecureWall.Core.Tests/SecureWall.Core.Tests.csproj`
+- Create: `tests/SecureWall.Core.Tests/Program.cs`
+- Create: `tests/SecureWall.Core.Tests/AssertEx.cs`
 
 - [ ] **Step 1: Create the console test project**
 
@@ -63,7 +63,7 @@ Target `net9.0`, enable nullable reference types, and link pure production files
 Run:
 
 ```powershell
-dotnet run --project tests/PromptWall.Core.Tests/PromptWall.Core.Tests.csproj
+dotnet run --project tests/SecureWall.Core.Tests/SecureWall.Core.Tests.csproj
 ```
 
 Expected: exit 0 with a summary containing `0 failed`.
@@ -74,7 +74,7 @@ Expected: exit 0 with a summary containing `0 failed`.
 - Create: `TinyWall/Prompting/PromptIdentity.cs`
 - Create: `TinyWall/Prompting/BlockedConnectionPrompt.cs`
 - Create: `TinyWall/Prompting/PromptAllowPolicy.cs`
-- Modify: `tests/PromptWall.Core.Tests/Program.cs`
+- Modify: `tests/SecureWall.Core.Tests/Program.cs`
 
 - [ ] **Step 1: Write failing identity tests**
 
@@ -105,7 +105,7 @@ Implement a pure `PromptAllowPolicy` DTO/factory. Production integration later c
 **Files:**
 - Create: `TinyWall/Prompting/IClock.cs`
 - Create: `TinyWall/Prompting/PromptQueue.cs`
-- Modify: `tests/PromptWall.Core.Tests/Program.cs`
+- Modify: `tests/SecureWall.Core.Tests/Program.cs`
 
 - [ ] **Step 1: Write failing queue tests**
 
@@ -128,7 +128,7 @@ Expected: all queue tests pass with no warnings.
 **Files:**
 - Create: `TinyWall/Prompting/PromptableFilterSet.cs`
 - Modify: `TinyWall/TinyWallService.cs`
-- Modify: `tests/PromptWall.Core.Tests/Program.cs`
+- Modify: `tests/SecureWall.Core.Tests/Program.cs`
 
 - [ ] **Step 1: Write failing filter-set tests**
 
@@ -163,7 +163,7 @@ Parse by event-data names rather than positional indexes to tolerate Windows 11'
 
 - [ ] **Step 3: Implement audit lease**
 
-P/Invoke `AuditQuerySystemPolicy`, `AuditSetSystemPolicy`, and `AuditFree`. Snapshot the Filtering Platform Connection subcategory flags, OR in failure auditing, and restore the exact snapshot once on dispose. Never disable a flag that was enabled before PromptWall started.
+P/Invoke `AuditQuerySystemPolicy`, `AuditSetSystemPolicy`, and `AuditFree`. Snapshot the Filtering Platform Connection subcategory flags, OR in failure auditing, and restore the exact snapshot once on dispose. Never disable a flag that was enabled before SecureWall started.
 
 - [ ] **Step 4: Integrate watcher lifecycle**
 
@@ -175,7 +175,7 @@ Watch only 5157 for prompt enrichment. Keep TinyWall learning-mode semantics by 
 - Create: `TinyWall/Prompting/DropCandidate.cs`
 - Create: `TinyWall/Prompting/DropCorrelator.cs`
 - Create: `TinyWall/Prompting/ServiceAttribution.cs`
-- Modify: `tests/PromptWall.Core.Tests/Program.cs`
+- Modify: `tests/SecureWall.Core.Tests/Program.cs`
 
 - [ ] **Step 1: Write failing correlation tests**
 
@@ -293,7 +293,7 @@ Expected: exit 0.
 - [ ] **Step 2: Run full pure test suite**
 
 ```powershell
-dotnet run --project tests/PromptWall.Core.Tests/PromptWall.Core.Tests.csproj
+dotnet run --project tests/SecureWall.Core.Tests/SecureWall.Core.Tests.csproj
 ```
 
 Expected: all named tests pass, `0 failed`.

@@ -6,7 +6,7 @@
     <ProductVersion>0.1</ProductVersion>
     <ProjectGuid>{e864e1f9-3383-454f-bb6f-d89ee97c518b}</ProjectGuid>
     <SchemaVersion>2.0</SchemaVersion>
-    <OutputName>PromptWall</OutputName>
+    <OutputName>SecureWall</OutputName>
     <OutputType>Package</OutputType>
     <WixTargetsPath Condition=" '$(WixTargetsPath)' == '' AND '$(MSBuildExtensionsPath32)' != '' ">$(MSBuildExtensionsPath32)\Microsoft\WiX\v3.x\Wix.targets</WixTargetsPath>
     <WixTargetsPath Condition=" '$(WixTargetsPath)' == '' ">$(MSBuildExtensionsPath)\Microsoft\WiX\v3.x\Wix.targets</WixTargetsPath>

@@ -6,11 +6,11 @@ param(
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $buildOutput = Join-Path $repoRoot "TinyWall\bin\$Configuration"
-$installerOutput = Join-Path $PSScriptRoot 'Sources\ProgramFiles\PromptWall'
+$installerOutput = Join-Path $PSScriptRoot 'Sources\ProgramFiles\SecureWall'
 
 $requiredFiles = @(
-    'PromptWall.exe',
-    'PromptWall.exe.config',
+    'SecureWall.exe',
+    'SecureWall.exe.config',
     'Microsoft.Bcl.AsyncInterfaces.dll',
     'System.Buffers.dll',
     'System.IO.Pipelines.dll',
@@ -36,13 +36,13 @@ foreach ($file in $requiredFiles) {
 
 $cultures = @('bg', 'cs', 'de', 'es', 'fr', 'he-IL', 'hu', 'it', 'ja', 'ko', 'nl', 'pl', 'pt-BR', 'ru', 'tr', 'uk', 'zh')
 foreach ($culture in $cultures) {
-    $source = Join-Path $buildOutput "$culture\PromptWall.resources.dll"
+    $source = Join-Path $buildOutput "$culture\SecureWall.resources.dll"
     if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
         throw "Missing satellite assembly: $source"
     }
     $destination = Join-Path $installerOutput $culture
     New-Item -ItemType Directory -Force -Path $destination | Out-Null
-    Copy-Item -LiteralPath $source -Destination (Join-Path $destination 'PromptWall.resources.dll') -Force
+    Copy-Item -LiteralPath $source -Destination (Join-Path $destination 'SecureWall.resources.dll') -Force
 }
 
 Write-Output "Prepared WiX sources from $buildOutput"

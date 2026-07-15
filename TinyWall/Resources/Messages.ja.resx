@@ -121,20 +121,20 @@
     <value>アップデートに必要な特権に格上げすることができませんでした.</value>
   </data>
   <data name="TinyWallUpdater" xml:space="preserve">
-    <value>PromptWall アップデータ</value>
+    <value>SecureWall アップデータ</value>
   </data>
   <data name="ErrorCheckingForUpdates" xml:space="preserve">
     <value>アップデートサーバにアクセス出来ません.
-サーバがダウンしているか、または PromptWall のインターネットアクセスが許可されていない可能性があります。</value>
+サーバがダウンしているか、または SecureWall のインターネットアクセスが許可されていない可能性があります。</value>
   </data>
   <data name="UpdateAvailable" xml:space="preserve">
-    <value>PromptWall のバージョン {0} が利用可能です. 今すぐにアップデートしますか?</value>
+    <value>SecureWall のバージョン {0} が利用可能です. 今すぐにアップデートしますか?</value>
   </data>
   <data name="DownloadingUpdate" xml:space="preserve">
     <value>アップデートのダウンロード...</value>
   </data>
   <data name="NoUpdateAvailable" xml:space="preserve">
-    <value>あなたは最新版の PromptWall を使用しています、アップデートの必要はありません</value>
+    <value>あなたは最新版の SecureWall を使用しています、アップデートの必要はありません</value>
   </data>
   <data name="DownloadInterrupted" xml:space="preserve">
     <value>ダウンロードを中断しています.</value>
@@ -143,10 +143,10 @@
     <value>アップデートを開始しています...</value>
   </data>
   <data name="TinyWallIsCurrentlyLocked" xml:space="preserve">
-    <value>PromptWall は現在ロックされています、解除してから再試行してください</value>
+    <value>SecureWall は現在ロックされています、解除してから再試行してください</value>
   </data>
   <data name="PleaseWaitWhileTinyWallChecksForUpdates" xml:space="preserve">
-    <value>PromptWall のアップデートを確認しています..お待ちください.</value>
+    <value>SecureWall のアップデートを確認しています..お待ちください.</value>
   </data>
   <data name="CouldNotWhitelistProcess" xml:space="preserve">
     <value>ホワイトリストプロセス {0} を処理できません</value>
@@ -167,7 +167,7 @@
 トレイメニューより格上げを選択してから再試行してください</value>
   </data>
   <data name="TinyWallSettingsFileFilter" xml:space="preserve">
-    <value>PromptWall 設定</value>
+    <value>SecureWall 設定</value>
     <comment>File filter description</comment>
   </data>
   <data name="AllFilesFileFilter" xml:space="preserve">
@@ -196,7 +196,7 @@
     <comment>Tray menu text</comment>
   </data>
   <data name="UpdateAvailableBubble" xml:space="preserve">
-    <value>PromptWall の新しいバージョン {0} が利用可能です、ここをクリックでアップデートを開始します</value>
+    <value>SecureWall の新しいバージョン {0} が利用可能です、ここをクリックでアップデートを開始します</value>
     <comment>Param0 is version number of new version</comment>
   </data>
   <data name="TheFirewallIsNowOperatingAsRecommended" xml:space="preserve">
@@ -212,7 +212,7 @@
     <value>ファイアウォールは現在無効になっています</value>
   </data>
   <data name="TheTinyWallServiceIsUnavailable" xml:space="preserve">
-    <value>PromptWall のサービスを利用できません、アプリケーションを再インストールしてから再試行してみてください</value>
+    <value>SecureWall のサービスを利用できません、アプリケーションを再インストールしてから再試行してみてください</value>
   </data>
   <data name="TrafficIn" xml:space="preserve">
     <value>受信</value>
@@ -235,7 +235,7 @@
     <value>操作に失敗.</value>
   </data>
   <data name="CommunicationWithTheServiceError" xml:space="preserve">
-    <value>PromptWall サービスとの交信中にエラーが発生しました</value>
+    <value>SecureWall サービスとの交信中にエラーが発生しました</value>
   </data>
   <data name="ClickOnAWindowWhitelisting" xml:space="preserve">
     <value>アプリケーションで開いているウィンドウ内部をクリックすることでホワイトリストとして選択されます</value>
@@ -253,7 +253,7 @@
     <value>ファイアウォール規則の未認識 {0} が変更されました. ポップアップをクリックで例外を編集</value>
   </data>
   <data name="TinyWallHasBeenUnlocked" xml:space="preserve">
-    <value>PromptWall のロックが解除されました、現在は構成を変更するコマンドを実行することができます</value>
+    <value>SecureWall のロックが解除されました、現在は構成を変更するコマンドを実行することができます</value>
   </data>
   <data name="UnlockFailed" xml:space="preserve">
     <value>ロック解除に失敗. 別のパスフレーズで再試行してみてください</value>
@@ -329,14 +329,14 @@
   </data>
   <data name="YouAreAboutToEnterLearningMode" xml:space="preserve">
     <value>本当に自動学習モードにしますか?
-PromptWall の自動学習モードでは、すべての許可されたトラフィックに対して、どのアプリケーションがネットワークを使用したかについて学習します。また学習モードを終了する際、例外は自動的に追加されますが、構成設定の特殊例外項目については学習することが出来ないという点にご注意ください。
+SecureWall の自動学習モードでは、すべての許可されたトラフィックに対して、どのアプリケーションがネットワークを使用したかについて学習します。また学習モードを終了する際、例外は自動的に追加されますが、構成設定の特殊例外項目については学習することが出来ないという点にご注意ください。
 
 そして学習モードを有効にする前に、システムがいかなるマルウェアにも感染していないことを必ず確認する必要があります。(この学習モードは新たにインストールされたシステムで有効にするのが望ましいといえます) このモードを有効にする前にウイルスチェックを行っておくことが推奨されます。
 
 本当に学習モードを有効にしますか?</value>
   </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
-    <value>PromptWall のアンインストールを開始しますか?</value>
+    <value>SecureWall のアンインストールを開始しますか?</value>
   </data>
   <data name="PortListInvalid" xml:space="preserve">
     <value>ポートリストの書式が無効なものです

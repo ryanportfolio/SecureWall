@@ -136,7 +136,7 @@
     <value>Enviar</value>
   </data>
   <data name="label3.Text" xml:space="preserve">
-    <value>Crie ou edite abaixo a lista de aplicativos cujo acesso à rede gostaria de controlar. Só os aplicativos desta lista poderão acessar a rede ou não, conforme especificado por você. Clique em DETECTAR se quiser que o PromptWall identifique e configure alguns programas. Se preferir, adicione programas você mesmo.</value>
+    <value>Crie ou edite abaixo a lista de aplicativos cujo acesso à rede gostaria de controlar. Só os aplicativos desta lista poderão acessar a rede ou não, conforme especificado por você. Clique em DETECTAR se quiser que o SecureWall identifique e configure alguns programas. Se preferir, adicione programas você mesmo.</value>
   </data>
   <data name="btnAppRemove.Text" xml:space="preserve">
     <value>Remover</value>
@@ -235,13 +235,13 @@
     <value>Licença</value>
   </data>
   <data name="label10.Text" xml:space="preserve">
-    <value>Se gostar do PromptWall e usá-lo, favor considerar a possibilidade de fazer donativos para cobrir custos com hospedagem e seu desenvolvimento.</value>
+    <value>Se gostar do SecureWall e usá-lo, favor considerar a possibilidade de fazer donativos para cobrir custos com hospedagem e seu desenvolvimento.</value>
   </data>
   <data name="label6.Text" xml:space="preserve">
     <value>Todos os direitos reservados.</value>
   </data>
   <data name="groupBox2.Text" xml:space="preserve">
-    <value>Sobre o PromptWall (Traduzido por MCHAL [zetatalk.com] e Serfalas)</value>
+    <value>Sobre o SecureWall (Traduzido por MCHAL [zetatalk.com] e Serfalas)</value>
   </data>
   <data name="btnUpdate.Text" xml:space="preserve">
     <value>Procurar atualização</value>
@@ -253,6 +253,6 @@
     <value>Manutenção</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Configuração do PromptWall</value>
+    <value>Configuração do SecureWall</value>
   </data>
 </root>

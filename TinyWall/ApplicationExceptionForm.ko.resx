@@ -127,7 +127,7 @@
     <value>로컬 네트워크로 제한</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>방화벽 예외 추가/수정 - PromptWall</value>
+    <value>방화벽 예외 추가/수정 - SecureWall</value>
   </data>
   <data name="radTcpUdpUnrestricted.Text" xml:space="preserve">
     <value>무제한 UDP 및 TCP 트래픽</value>

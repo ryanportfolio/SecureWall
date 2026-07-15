@@ -127,7 +127,7 @@
     <value>Обмежити локальною мережею</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Додати/Змінити виняток брандмауера — PromptWall</value>
+    <value>Додати/Змінити виняток брандмауера — SecureWall</value>
   </data>
   <data name="radTcpUdpUnrestricted.Text" xml:space="preserve">
     <value>Необмежений UDP та TCP трафік</value>

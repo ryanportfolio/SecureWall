@@ -127,7 +127,7 @@
     <value>Korlátozás a helyi hálózatra</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Tűzfal kivételek megadása/módosítása - PromptWall</value>
+    <value>Tűzfal kivételek megadása/módosítása - SecureWall</value>
   </data>
   <data name="radTcpUdpUnrestricted.Text" xml:space="preserve">
     <value>Korlátlan UDP és TCP forgalom</value>

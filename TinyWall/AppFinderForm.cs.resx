@@ -118,7 +118,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="label1.Text" xml:space="preserve">
-    <value>PromptWall se nyní pokusí automaticky detekovat a odblokovat některý software v počítači. Toto vám ušetří práci s jejich manuálním povolováním. Před provedením jakýchkoli změn máte možnost se podívat na výsledek hledání.</value>
+    <value>SecureWall se nyní pokusí automaticky detekovat a odblokovat některý software v počítači. Toto vám ušetří práci s jejich manuálním povolováním. Před provedením jakýchkoli změn máte možnost se podívat na výsledek hledání.</value>
   </data>
   <data name="columnHeader1.Text" xml:space="preserve">
     <value>Název</value>
@@ -145,6 +145,6 @@
     <value>Pro odblokování aplikace ve výsledcích hledání ji označte.</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Vyhledáváč aplikací - PromptWall</value>
+    <value>Vyhledáváč aplikací - SecureWall</value>
   </data>
 </root>

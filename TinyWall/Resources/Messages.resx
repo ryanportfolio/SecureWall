@@ -121,20 +121,20 @@
     <value>Could not elevate privileges necessary for update.</value>
   </data>
   <data name="TinyWallUpdater" xml:space="preserve">
-    <value>PromptWall Updater</value>
+    <value>SecureWall Updater</value>
   </data>
   <data name="ErrorCheckingForUpdates" xml:space="preserve">
     <value>Cannot access the update server.
-The server might be down, or please make sure that PromptWall has been granted internet access, then try again.</value>
+The server might be down, or please make sure that SecureWall has been granted internet access, then try again.</value>
   </data>
   <data name="UpdateAvailable" xml:space="preserve">
-    <value>A newer version {0} of PromptWall is available. Do you want to update now?</value>
+    <value>A newer version {0} of SecureWall is available. Do you want to update now?</value>
   </data>
   <data name="DownloadingUpdate" xml:space="preserve">
     <value>Downloading update...</value>
   </data>
   <data name="NoUpdateAvailable" xml:space="preserve">
-    <value>You have the newest version of PromptWall. No update necessary.</value>
+    <value>You have the newest version of SecureWall. No update necessary.</value>
   </data>
   <data name="DownloadInterrupted" xml:space="preserve">
     <value>Download interrupted.</value>
@@ -143,17 +143,17 @@ The server might be down, or please make sure that PromptWall has been granted i
     <value>Starting update...</value>
   </data>
   <data name="TinyWallIsCurrentlyLocked" xml:space="preserve">
-    <value>PromptWall is currently locked. Unlock and retry.</value>
+    <value>SecureWall is currently locked. Unlock and retry.</value>
   </data>
   <data name="PleaseWaitWhileTinyWallChecksForUpdates" xml:space="preserve">
-    <value>Please wait while PromptWall checks for available updates.</value>
+    <value>Please wait while SecureWall checks for available updates.</value>
   </data>
   <data name="CouldNotWhitelistProcess" xml:space="preserve">
     <value>Could not whitelist process of {0}.</value>
     <comment>Param0 is a file path.</comment>
   </data>
   <data name="TinyWall" xml:space="preserve">
-    <value>PromptWall</value>
+    <value>SecureWall</value>
   </data>
   <data name="CouldNotCloseProcess" xml:space="preserve">
     <value>Could not close process {0}({1}).</value>
@@ -170,7 +170,7 @@ The server might be down, or please make sure that PromptWall has been granted i
 Select Elevate from the tray menu and try again.</value>
   </data>
   <data name="TinyWallSettingsFileFilter" xml:space="preserve">
-    <value>PromptWall Settings</value>
+    <value>SecureWall Settings</value>
     <comment>File filter description</comment>
   </data>
   <data name="AllFilesFileFilter" xml:space="preserve">
@@ -199,7 +199,7 @@ Select Elevate from the tray menu and try again.</value>
     <comment>Tray menu text</comment>
   </data>
   <data name="UpdateAvailableBubble" xml:space="preserve">
-    <value>A newer version {0} of PromptWall is available. Click this bubble to start the update process.</value>
+    <value>A newer version {0} of SecureWall is available. Click this bubble to start the update process.</value>
     <comment>Param0 is version number of new version</comment>
   </data>
   <data name="TheFirewallIsNowOperatingAsRecommended" xml:space="preserve">
@@ -215,7 +215,7 @@ Select Elevate from the tray menu and try again.</value>
     <value>The firewall is now disabled.</value>
   </data>
   <data name="TheTinyWallServiceIsUnavailable" xml:space="preserve">
-    <value>The PromptWall service is unavailable. Please make sure it is installed and started, then retry.</value>
+    <value>The SecureWall service is unavailable. Please make sure it is installed and started, then retry.</value>
   </data>
   <data name="TrafficIn" xml:space="preserve">
     <value>In</value>
@@ -238,7 +238,7 @@ Select Elevate from the tray menu and try again.</value>
     <value>Operation failed.</value>
   </data>
   <data name="CommunicationWithTheServiceError" xml:space="preserve">
-    <value>Communication with the PromptWall service encountered an error.</value>
+    <value>Communication with the SecureWall service encountered an error.</value>
   </data>
   <data name="ClickOnAWindowWhitelisting" xml:space="preserve">
     <value>Click on the inner area of any open window to select its application for whitelisting.</value>
@@ -256,7 +256,7 @@ Select Elevate from the tray menu and try again.</value>
     <value>Firewall rules for unrecognized {0} have been changed. Click this popup to edit the exception.</value>
   </data>
   <data name="TinyWallHasBeenUnlocked" xml:space="preserve">
-    <value>PromptWall has been unlocked. You may now issue commands that modify the configuration.</value>
+    <value>SecureWall has been unlocked. You may now issue commands that modify the configuration.</value>
     <comment>Deprecated</comment>
   </data>
   <data name="UnlockFailed" xml:space="preserve">
@@ -333,14 +333,14 @@ Select Elevate from the tray menu and try again.</value>
   </data>
   <data name="YouAreAboutToEnterLearningMode" xml:space="preserve">
     <value>Are you sure you want to start automatic learning?
-In its automatic learning mode PromptWall will allow all traffic and remember which applications have used the network. When you exit learning mode, PromptWall will add exceptions for you automatically. Note however, that rules cannot be learned for "Special Exceptions" of the configuration.
+In its automatic learning mode SecureWall will allow all traffic and remember which applications have used the network. When you exit learning mode, SecureWall will add exceptions for you automatically. Note however, that rules cannot be learned for "Special Exceptions" of the configuration.
 
 Before entering learning mode, make sure that your system is free of any malware. It is best to run learning mode on freshly installed systems and it is recommended that you check your computer for viruses before using this mode.
 
 Do you want to enter learning mode now?</value>
   </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
-    <value>Did you initiate the uninstall/update of PromptWall?</value>
+    <value>Did you initiate the uninstall/update of SecureWall?</value>
   </data>
   <data name="PortListInvalid" xml:space="preserve">
     <value>The format of the port list is invalid.

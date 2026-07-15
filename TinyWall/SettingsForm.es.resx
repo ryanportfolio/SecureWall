@@ -136,7 +136,7 @@
     <value>Enviar</value>
   </data>
   <data name="label3.Text" xml:space="preserve">
-    <value>Editar la lista de programas que tendrán acceso a la red. Solo tendrán acceso a la red los programas de esta lista. Usar el botón Detectar para que PromptWall detecte algunos programas instalados, o añadirlo manualmente.</value>
+    <value>Editar la lista de programas que tendrán acceso a la red. Solo tendrán acceso a la red los programas de esta lista. Usar el botón Detectar para que SecureWall detecte algunos programas instalados, o añadirlo manualmente.</value>
   </data>
   <data name="btnAppRemove.Text" xml:space="preserve">
     <value>Eliminar</value>
@@ -235,7 +235,7 @@
     <value>Todos los derechos reservados.</value>
   </data>
   <data name="lblVersion.Text" xml:space="preserve">
-    <value>PromptWall</value>
+    <value>SecureWall</value>
   </data>
   <data name="groupBox2.Text" xml:space="preserve">
     <value>Acerca de</value>
@@ -250,6 +250,6 @@
     <value>Mantenimiento</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Configuración del cortafuegos PromptWall</value>
+    <value>Configuración del cortafuegos SecureWall</value>
   </data>
 </root>

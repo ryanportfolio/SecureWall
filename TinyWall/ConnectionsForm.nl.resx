@@ -169,6 +169,6 @@
     <value>Toon geblokkeerde toepassingen (laatste 5 minuten)</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>Verbindingen - PromptWall</value>
+    <value>Verbindingen - SecureWall</value>
   </data>
 </root>

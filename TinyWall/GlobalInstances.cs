@@ -16,7 +16,7 @@ namespace pylorak.TinyWall
 
         public static void InitClient()
         {
-            Controller ??= new Controller(PromptWallProduct.ControllerPipeName);
+            Controller ??= new Controller(SecureWallProduct.ControllerPipeName);
         }
 
         [AllowNull]
