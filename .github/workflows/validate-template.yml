@@ -52,6 +52,7 @@ jobs:
         run: python3 -m json.tool .claude/settings.json > /dev/null
 
       - name: plugin manifests are valid JSON
+        if: ${{ hashFiles('.claude-plugin/plugin.json', '.claude-plugin/marketplace.json') != '' }}
         run: |
           python3 -m json.tool .claude-plugin/plugin.json > /dev/null
           python3 -m json.tool .claude-plugin/marketplace.json > /dev/null
