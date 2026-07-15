@@ -48,16 +48,15 @@ Move the emitted zip to an expendable snapshotted Windows VM. Follow `tools\vm\R
 
 ## MSI packages
 
-Use the official WiX 3.14.1 portable binaries. After the Release application build and `MsiSetup\PrepareSources.ps1`, point the WiX project at the extracted tool directory and rebuild each platform with Visual Studio MSBuild. Full ICE validation requires a normal desktop token.
+Use the official WiX 3.14.1 portable binaries. The release builder restores and builds the application, stages its complete runtime, builds all architectures, and writes `artifacts\release\SHA256SUMS.txt`. Full ICE validation requires a normal desktop token.
 
 ```powershell
 $wixRoot = (Resolve-Path '.tmp\tools\wix314').Path
-foreach ($platform in 'x86', 'x64', 'arm64') {
-    & $msbuild MsiSetup\MsiSetup.wixproj /t:Rebuild /p:Configuration=Release /p:Platform=$platform /p:WixTargetsPath="$wixRoot\wix.targets" /p:WixInstallPath="$wixRoot" /p:WixToolPath="$wixRoot" /p:WixExtDir="$wixRoot" /p:WixTasksPath="$wixRoot\WixTasks.dll" /p:DefineSolutionProperties=false /v:minimal
-}
+& .\tools\release\Build-SecureWallRelease.ps1 -WixRoot $wixRoot
+& .\tests\installer\Test-SecureWallInstaller.ps1 -ArtifactsDirectory artifacts\release
 ```
 
-Expected output: `MsiSetup\bin\Release\SecureWall_x86.msi`, `SecureWall_x64.msi`, and `SecureWall_arm64.msi`, with no ICE warnings or errors.
+Expected output: `artifacts\release\SecureWall_x86.msi`, `SecureWall_x64.msi`, `SecureWall_arm64.msi`, and `SHA256SUMS.txt`, with no ICE warnings or errors. Restricted automation tokens that cannot access Windows Installer may use `-SuppressValidation` only for a local packaging smoke test; CI and release builds never suppress ICE validation.
 
 ## Manual acceptance bundle
 
