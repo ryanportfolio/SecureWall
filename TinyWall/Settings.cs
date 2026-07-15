@@ -81,6 +81,23 @@ namespace pylorak.TinyWall
         [DataMember(EmitDefaultValue = false)]
         public bool EnableGlobalHotkeys = true;
 
+        // Optional AI "what is this?" assistant. Off by default. Runs only when the user
+        // clicks the prompt's help button, from the controller (never the service).
+        [DataMember(EmitDefaultValue = false)]
+        public bool AiExplainEnabled = false;
+        [DataMember(EmitDefaultValue = false)]
+        public string AiExplainBaseUrl = AiExplainSettings.DefaultBaseUrl;
+        [DataMember(EmitDefaultValue = false)]
+        public string AiExplainModel = AiExplainSettings.DefaultModel;
+        // Minimal privacy posture by default: only the executable name and publisher are sent.
+        // Opt-in to also include the attempted remote endpoint.
+        [DataMember(EmitDefaultValue = false)]
+        public bool AiExplainIncludeRemoteEndpoint = false;
+        // DPAPI-protected (CurrentUser) OpenAI API key as base64. Never the raw key; never
+        // sent over the pipe to the service.
+        [DataMember(EmitDefaultValue = false)]
+        public string AiExplainApiKeyProtected = string.Empty;
+
         [OnDeserialized]
         private void OnDeserialized(StreamingContext sc)
         {

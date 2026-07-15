@@ -56,6 +56,12 @@ internal static class Program
             ("display coordinator retains prompt after dismiss failure", DisplayCoordinatorRetainsAfterDismissFailure),
             ("close and timeout behave as ignore", CloseAndTimeoutBehaveAsIgnore),
             ("display coordinator disposal does not grant or dismiss", DisplayCoordinatorDisposalIsPassive),
+            ("ai explain subject uses file name not full path", AiExplainSubjectUsesFileNameNotFullPath),
+            ("ai explain subject includes remote endpoint only when opted in", AiExplainSubjectIncludesRemoteEndpointOnlyWhenOptedIn),
+            ("ai explain composer omits verdict and full path", AiExplainComposerOmitsVerdictAndFullPath),
+            ("ai explain response parser extracts assistant content", AiExplainResponseParserExtractsContent),
+            ("ai explain response parser maps http and malformed errors", AiExplainResponseParserMapsErrors),
+            ("ai explain settings validate url and model", AiExplainSettingsValidateUrlAndModel),
         };
         var failed = 0;
 
@@ -946,6 +952,111 @@ internal static class Program
         internal void RaiseIgnore() => IgnoreRequested?.Invoke(this, EventArgs.Empty);
         internal void RaiseClosed() => PromptClosed?.Invoke(this, EventArgs.Empty);
         internal void RaiseTimeout() => PromptTimedOut?.Invoke(this, EventArgs.Empty);
+    }
+
+    private static void AiExplainSubjectUsesFileNameNotFullPath()
+    {
+        var prompt = new PromptWireDto
+        {
+            Token = Guid.NewGuid(),
+            SubjectKind = PromptIdentityKind.Executable,
+            ExecutablePath = @"C:\Users\alice\AppData\Local\Vendor\updater.exe",
+            RemoteAddress = "203.0.113.7",
+            RemotePort = 443,
+            Protocol = 6,
+        };
+
+        var subject = AiExplainSubject.FromPrompt(prompt, "Vendor Inc.", includeRemoteEndpoint: false);
+
+        AssertEx.Equal("updater.exe", subject.ExecutableName);
+        AssertEx.Equal("Vendor Inc.", subject.Publisher);
+        AssertEx.Equal<string?>(null, subject.RemoteEndpoint);
+        AssertEx.False(subject.ExecutableName.Contains("alice"), "File name must not leak the user profile path.");
+    }
+
+    private static void AiExplainSubjectIncludesRemoteEndpointOnlyWhenOptedIn()
+    {
+        var prompt = new PromptWireDto
+        {
+            Token = Guid.NewGuid(),
+            SubjectKind = PromptIdentityKind.Executable,
+            ExecutablePath = @"C:\app\thing.exe",
+            RemoteAddress = "198.51.100.9",
+            RemotePort = 8080,
+            Protocol = 6,
+        };
+
+        var excluded = AiExplainSubject.FromPrompt(prompt, null, includeRemoteEndpoint: false);
+        var included = AiExplainSubject.FromPrompt(prompt, null, includeRemoteEndpoint: true);
+
+        AssertEx.Equal<string?>(null, excluded.RemoteEndpoint);
+        AssertEx.Equal("TCP 198.51.100.9:8080", included.RemoteEndpoint);
+        AssertEx.Equal<string?>(null, included.Publisher);
+    }
+
+    private static void AiExplainComposerOmitsVerdictAndFullPath()
+    {
+        var subject = new AiExplainSubject(
+            PromptIdentityKind.Executable,
+            "svchost.exe",
+            publisher: null,
+            serviceName: null,
+            packageSid: null,
+            remoteEndpoint: null);
+
+        AiExplainPrompt composed = AiExplainComposer.Compose(subject);
+
+        AssertEx.True(composed.SystemPrompt.Contains("Do NOT tell the user whether to allow"),
+            "System prompt must forbid an allow/block verdict.");
+        AssertEx.True(composed.UserPrompt.Contains("svchost.exe"), "User prompt must include the file name.");
+        AssertEx.True(composed.UserPrompt.Contains("none (unsigned or unverified)"),
+            "Missing publisher must be stated, not fabricated.");
+        AssertEx.False(composed.UserPrompt.Contains(@"C:\"), "User prompt must not contain a full path.");
+    }
+
+    private static void AiExplainResponseParserExtractsContent()
+    {
+        const string body =
+            "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"  This is a software updater.  \"}}]}";
+
+        AiExplainResult result = AiExplainResponseParser.Parse(200, body);
+
+        AssertEx.True(result.Success, "Valid response must succeed.");
+        AssertEx.Equal("This is a software updater.", result.Text);
+    }
+
+    private static void AiExplainResponseParserMapsErrors()
+    {
+        AiExplainResult unauthorized = AiExplainResponseParser.Parse(
+            401, "{\"error\":{\"message\":\"Incorrect API key provided.\"}}");
+        AssertEx.False(unauthorized.Success);
+        AssertEx.True(unauthorized.Error!.Contains("401"), "401 must be surfaced.");
+        AssertEx.True(unauthorized.Error!.Contains("Incorrect API key provided."),
+            "API error message must be surfaced.");
+
+        AiExplainResult malformed = AiExplainResponseParser.Parse(200, "not json");
+        AssertEx.False(malformed.Success, "Malformed body must fail closed, not throw.");
+
+        AiExplainResult empty = AiExplainResponseParser.Parse(200, "{\"choices\":[]}");
+        AssertEx.False(empty.Success, "No choices must yield a friendly failure.");
+    }
+
+    private static void AiExplainSettingsValidateUrlAndModel()
+    {
+        AssertEx.True(AiExplainSettings.Validate("https://api.openai.com/v1", "gpt-4o-mini", out _),
+            "A valid https URL and model must pass.");
+
+        AssertEx.False(AiExplainSettings.Validate("not a url", "gpt-4o-mini", out string? urlError));
+        AssertEx.True(urlError != null && urlError.Length > 0);
+
+        AssertEx.False(AiExplainSettings.Validate("https://api.openai.com/v1", "  ", out _),
+            "An empty model must fail.");
+
+        AssertEx.False(AiExplainSettings.Validate("ftp://example.com", "gpt-4o-mini", out _),
+            "Non-http(s) schemes must fail.");
+
+        AssertEx.True(AiExplainSettings.TryBuildChatCompletionsUri("https://host/v1/", out Uri? uri));
+        AssertEx.Equal("https://host/v1/chat/completions", uri!.ToString());
     }
 
     private sealed class FakeAuditPolicyBackend : IAuditPolicyBackend
