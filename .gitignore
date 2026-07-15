@@ -11,9 +11,38 @@
 
 # Dependencies / build output
 node_modules/
+/.nuget-packages/
 dist/
 build/
+TestResults/
+/artifacts/
 
 # OS noise
 Thumbs.db
 .DS_Store
+
+# Visual Studio and .NET outputs
+*.exe
+*.dll
+*.msi
+*.zip
+*.suo
+*.user
+/.vs/
+/TinyWall/obj/
+/TinyWall/bin/
+/Microsoft.Samples/obj/
+/Microsoft.Samples/bin/
+/pylorak.Utilities/obj/
+/pylorak.Utilities/bin/
+/pylorak.Windows/obj/
+/pylorak.Windows/bin/
+/pylorak.Windows.Services/obj/
+/pylorak.Windows.Services/bin/
+/pylorak.Windows.WFP/obj/
+/pylorak.Windows.WFP/bin/
+/MsiSetup/obj/
+/MsiSetup/bin/
+/MsiSetup/Sources/ProgramFiles/PromptWall/PromptWall.exe.config
+/tests/**/bin/
+/tests/**/obj/

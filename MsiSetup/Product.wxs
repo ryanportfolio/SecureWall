@@ -1,0 +1,401 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
+     xmlns:netfx="http://schemas.microsoft.com/wix/NetFxExtension">
+
+  <!-- String constants -->
+  <?define ProductName="PromptWall" ?>
+  <?define Manufacturer="Károly Pados and PromptWall contributors" ?>
+  <?define Description="A default-deny Windows firewall with explicit outbound prompts." ?>
+  <?define ProductVersion="!(bind.fileVersion.PromptWallEXE)" ?>
+  <?define OldestUpgradeableVersion="0.0.0.0" ?>
+
+  <!-- Architecture selection -->
+  <?if $(var.Platform) = x64 ?>
+    <?define BuildArch="x64" ?>
+    <?define Win64 = "yes" ?>
+    <?define PlatformProgramFilesFolder = "ProgramFiles64Folder" ?>
+    <?define NgenBitness = "64bit" ?>
+    <?define System32Dir = "System64Folder" ?>
+  <?elseif $(var.Platform) = "arm64"?>
+	<?define BuildArch="arm64" ?>
+	<?define Win64 = "yes" ?>
+	<?define PlatformProgramFilesFolder = "ProgramFiles64Folder" ?>
+	<?define NgenBitness = "64bit" ?>
+	<?define System32Dir = "System64Folder" ?>
+  <?elseif $(var.Platform) = "x86"?>
+    <?define BuildArch="x86" ?>
+    <?define Win64 = "no" ?>
+    <?define PlatformProgramFilesFolder = "ProgramFilesFolder" ?>
+    <?define NgenBitness = "32bit" ?>
+    <?define System32Dir = "SystemFolder" ?>
+  <?endif ?>
+
+  <Product Id="*" Codepage="1250" Name="$(var.ProductName)" Language="1033" Version="$(var.ProductVersion)" Manufacturer="$(var.Manufacturer)" UpgradeCode="{D257A00C-9D9B-4948-910F-5524F20819D0}">
+    <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" SummaryCodepage="1250" Description="$(var.Description)" Manufacturer="$(var.Manufacturer)" />
+
+    <!-- Automatic media generation and assignment -->
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <!-- Add/Remove Programs -->
+    <Property Id="ARPPRODUCTICON" Value="PromptWallIcon.exe" />
+    <Property Id="ARPCOMMENTS" Value="$(var.Description)" />
+    <Property Id="ARPCONTACT" Value="$(var.Manufacturer)" />
+    <Property Id="ARPNOREPAIR" Value="yes" Secure="yes" /> 
+    <CustomAction Id="SetARPINSTALLLOCATION" Property="ARPINSTALLLOCATION" Value="[INSTALLDIR]" />
+
+    <!-- Disable use of "Files in Use" dialogs, we manage that ourself over custom actions -->
+    <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" />
+
+    <!-- Windows version detection -->
+    <Property Id="WINDOWSBUILDNUMBER" Secure="yes">
+      <RegistrySearch Id="BuildNumberSearch" Root="HKLM" Key="SOFTWARE\Microsoft\Windows NT\CurrentVersion" Name="CurrentBuildNumber" Type="raw" />
+    </Property>
+    <Condition Message="This application requires Windows 10 version 21H2 (build 19044) or newer.">
+      <![CDATA[Installed OR (WINDOWSBUILDNUMBER >= 19044)]]>
+    </Condition>
+
+    <!-- .Net Framework detection -->
+    <PropertyRef Id="WIX_IS_NETFRAMEWORK_48_OR_LATER_INSTALLED"/>
+    <Condition Message='This application requires .NET Framework 4.8 to be installed.'>
+      <![CDATA[WIX_IS_NETFRAMEWORK_48_OR_LATER_INSTALLED]]>
+    </Condition>
+
+    <!-- Never layer PromptWall over TinyWall. The elevated /install path repeats
+         this check against the Service Control Manager before activating WFP. -->
+    <Property Id="TINYWALLINSTALLDIR32" Secure="yes">
+      <RegistrySearch Id="TinyWallInstallDir32" Root="HKLM" Key="Software\TinyWall" Name="InstallDir" Type="raw" Win64="no" />
+    </Property>
+    <?if $(var.Platform) != x86 ?>
+      <Property Id="TINYWALLINSTALLDIR64" Secure="yes">
+        <RegistrySearch Id="TinyWallInstallDir64" Root="HKLM" Key="Software\TinyWall" Name="InstallDir" Type="raw" Win64="yes" />
+      </Property>
+    <?endif ?>
+    <Condition Message="TinyWall is installed. Keep TinyWall active for now; install PromptWall only after PromptWall has passed VM testing, then uninstall TinyWall and reboot first.">
+      <?if $(var.Platform) = x86 ?>
+        <![CDATA[Installed OR (NOT TINYWALLINSTALLDIR32)]]>
+      <?else ?>
+        <![CDATA[Installed OR (NOT TINYWALLINSTALLDIR32 AND NOT TINYWALLINSTALLDIR64)]]>
+      <?endif ?>
+    </Condition>
+
+    <!-- Feature description -->
+    <Feature Id="ProductFeature" Title="Complete" Description="The complete package." ConfigurableDirectory="INSTALLDIR" Level="1">
+      <ComponentRef Id='MainExecutable' />
+      <ComponentRef Id='MainExecutableConfig' />
+      <ComponentRef Id='ProgramMenuDir' />
+      <ComponentRef Id='RemoveAppDataDir' />
+      <ComponentRef Id='RegistryKeys' />
+      <ComponentRef Id='License' />
+      <ComponentRef Id='Attributions' />
+      <ComponentRef Id='Database' />
+      <ComponentRef Id='hosts' />
+      <ComponentGroupRef Id='Dependencies' />
+      <ComponentGroupRef Id='Localizations' />
+      <ComponentGroupRef Id='Documentation' />
+    </Feature>
+
+    <!-- Search for older versions -->
+    <Property Id="OLDER_INCOMPATIBLE_FOUND" Secure="yes" />
+    <Property Id="OLDER_UPGRADEABLE_FOUND" Secure="yes" />
+    <Property Id="SELF_FOUND" Secure="yes" />
+    <Property Id="NEWER_FOUND" Secure="yes" />
+    <Upgrade Id='{D257A00C-9D9B-4948-910F-5524F20819D0}'>
+      <UpgradeVersion OnlyDetect='yes' Property='OLDER_INCOMPATIBLE_FOUND'
+        Maximum="$(var.OldestUpgradeableVersion)" IncludeMaximum='no' />
+      <UpgradeVersion Property='OLDER_UPGRADEABLE_FOUND'
+        Minimum="$(var.OldestUpgradeableVersion)" IncludeMinimum='yes'
+        Maximum="$(var.ProductVersion)" IncludeMaximum='no' />
+      <UpgradeVersion OnlyDetect='yes' Property='SELF_FOUND'
+        Minimum="$(var.ProductVersion)" IncludeMinimum='yes'
+        Maximum="$(var.ProductVersion)" IncludeMaximum='yes' />
+      <UpgradeVersion OnlyDetect='yes' Property='NEWER_FOUND'
+        Minimum="$(var.ProductVersion)" IncludeMinimum='no' />
+    </Upgrade>
+
+    <!-- Custom actions -->
+    <CustomAction Id='FoundIncompatibleVersion' Error='An older version of $(var.ProductName) is installed that cannot be automatically updated. Please uninstall the existing version first, then try again.' />
+    <CustomAction Id='FoundNewerVersion' Error='A newer version of $(var.ProductName) is already installed. Installation cannot continue.' />
+    <CustomAction Id='InstallCustom' FileKey='PromptWallEXE' ExeCommand='/install' Return='check' Execute='commit' Impersonate='no' />
+    <CustomAction Id='InstallCustomRollback' FileKey='PromptWallEXE' ExeCommand='/uninstall' Return='check' Execute='rollback' Impersonate='no' />
+    <CustomAction Id='UninstallCustom' FileKey='PromptWallEXE' ExeCommand='/uninstall' Return='check' Execute='deferred' Impersonate='no' />
+    <CustomAction Id='StartControllerAndDetect' FileKey='PromptWallEXE' ExeCommand='/autowhitelist' Return='asyncNoWait' Execute='commit' />
+    <CustomAction Id='StartController' FileKey='PromptWallEXE' ExeCommand='' Return='asyncNoWait' Execute='commit' />
+
+    <!-- Sequencing -->
+    <InstallExecuteSequence>
+      <!-- FindRelatedProducts -->
+      <Custom Action='FoundNewerVersion' After='FindRelatedProducts'>NEWER_FOUND</Custom>
+      <Custom Action='FoundIncompatibleVersion' After='FindRelatedProducts'>OLDER_INCOMPATIBLE_FOUND</Custom>
+      <!-- InstallValidate -->
+      <Custom Action="SetARPINSTALLLOCATION" After="InstallValidate"></Custom>
+      <RemoveExistingProducts After='InstallValidate'>OLDER_UPGRADEABLE_FOUND</RemoveExistingProducts>
+      <!-- InstallInitialize -->
+      <Custom Action='UninstallCustom' Before='UnpublishFeatures'>Installed</Custom>
+      <Custom Action='InstallCustomRollback' Before='InstallCustom'>NOT Installed</Custom>
+      <Custom Action='InstallCustom' Before='InstallFinalize'>NOT Installed</Custom>
+      <Custom Action='StartControllerAndDetect' After='InstallCustom'>(NOT Installed) AND (NOT OLDER_UPGRADEABLE_FOUND)</Custom>
+      <Custom Action='StartController' After='InstallCustom'>(NOT Installed) AND OLDER_UPGRADEABLE_FOUND</Custom>
+      <!-- InstallFinalize -->
+    </InstallExecuteSequence>
+
+    <!-- Sequencing -->
+    <InstallUISequence>
+      <Custom Action='FoundNewerVersion' After='FindRelatedProducts'>NEWER_FOUND</Custom>
+      <Custom Action='FoundIncompatibleVersion' After='FoundNewerVersion'>OLDER_INCOMPATIBLE_FOUND</Custom>
+    </InstallUISequence>
+
+    <!-- UI definition and overrides -->
+    <UIRef Id="WixUI_InstallDir_Custom" />
+    <WixVariable Id="WixUIBannerBmp" Value="banner.bmp" />
+    <WixVariable Id="WixUIDialogBmp" Value="background.bmp" />
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLDIR" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALTEXT" Value='PromptWall blocks unknown inbound and outbound traffic by default. When a new application is blocked while connecting out, use the bottom-right prompt to allow outbound TCP/UDP or ignore it and keep blocking.' />
+    <WixVariable Id="WixUILicenseRtf" Value="Sources\ProgramFiles\PromptWall\License.rtf" />
+
+  </Product>
+
+  <Fragment>
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+
+      <!-- Program Files -->
+      <Directory Id="$(var.PlatformProgramFilesFolder)" Name="ProgramFiles">
+        <Directory Id="INSTALLDIR" Name="PromptWall">
+          <Component Id="MainExecutable" Guid="*" Win64="$(var.Win64)">
+            <File Id="PromptWallEXE" Source="Sources\ProgramFiles\PromptWall\PromptWall.exe" Vital="yes" KeyPath="yes" Checksum="yes" Assembly=".net" AssemblyApplication="PromptWallEXE" />
+          </Component>
+          <Component Id="MainExecutableConfig" Guid="*" Win64="$(var.Win64)">
+            <File Id="PromptWallCONFIG" Source="Sources\ProgramFiles\PromptWall\PromptWall.exe.config" KeyPath="yes" />
+          </Component>
+          <Component Id="Microsoft_Bcl_AsyncInterfaces_Lib" Guid="*" Win64="$(var.Win64)">
+            <File Id="Microsoft_Bcl_AsyncInterfaces_dll" Source="Sources\ProgramFiles\PromptWall\Microsoft.Bcl.AsyncInterfaces.dll" Vital="yes" KeyPath="yes" Checksum="yes" Assembly=".net" AssemblyApplication="PromptWallEXE" />
+          </Component>
+          <Component Id="System_Buffers_Lib" Guid="*" Win64="$(var.Win64)">
+            <File Id="System_Buffers_dll" Source="Sources\ProgramFiles\PromptWall\System.Buffers.dll" Vital="yes" KeyPath="yes" Checksum="yes" Assembly=".net" AssemblyApplication="PromptWallEXE" />
+          </Component>
+          <Component Id="System_IO_Pipelines_Lib" Guid="*" Win64="$(var.Win64)">
+            <File Id="System_IO_Pipelines_dll" Source="Sources\ProgramFiles\PromptWall\System.IO.Pipelines.dll" Vital="yes" KeyPath="yes" Checksum="yes" Assembly=".net" AssemblyApplication="PromptWallEXE" />
+          </Component>
+          <Component Id="System_Memory_Lib" Guid="*" Win64="$(var.Win64)">
+            <File Id="System_Memory_dll" Source="Sources\ProgramFiles\PromptWall\System.Memory.dll" Vital="yes" KeyPath="yes" Checksum="yes" Assembly=".net" AssemblyApplication="PromptWallEXE" />
+          </Component>
+          <Component Id="System_Numerics_Vectors_Lib" Guid="*" Win64="$(var.Win64)">
+            <File Id="System_Numerics_Vectors_dll" Source="Sources\ProgramFiles\PromptWall\System.Numerics.Vectors.dll" Vital="yes" KeyPath="yes" Checksum="yes" Assembly=".net" AssemblyApplication="PromptWallEXE" />
+          </Component>
+          <Component Id="System_Runtime_CompilerServices_Unsafe_Lib" Guid="*" Win64="$(var.Win64)">
+            <File Id="System_Runtime_CompilerServices_Unsafe_dll" Source="Sources\ProgramFiles\PromptWall\System.Runtime.CompilerServices.Unsafe.dll" Vital="yes" KeyPath="yes" Checksum="yes" Assembly=".net" AssemblyApplication="PromptWallEXE" />
+          </Component>
+          <Component Id="System_Text_Encodings_Web_Lib" Guid="*" Win64="$(var.Win64)">
+            <File Id="System_Text_Encodings_Web_dll" Source="Sources\ProgramFiles\PromptWall\System.Text.Encodings.Web.dll" Vital="yes" KeyPath="yes" Checksum="yes" Assembly=".net" AssemblyApplication="PromptWallEXE" />
+          </Component>
+          <Component Id="System_Text_Json_Lib" Guid="*" Win64="$(var.Win64)">
+            <File Id="System_Text_Json_dll" Source="Sources\ProgramFiles\PromptWall\System.Text.Json.dll" Vital="yes" KeyPath="yes" Checksum="yes" Assembly=".net" AssemblyApplication="PromptWallEXE" />
+          </Component>
+          <Component Id="System_Threading_Tasks_Extensions_Lib" Guid="*" Win64="$(var.Win64)">
+            <File Id="System_Threading_Tasks_Extensions_dll" Source="Sources\ProgramFiles\PromptWall\System.Threading.Tasks.Extensions.dll" Vital="yes" KeyPath="yes" Checksum="yes" Assembly=".net" AssemblyApplication="PromptWallEXE" />
+          </Component>
+          <Component Id="License" Guid="*" Win64="$(var.Win64)">
+            <File Id="LicenseRTF" Source="Sources\ProgramFiles\PromptWall\License.rtf" KeyPath="yes" />
+          </Component>
+          <Component Id="Attributions" Guid="*" Win64="$(var.Win64)">
+            <File Id="AttributionsTXT" Source="Sources\ProgramFiles\PromptWall\Attributions.txt" KeyPath="yes" />
+          </Component>
+          <Directory Id="LOCDIR_bg" Name="bg">
+            <Component Id="LocSatelliteLib_bg" Guid="*" Win64="$(var.Win64)">
+              <File Id="LocSatelliteDLL_bg" Source="Sources\ProgramFiles\PromptWall\bg\PromptWall.resources.dll" Vital="yes" KeyPath="yes" Checksum="yes" Assembly=".net" AssemblyApplication="PromptWallEXE" />
+            </Component>
+          </Directory>
+          <Directory Id="LOCDIR_es" Name="es">
+            <Component Id="LocSatelliteLib_es" Guid="*" Win64="$(var.Win64)">
+              <File Id="LocSatelliteDLL_es" Source="Sources\ProgramFiles\PromptWall\es\PromptWall.resources.dll" Vital="yes" KeyPath="yes" Checksum="yes" Assembly=".net" AssemblyApplication="PromptWallEXE" />
+            </Component>
+          </Directory>
+          <Directory Id="LOCDIR_cs" Name="cs">
+            <Component Id="LocSatelliteLib_cs" Guid="*" Win64="$(var.Win64)">
+              <File Id="LocSatelliteDLL_cs" Source="Sources\ProgramFiles\PromptWall\cs\PromptWall.resources.dll" Vital="yes" KeyPath="yes" Checksum="yes" Assembly=".net" AssemblyApplication="PromptWallEXE" />
+            </Component>
+          </Directory>
+          <Directory Id="LOCDIR_heIL" Name="he-IL">
+            <Component Id="LocSatelliteLib_heIL" Guid="*" Win64="$(var.Win64)">
+              <File Id="LocSatelliteDLL_heIL" Source="Sources\ProgramFiles\PromptWall\he-IL\PromptWall.resources.dll" Vital="yes" KeyPath="yes" Checksum="yes" Assembly=".net" AssemblyApplication="PromptWallEXE" />
+            </Component>
+          </Directory>
+          <Directory Id="LOCDIR_hu" Name="hu">
+            <Component Id="LocSatelliteLib_hu" Guid="*" Win64="$(var.Win64)">
+              <File Id="LocSatelliteDLL_hu" Source="Sources\ProgramFiles\PromptWall\hu\PromptWall.resources.dll" Vital="yes" KeyPath="yes" Checksum="yes" Assembly=".net" AssemblyApplication="PromptWallEXE" />
+            </Component>
+          </Directory>
+          <Directory Id="LOCDIR_fr" Name="fr">
+            <Component Id="LocSatelliteLib_fr" Guid="*" Win64="$(var.Win64)">
+              <File Id="LocSatelliteDLL_fr" Source="Sources\ProgramFiles\PromptWall\fr\PromptWall.resources.dll" Vital="yes" KeyPath="yes" Checksum="yes" Assembly=".net" AssemblyApplication="PromptWallEXE" />
+            </Component>
+          </Directory>
+          <Directory Id="LOCDIR_ja" Name="ja">
+            <Component Id="LocSatelliteLib_ja" Guid="*" Win64="$(var.Win64)">
+              <File Id="LocSatelliteDLL_ja" Source="Sources\ProgramFiles\PromptWall\ja\PromptWall.resources.dll" Vital="yes" KeyPath="yes" Checksum="yes" Assembly=".net" AssemblyApplication="PromptWallEXE" />
+            </Component>
+          </Directory>
+          <Directory Id="LOCDIR_de" Name="de">
+            <Component Id="LocSatelliteLib_de" Guid="*" Win64="$(var.Win64)">
+              <File Id="LocSatelliteDLL_de" Source="Sources\ProgramFiles\PromptWall\de\PromptWall.resources.dll" Vital="yes" KeyPath="yes" Checksum="yes" Assembly=".net" AssemblyApplication="PromptWallEXE" />
+            </Component>
+          </Directory>
+          <Directory Id="LOCDIR_nl" Name="nl">
+            <Component Id="LocSatelliteLib_nl" Guid="*" Win64="$(var.Win64)">
+              <File Id="LocSatelliteDLL_nl" Source="Sources\ProgramFiles\PromptWall\nl\PromptWall.resources.dll" Vital="yes" KeyPath="yes" Checksum="yes" Assembly=".net" AssemblyApplication="PromptWallEXE" />
+            </Component>
+          </Directory>
+          <Directory Id="LOCDIR_ko" Name="ko">
+            <Component Id="LocSatelliteLib_ko" Guid="*" Win64="$(var.Win64)">
+              <File Id="LocSatelliteDLL_ko" Source="Sources\ProgramFiles\PromptWall\ko\PromptWall.resources.dll" Vital="yes" KeyPath="yes" Checksum="yes" Assembly=".net" AssemblyApplication="PromptWallEXE" />
+            </Component>
+          </Directory>
+          <Directory Id="LOCDIR_pl" Name="pl">
+            <Component Id="LocSatelliteLib_pl" Guid="*" Win64="$(var.Win64)">
+              <File Id="LocSatelliteDLL_pl" Source="Sources\ProgramFiles\PromptWall\pl\PromptWall.resources.dll" Vital="yes" KeyPath="yes" Checksum="yes" Assembly=".net" AssemblyApplication="PromptWallEXE" />
+            </Component>
+          </Directory>
+          <Directory Id="LOCDIR_ru" Name="ru">
+            <Component Id="LocSatelliteLib_ru" Guid="*" Win64="$(var.Win64)">
+              <File Id="LocSatelliteDLL_ru" Source="Sources\ProgramFiles\PromptWall\ru\PromptWall.resources.dll" Vital="yes" KeyPath="yes" Checksum="yes" Assembly=".net" AssemblyApplication="PromptWallEXE" />
+            </Component>
+          </Directory>
+          <Directory Id="LOCDIR_ptBR" Name="pt-BR">
+            <Component Id="LocSatelliteLib_ptBR" Guid="*" Win64="$(var.Win64)">
+              <File Id="LocSatelliteDLL_ptBR" Source="Sources\ProgramFiles\PromptWall\pt-BR\PromptWall.resources.dll" Vital="yes" KeyPath="yes" Checksum="yes" Assembly=".net" AssemblyApplication="PromptWallEXE" />
+            </Component>
+          </Directory>
+          <Directory Id="LOCDIR_it" Name="it">
+            <Component Id="LocSatelliteLib_it" Guid="*" Win64="$(var.Win64)">
+              <File Id="LocSatelliteDLL_it" Source="Sources\ProgramFiles\PromptWall\it\PromptWall.resources.dll" Vital="yes" KeyPath="yes" Checksum="yes" Assembly=".net" AssemblyApplication="PromptWallEXE" />
+            </Component>
+          </Directory>
+          <Directory Id="LOCDIR_tr" Name="tr">
+            <Component Id="LocSatelliteLib_tr" Guid="*" Win64="$(var.Win64)">
+              <File Id="LocSatelliteDLL_tr" Source="Sources\ProgramFiles\PromptWall\tr\PromptWall.resources.dll" Vital="yes" KeyPath="yes" Checksum="yes" Assembly=".net" AssemblyApplication="PromptWallEXE" />
+            </Component>
+          </Directory>
+          <Directory Id="LOCDIR_uk" Name="uk">
+            <Component Id="LocSatelliteLib_uk" Guid="*" Win64="$(var.Win64)">
+              <File Id="LocSatelliteDLL_uk" Source="Sources\ProgramFiles\PromptWall\uk\PromptWall.resources.dll" Vital="yes" KeyPath="yes" Checksum="yes" Assembly=".net" AssemblyApplication="PromptWallEXE" />
+            </Component>
+          </Directory>
+          <Directory Id="LOCDIR_zh" Name="zh">
+            <Component Id="LocSatelliteLib_zh" Guid="*" Win64="$(var.Win64)">
+              <File Id="LocSatelliteDLL_zh" Source="Sources\ProgramFiles\PromptWall\zh\PromptWall.resources.dll" Vital="yes" KeyPath="yes" Checksum="yes" Assembly=".net" AssemblyApplication="PromptWallEXE" />
+            </Component>
+          </Directory>
+          <Directory Id="DOCDIR" Name="doc">
+            <Component Id="DocFAQComp" Win64="$(var.Win64)">
+              <File Id="DocFAQFile" Source="Sources\ProgramFiles\PromptWall\doc\faq.html" Vital="yes" KeyPath="yes" Checksum="yes" />
+            </Component>
+            <Directory Id="DOCCSSDIR" Name="css">
+              <Component Id="DocCss00Comp" Win64="$(var.Win64)">
+                <File Id="DocCss00File" Source="Sources\ProgramFiles\PromptWall\doc\css\1140.css" Vital="yes" KeyPath="yes" Checksum="yes" />
+              </Component>
+              <Component Id="DocCss02Comp" Win64="$(var.Win64)">
+                <File Id="DocCss02File" Source="Sources\ProgramFiles\PromptWall\doc\css\style.css" Vital="yes" KeyPath="yes" Checksum="yes" />
+              </Component>
+            </Directory>
+          </Directory>
+        </Directory>
+      </Directory>
+      
+      <!-- ProgramData -->
+      <Directory Id="CommonAppDataFolder" Name="CommonAppData">
+        <Directory Id="AppDataDir" Name="PromptWall">
+          <Component Id="Database" Guid="*" Win64="$(var.Win64)">
+            <File Id="DatabaseJson" Source="Sources\CommonAppData\PromptWall\profiles.json" Vital="yes" KeyPath="yes" />
+          </Component>
+          <Component Id="hosts" Guid="*" Win64="$(var.Win64)">
+            <File Id="HostsBCK" Source="Sources\CommonAppData\PromptWall\hosts.bck" Vital="yes" KeyPath="yes" />
+          </Component>
+          <Component Id="RemoveAppDataDir" Guid="{A7D391C9-D9B2-4BA6-903E-075F20F2734E}" Win64="$(var.Win64)" Transitive="yes">
+            <RemoveFile Id="AppDataDirFiles" On='install' Name='*' />
+            <RemoveFolder Id="AppDataDirFolder" On='install' />
+            <Condition><![CDATA[NOT OLDER_UPGRADEABLE_FOUND]]></Condition>
+          </Component>
+        </Directory>
+      </Directory>
+
+      <!-- Start Menu -->
+      <Directory Id="ProgramMenuFolder" Name="Programs">
+        <Directory Id="ProgramMenuDir" Name="$(var.ProductName)">
+          <Component Id="ProgramMenuDir" Guid="*" Win64="$(var.Win64)">
+            <RemoveFolder Id='ProgramMenuDir' On='uninstall' />
+            <RegistryValue Root='HKCU' Key='Software\[ProductName]' Type='string' Value='' KeyPath='yes' />
+            <Shortcut Id="ControllerShortcut" Icon="PromptWallIcon.exe" Directory="ProgramMenuDir" Name="PromptWall Controller" Target="[INSTALLDIR]PromptWall.exe">
+              <ShortcutProperty Key="{9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}, 5" Value="KPados.PromptWall.Controller" /> <!-- System.AppUserModel.ID -->
+              <ShortcutProperty Key="{9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}, 12" Value="1" />                         <!-- System.AppUserModel.StartPinOption, http://support.microsoft.com/kb/2745126/en-us -->
+              <ShortcutProperty Key="{9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}, 8" Value="1" />                          <!-- System.AppUserModel.ExcludeFromShowInNewInstall -->
+            </Shortcut>
+            <Shortcut Id="DevelToolShortcut" Icon="PromptWallIcon.exe" Directory="ProgramMenuDir" Name="PromptWall Dev Helper" Arguments="/develtool" Target="[INSTALLDIR]PromptWall.exe">
+              <ShortcutProperty Key="{9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}, 5" Value="KPados.PromptWall.DevelTool" />  <!-- System.AppUserModel.ID -->
+              <ShortcutProperty Key="{9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}, 12" Value="1" />                         <!-- System.AppUserModel.StartPinOption, http://support.microsoft.com/kb/2745126/en-us -->
+              <ShortcutProperty Key="{9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}, 8" Value="1" />                          <!-- System.AppUserModel.ExcludeFromShowInNewInstall -->
+            </Shortcut>
+            <Shortcut Id="FAQShortcut" Directory="ProgramMenuDir" Name="FAQ" Target="[INSTALLDIR]doc\faq.html"/>
+            <!-- <Shortcut Id="UninstallProduct"
+                      Name="Uninstall PromptWall"
+                      Target="[$(var.System32Dir)]msiexec.exe"
+                      Arguments="/x [ProductCode]" /> -->
+          </Component>
+        </Directory>
+      </Directory>
+
+    </Directory>
+
+    <!-- Registry -->
+    <Component Id="RegistryKeys" Guid="*" Directory="INSTALLDIR" Win64="$(var.Win64)">
+      <RegistryKey Id='RegInstallDir' Root='HKLM' Key='Software\PromptWall' ForceDeleteOnUninstall='yes'>
+        <RegistryValue Type='string' Name='InstallDir' Value='[INSTALLDIR]'/>
+      </RegistryKey>
+    </Component>
+
+    <!-- Icons -->
+    <Icon Id="PromptWallIcon.exe" SourceFile="Sources\ProgramFiles\PromptWall\PromptWall.ico" />
+
+    <!-- Dependencies groupping -->
+    <ComponentGroup Id="Dependencies">
+      <ComponentRef Id="Microsoft_Bcl_AsyncInterfaces_Lib"/>
+      <ComponentRef Id="System_Buffers_Lib"/>
+      <ComponentRef Id="System_IO_Pipelines_Lib"/>
+      <ComponentRef Id="System_Memory_Lib"/>
+      <ComponentRef Id="System_Numerics_Vectors_Lib"/>
+      <ComponentRef Id="System_Runtime_CompilerServices_Unsafe_Lib"/>
+      <ComponentRef Id="System_Text_Encodings_Web_Lib"/>
+      <ComponentRef Id="System_Text_Json_Lib"/>
+      <ComponentRef Id="System_Threading_Tasks_Extensions_Lib"/>
+    </ComponentGroup>
+
+    <!-- Localization groupping -->
+    <ComponentGroup Id="Localizations">
+      <ComponentRef Id="LocSatelliteLib_bg"/>
+      <ComponentRef Id="LocSatelliteLib_es"/>
+      <ComponentRef Id="LocSatelliteLib_cs"/>
+      <ComponentRef Id="LocSatelliteLib_heIL"/>
+      <ComponentRef Id="LocSatelliteLib_hu"/>
+      <ComponentRef Id="LocSatelliteLib_fr"/>
+      <ComponentRef Id="LocSatelliteLib_ja"/>
+      <ComponentRef Id="LocSatelliteLib_de"/>
+      <ComponentRef Id="LocSatelliteLib_nl"/>
+      <ComponentRef Id="LocSatelliteLib_ko"/>
+      <ComponentRef Id="LocSatelliteLib_ru"/>
+      <ComponentRef Id="LocSatelliteLib_it"/>
+      <ComponentRef Id="LocSatelliteLib_uk"/>
+      <ComponentRef Id="LocSatelliteLib_zh"/>
+      <ComponentRef Id="LocSatelliteLib_ptBR"/>
+      <ComponentRef Id="LocSatelliteLib_pl"/>
+      <ComponentRef Id="LocSatelliteLib_tr"/>
+    </ComponentGroup>
+
+    <!-- Documentation groupping -->
+    <ComponentGroup Id="Documentation">
+      <ComponentRef Id="DocFAQComp"/>
+      <ComponentRef Id="DocCss00Comp"/>
+      <ComponentRef Id="DocCss02Comp"/>
+    </ComponentGroup>
+    
+  </Fragment>
+
+</Wix>
