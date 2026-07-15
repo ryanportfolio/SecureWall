@@ -1,0 +1,95 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore application packages
+        run: dotnet restore TinyWall\TinyWall.csproj
+
+      - name: Run pure security tests
+        run: dotnet run --project tests\SecureWall.Core.Tests\SecureWall.Core.Tests.csproj
+
+      - name: Build Debug application
+        shell: pwsh
+        run: |
+          $msbuild = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+            -latest -products * -requires Microsoft.Component.MSBuild `
+            -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+          & $msbuild TinyWall\TinyWall.csproj /t:Rebuild /p:Configuration=Debug /p:RestorePackages=false /v:minimal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run non-enforcing protocol self-tests
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path 'TinyWall\bin\Debug\SecureWall.exe').Path
+          foreach ($argument in '/protocolselftest', '/pipeintegrationtest') {
+            $process = Start-Process -FilePath $exe -ArgumentList $argument -Wait -PassThru
+            if ($process.ExitCode -ne 0) {
+              throw "$argument failed with exit code $($process.ExitCode)"
+            }
+          }
+
+      - name: Download pinned WiX 3.14.1
+        id: wix
+        shell: pwsh
+        run: |
+          $zip = Join-Path $env:RUNNER_TEMP 'wix314-binaries.zip'
+          $root = Join-Path $env:RUNNER_TEMP 'wix314'
+          Invoke-WebRequest `
+            -Uri 'https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip' `
+            -OutFile $zip
+          $expected = '6AC824E1642D6F7277D0ED7EA09411A508F6116BA6FAE0AA5F2C7DAA2FF43D31'
+          $actual = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash
+          if ($actual -ne $expected) { throw "WiX archive hash mismatch: $actual" }
+          Expand-Archive -LiteralPath $zip -DestinationPath $root
+          "root=$root" >> $env:GITHUB_OUTPUT
+
+      - name: Build unsigned Release installers
+        shell: powershell
+        run: .\tools\release\Build-SecureWallRelease.ps1 -WixRoot '${{ steps.wix.outputs.root }}'
+
+      - name: Verify installer source and packages
+        shell: powershell
+        run: .\tests\installer\Test-SecureWallInstaller.ps1 -ArtifactsDirectory artifacts\release
+
+      - name: Verify PowerShell 5.1 syntax
+        shell: powershell
+        run: |
+          $bad = $false
+          git ls-files '*.ps1' | ForEach-Object {
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_, [ref]$null, [ref]$errors) | Out-Null
+            if ($errors) {
+              $errors | ForEach-Object { Write-Host "$($_.Extent.File):$($_.Extent.StartLineNumber): $($_.Message)" }
+              $bad = $true
+            }
+          }
+          if ($bad) { exit 1 }
+
+      - name: Verify Codex adapters and JSON
+        shell: pwsh
+        run: |
+          node .claude\scripts\sync-codex-skills.mjs --check
+          Get-Content -Raw .claude\settings.json | ConvertFrom-Json | Out-Null
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SecureWall-unsigned-installers
+          path: |
+            artifacts/release/SecureWall_*.msi
+            artifacts/release/SHA256SUMS.txt
+          if-no-files-found: error

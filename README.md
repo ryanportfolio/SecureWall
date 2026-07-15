@@ -6,6 +6,18 @@ The tray menu's **Network Activity** window refreshes every second and separates
 
 SecureWall is early development software. Do not install it on a machine you cannot recover locally. A firewall defect can interrupt networking or weaken host isolation.
 
+## Installer
+
+Prerelease builds provide standard per-machine Windows installers:
+
+- `SecureWall_x64.msi` for normal Intel/AMD 64-bit Windows PCs.
+- `SecureWall_arm64.msi` for Windows on ARM.
+- `SecureWall_x86.msi` only for 32-bit Windows.
+
+The installer copies the complete runtime, installs and starts the LocalSystem service, and starts the tray controller. It deliberately refuses to install while TinyWall is present. Keep TinyWall active until you are ready to test from a local console; then uninstall TinyWall, reboot, and run the matching SecureWall MSI.
+
+Alpha installers are unsigned. Windows may show an unknown-publisher warning. Verify the MSI against the release's `SHA256SUMS.txt` before running it. Real WFP, reboot, and audit-policy behavior remains unverified until the matrix in [docs/TESTING.md](docs/TESTING.md) is complete.
+
 ## Intended prompt behavior
 
 - Normal mode blocks inbound and outbound traffic unless an explicit exception applies.
@@ -25,7 +37,7 @@ dotnet run --project tests\SecureWall.Core.Tests\SecureWall.Core.Tests.csproj
 & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\MSBuild.exe" TinyWall\TinyWall.csproj /t:Build /p:Configuration=Debug /p:RestorePackages=false
 ```
 
-The debug-only `/protocolselftest`, `/pipeintegrationtest`, and `/promptpreview` switches verify IPC serialization, authenticated pipe exchange, and the synthetic popup without starting the service or changing WFP. WiX 3 is needed to build the MSI; run `MsiSetup\PrepareSources.ps1` after the application build. `tools\vm\Prepare-SecureWallVmBundle.ps1` packages the guarded real-firewall validation runner for an expendable Windows VM. Full commands and the privileged VM matrix are in [docs/TESTING.md](docs/TESTING.md). Security and recovery rules are in [docs/SECURITY.md](docs/SECURITY.md).
+The debug-only `/protocolselftest`, `/pipeintegrationtest`, and `/promptpreview` switches verify IPC serialization, authenticated pipe exchange, and the synthetic popup without starting the service or changing WFP. WiX 3.14.1 is needed to build the MSI; `tools\release\Build-SecureWallRelease.ps1` creates all three installers and their SHA-256 manifest without installing anything. `tools\vm\Prepare-SecureWallVmBundle.ps1` packages the guarded real-firewall validation runner for an expendable Windows VM. Full commands and the privileged VM matrix are in [docs/TESTING.md](docs/TESTING.md). Security and recovery rules are in [docs/SECURITY.md](docs/SECURITY.md).
 
 ## Lineage and license
 
