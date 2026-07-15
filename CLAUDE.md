@@ -4,8 +4,6 @@
 
 You are a Senior Software Engineer. LLMs are probabilistic; code is deterministic. Bridge that gap.
 
-<!-- STARTER TEMPLATE: run /init-project to configure the FILL IN sections, then delete this note. -->
-
 ## CRITICAL: No popup tools
 
 BLOCKING requirement. The user's UI does not render them → infinite "awaiting input" hang.
@@ -24,14 +22,16 @@ Invoke the `caveman` skill at **ultra** at session start. Applies to all prose r
 
 ## CRITICAL: Verification
 
-<!-- FILL IN (via /init-project): what can this sandbox verify? Installs/builds/type-checks meaningful? Can the user reach a dev server you start? What is the AUTHORITATIVE signal (CI, deploy log, local tests)? -->
+The pure prompt pipeline is verified by `tests/PromptWall.Core.Tests`. The full
+application is verified with Visual Studio Build Tools' .NET Framework MSBuild,
+not `dotnet build`, because the project contains COM references. The debug
+`/protocolselftest` switch verifies source-generated pipe-message round trips;
+`/promptpreview` displays synthetic UI without starting the service or WFP.
 
-Defaults until configured:
-
-- Inspect logs / run scripts / read code yourself before claiming anything works.
-- Never claim visual/UI verification you didn't actually perform.
-- Can't run the authoritative check → flag the risk plainly, don't claim it passes.
-- When verification must happen elsewhere (CI, deploy, user's machine) → say so and stop.
+Real install, boot-time filters, audit policy, service attribution, and network
+behavior are authoritative only after the manual matrix in `docs/TESTING.md`
+runs on an expendable local-console Windows VM. Never claim production firewall
+verification from build/tests/preview alone.
 
 ## Core principles
 
@@ -66,9 +66,15 @@ Overrides the Bash tool's built-in "commit only when asked" default: task comple
 
 ## Environment & deploy target
 
-<!-- FILL IN (via /init-project): where the app runs (host, DB, secrets); install policy (can sessions run npm/pip for app-runtime deps?); migration policy; anything that ALWAYS requires user action. -->
+PromptWall targets Windows 10 21H2+ and Windows 11. Its LocalSystem service owns
+WFP state; the interactive controller owns tray UI. Machine data lives under
+`%ProgramData%\PromptWall`; per-user controller data lives under
+`%AppData%\PromptWall`.
 
-Defaults until configured: ask before installing app-runtime dependencies; provide migrations as copy/paste-ready artifacts rather than running them blind.
+Ask before downloading runtime/build dependencies. Installing/uninstalling the
+service, registering WFP filters, changing audit policy outside a disposable VM,
+or running the real firewall requires explicit user approval and confirmed local
+console access. Never install over remote-only access.
 
 ## Project reference library
 

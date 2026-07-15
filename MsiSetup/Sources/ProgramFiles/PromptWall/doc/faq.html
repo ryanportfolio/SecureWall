@@ -1,0 +1,59 @@
+<!doctype html>
+<html class="no-js" lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PromptWall FAQ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="css/1140.css" type="text/css" media="screen">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="content">
+  <header>
+    <div class="container" style="background-color: #000000; height: 10px;"></div>
+    <div class="container gradient-bg">
+      <div class="row"><div class="twelvecol last" style="padding-top: 10px;">
+        <h1 class="headertitle">PromptWall Frequently Asked Questions</h1>
+      </div></div>
+    </div>
+  </header>
+  <div style="height: 20px;"></div>
+  <main class="container">
+    <div class="row"><div class="twelvecol last">
+      <h3>What is PromptWall?</h3>
+      <p>PromptWall is a GPLv3 fork of TinyWall. It keeps TinyWall's direct Windows Filtering Platform, default-deny design and adds a bottom-right prompt for newly blocked outgoing TCP or UDP connections.</p>
+
+      <h3>What do Allow outgoing and Ignore do?</h3>
+      <p><strong>Allow outgoing</strong> creates a permanent outbound TCP/UDP exception for the service-owned identity in the prompt. It does not open inbound listener ports. <strong>Ignore</strong> keeps the connection blocked and suppresses another prompt for that identity for five minutes.</p>
+
+      <h3>Why is Allow sometimes disabled?</h3>
+      <p>Shared service hosts can run several Windows services in one process. If PromptWall cannot prove one exact service identity, it keeps blocking and disables Allow instead of creating a broad executable exception.</p>
+
+      <h3>Which blocks create prompts?</h3>
+      <p>Only outbound TCP/UDP drops caused by PromptWall's normal-mode default block. Explicit user blocks, blocklists, inbound drops, raw-socket protections, Block All mode, and other firewall modes never create an allow prompt.</p>
+
+      <h3>Can I install remotely?</h3>
+      <p>No. Installation activates default-deny filtering and can immediately disconnect remote administration. Use an expendable Windows VM with a snapshot and a working local or virtual console. Do not install TinyWall and PromptWall together.</p>
+
+      <h3>Does PromptWall check for updates?</h3>
+      <p>No. The inherited TinyWall update feed is disabled because it cannot safely update this fork. Install reviewed PromptWall builds manually.</p>
+
+      <h3>Where are settings and logs?</h3>
+      <p>Machine data is stored under <code>C:\ProgramData\PromptWall</code>. PromptWall also uses a LocalSystem Windows service and a separate tray controller.</p>
+
+      <h3>How do I recover from a bad rule or lockout?</h3>
+      <p>Use the local console to switch mode, remove the exception, or uninstall PromptWall through Windows Apps and Features. Never delete the installation directory by hand.</p>
+
+      <h3>What is the license and upstream?</h3>
+      <p>PromptWall is licensed under GNU GPL version 3 or later. It is based on TinyWall by Károly Pados. Source provenance is included with the distribution.</p>
+    </div></div>
+  </main>
+  <div class="push"></div>
+</div>
+<footer class="gradient-bg-reverse">
+  <div class="container"><div class="row"><div class="twelvecol last centertext">
+    <br><p>TinyWall copyright © 2011 Károly Pados; PromptWall modifications © 2026 PromptWall contributors.</p>
+  </div></div></div>
+</footer>
+</body>
+</html>

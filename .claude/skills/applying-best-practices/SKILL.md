@@ -1,120 +1,38 @@
 ---
-description: Code-quality and performance checklist for this project's stack. Use BEFORE making non-trivial changes — new features, refactors, perf work, bug fixes — to spot common pitfalls (N+1 queries, duplicate query-cache keys, non-passive scroll listeners, missing parallelism, eager bundle imports, re-render traps). Also use when reviewing a perf-audit finding or applying a best-practice "fix": this skill encodes the discipline of investigating WHY current code looks the way it does before assuming it's wrong.
+description: Security, correctness, and performance checklist for PromptWall's C#/.NET Framework WinForms service, WFP filters, named-pipe protocol, and event correlation. Use before non-trivial changes and reviews.
 ---
 
 # Applying best practices
 
-This is a checklist consulted during implementation work. It does two things:
+Investigate surrounding code and callers before changing upstream behavior. Classify timing, filter precedence, service lifecycle, IPC authorization, and persistence changes as behavioral—not cleanup.
 
-1. **Lists the practices** that commonly apply to web/TypeScript stacks. **Tune
-   this catalog to the project**: delete rules that don't apply to this stack,
-   add stack-specific ones, and record real project examples as they accumulate
-   (via `/recall save`).
-2. **Encodes the discipline** of investigating intent before "fixing"
-   apparent violations — because code that looks wrong is often intentional.
+## Enforcement
 
-## The discipline (read this first)
+- LocalSystem service owns policy; controller requests actions only.
+- WFP edits stay transactional. Publish derived runtime state only after commit.
+- Prompt only outbound ALE drops from known default-block runtime IDs in Normal mode.
+- Explicit blocks, blocklists, raw sockets, inbound drops, BlockAll, Learning, Disabled, and AllowOutgoing modes never prompt.
+- Loopback remains excluded. Prompt allow sets remote TCP/UDP connect ports only; listener fields remain null.
 
-When you spot what looks like a best-practice violation:
+## Identity and IPC
 
-1. **Open the surrounding code.** Read the function, the callers, the file's
-   history if relevant. A 5-minute investigation prevents an hour of
-   regression debugging.
-2. **Ask "why might this be intentional?"** Common reasons:
-   - Sequential awaits because order matters (caching, rate limits, side effects).
-   - Eager imports because the code path runs on every page.
-   - `useState` + `useEffect` because the source is async or external.
-   - Raw `fetch` because the call is one-shot (e.g., file export, not a query).
-3. **Classify the fix's risk:**
-   - **Zero-risk:** purely additive (`{ passive: true }`, hoisting a regex,
-     unifying a query key). Apply freely.
-   - **Low-risk:** semantic-preserving refactor with a clear rollback (N+1 →
-     single query that returns the same shape). Apply with a sanity check.
-   - **Behavioral:** changes timing, ordering, or side-effects. Stop and
-     check with the user.
-4. **Never bundle "fixes" that span risk categories** into one commit —
-   you lose the ability to bisect a regression to the actual cause.
+- Package SID wins over executable/service attribution.
+- Exact service identity is path plus service name. Shared/unknown service hosts fail closed.
+- Correlation requires exact filter ID, normalized path, protocol, tuple, direction, and bounded timestamp skew.
+- Controller sends only an opaque token for Allow/Ignore. Validate expiry, single use, lock state, and service-owned subject.
+- Save/reload failure leaves policy blocked and token pending.
 
-If a "fix" requires comments like "TODO: verify this still works" or
-"should be equivalent" — you haven't verified enough yet.
+## Lifecycle and resources
 
-## The catalog (generic web/TS baseline — tune per project)
+- Bound queues, candidate buffers, dedup windows, cooldowns, and token lifetime.
+- Restore exact prior audit flags; dispose nested leases in reverse order.
+- Avoid blocking WinForms polling; keep one popup visible and dispose timers/event handlers.
+- Close and timeout equal Ignore. Controller shutdown grants nothing.
 
-### Async / IO (highest leverage)
+## Verification
 
-- **Run independent awaits in `Promise.all`** — especially in route handlers
-  that hit multiple external services or DB queries.
-- **Cheap sync checks before expensive awaits** — auth gates, feature flags,
-  early-return validation should short-circuit before any DB/network call.
-- **No N+1 over fat rows** — if a route loops `await getX(id)` per parent
-  record, it's almost always a single grouped query in disguise
-  (LEFT JOIN + COUNT, `WHERE id IN (...)`).
+- Add a failing pure test before production behavior.
+- Run pure tests, native .NET Framework build, protocol self-test, source checks, and synthetic popup preview.
+- Never equate those checks with real WFP verification; use `docs/TESTING.md` on an expendable local-console VM.
 
-### Server caching
-
-- **Module-level cache for hot read-only data** (config files, status data).
-- **No request-scoped state in module variables** — keep in-memory maps
-  keyed by stable IDs, TTL-evicted.
-- **Don't re-read static files per request** — hoist file loads to module init.
-
-### Bundle size
-
-- **Route-level code splitting via `React.lazy` + `Suspense`** (or the
-  framework's equivalent) for top-level pages.
-- **Heavy components behind dynamic `import()`** — 3D, file-upload, PDF libs.
-- **Granular imports** — `import { X } from 'lib'`, not barrels, for
-  icon/utility libraries that support it.
-- **Manual chunking for route-specific heavy deps** if the bundler supports it.
-
-### Client data fetching (query-cache libraries)
-
-- **Stable, parameterized query keys** — `['things', { limit }]` not
-  `['things']` when params vary. Different params = different cache entry.
-- **One key per logical resource across components** — if two components
-  fetch the same data, they MUST use the same key, or the cache desyncs.
-- **Don't use raw `fetch` for cacheable GETs** — use the query library. OK for
-  one-shot user-triggered actions (file exports, form submits) where
-  dedup/caching aren't wanted.
-
-### React re-renders
-
-- **Derive state during render or in `useMemo`**, not in `useState` + `useEffect`.
-- **`{ passive: true }` on scroll/touch listeners** that never call
-  `preventDefault`.
-- **Hoist regex/Set/Map construction** out of hot render or callback paths.
-- **Use `IntersectionObserver` instead of scroll listeners** when you
-  only care about a threshold crossing, not continuous position.
-- **`memo()` for list items** when a list parent re-renders frequently and
-  item props are stable.
-
-### Rendering
-
-- **Long lists need either virtualization or `content-visibility: auto`** —
-  don't render 1000 DOM nodes if 50 are visible.
-- **`useTransition` / `useDeferredValue`** for filter inputs over large lists.
-- **No components defined inside other components' render** — they're
-  recreated each render and lose state.
-
-### JS perf (micro)
-
-- **`Set` / `Map` for repeated lookups** — `.find()` or `.includes()` in
-  a render loop is O(n²).
-- **Combine `.filter().map().filter()` chains** into one loop for large arrays.
-- **Cache property access in hot loops.**
-
-## Project-specific gotchas the catalog doesn't cover
-
-See `.claude/reference/pitfalls.md` for this project's accumulated traps.
-Add new ones there via `/recall save` — not here.
-
-For verification constraints (what this sandbox can and can't run), see
-CLAUDE.md's verification section.
-
-## When to fire this skill
-
-- BEFORE implementing a non-trivial feature, refactor, or perf fix.
-- When the user asks to "optimize", "make X faster", "fix this perf issue".
-- When applying a code-review finding — to make sure the "fix" doesn't
-  break the thing the original code was doing intentionally.
-- When you spot what looks like a best-practice violation in unfamiliar
-  code — pause, investigate, then decide.
+Project pitfalls live in `.claude/reference/pitfalls.md`.
