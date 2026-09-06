@@ -7,36 +7,25 @@ namespace pylorak.TinyWall.Prompting
     {
         Persistent,
         BootTime,
+        Dynamic,
     }
 
     internal static class WfpFilterPairRegistration
     {
         internal static IReadOnlyList<ulong> Register(
             Func<WfpFilterLifetime, ulong> register,
-            bool required)
+            bool required,
+            bool runtimeOnly = false)
         {
             if (register == null)
                 throw new ArgumentNullException(nameof(register));
 
-            var filterIds = new List<ulong>(2);
-            if (required)
-            {
-                filterIds.Add(register(WfpFilterLifetime.Persistent));
-                filterIds.Add(register(WfpFilterLifetime.BootTime));
-                return filterIds;
-            }
-
-            try
-            {
-                filterIds.Add(register(WfpFilterLifetime.Persistent));
-                filterIds.Add(register(WfpFilterLifetime.BootTime));
-            }
-            catch
-            {
-                // Preserve TinyWall's best-effort behavior for non-critical filters.
-            }
-
-            return filterIds;
+            // A reported successful policy must contain every requested rule, including allows.
+            // The caller owns the transaction and rolls back every registration on any failure.
+            // 'required' remains in the signature for callers compiled against the old helper.
+            if (runtimeOnly)
+                return new[] { register(WfpFilterLifetime.Dynamic) };
+            return new[] { register(WfpFilterLifetime.Persistent), register(WfpFilterLifetime.BootTime) };
         }
     }
 }

@@ -12,6 +12,9 @@ param(
     [ValidateRange(1, 65535)]
     [int]$TargetPort = 443,
 
+    [ValidateSet('x86', 'x64', 'arm64')]
+    [string]$Architecture = 'x64',
+
     [switch]$ConfirmIsolatedVm,
     [switch]$KeepInstalled
 )
@@ -21,7 +24,8 @@ $providerGuid = '053FC8F9-9052-4B2F-9B24-7DE3A2BED6E0'
 $auditSubcategory = '{0CCE9226-69AE-11D9-BED3-505054503030}'
 $started = Get-Date
 $resultRoot = Join-Path $PSScriptRoot ('results\' + $started.ToString('yyyyMMdd-HHmmss'))
-$app = Join-Path $PSScriptRoot 'app\SecureWall.exe'
+$app = $null
+$msi = Join-Path $PSScriptRoot "installers\SecureWall_$Architecture.msi"
 $allowProbe = Join-Path $PSScriptRoot 'probes\SecureWall.AllowProbe.exe'
 $ignoreProbe = Join-Path $PSScriptRoot 'probes\SecureWall.IgnoreProbe.exe'
 $controller = $null
@@ -45,7 +49,7 @@ function Save-WfpState {
 
 function Invoke-Probe {
     param([string]$Path)
-    $process = Start-Process -FilePath $Path -ArgumentList @($TargetAddress, $TargetPort, 15000) -Wait -PassThru
+    $process = Start-Process -FilePath $Path -ArgumentList @($TargetAddress, $TargetPort, 15000) -WindowStyle Hidden -Wait -PassThru
     return $process.ExitCode
 }
 
@@ -77,13 +81,18 @@ if (-not [Net.IPAddress]::TryParse($TargetAddress, [ref]$parsedAddress) -or
     throw 'TargetAddress must be a non-loopback IP address reachable from the VM.'
 }
 
-foreach ($path in @($app, $allowProbe, $ignoreProbe)) {
+foreach ($path in @($msi, $allowProbe, $ignoreProbe, (Join-Path $PSScriptRoot 'bundle-manifest.json'))) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         throw "Missing validation file: $path"
     }
 }
-if ((Get-Item -LiteralPath $app).VersionInfo.ProductName -ne 'SecureWall') {
-    throw 'Executable identity check failed.'
+$manifest = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'bundle-manifest.json') -Raw | ConvertFrom-Json
+$msiHash = (Get-FileHash -LiteralPath $msi -Algorithm SHA256).Hash
+if ($msiHash -ne $manifest.InstallerSha256.$Architecture) { throw 'MSI hash differs from the bundle manifest.' }
+foreach ($probe in @($allowProbe, $ignoreProbe)) {
+    if ((Get-FileHash -LiteralPath $probe -Algorithm SHA256).Hash -ne $manifest.ProbeSha256) {
+        throw "Probe hash differs from the bundle manifest: $probe"
+    }
 }
 if (Get-Service -Name TinyWall -ErrorAction SilentlyContinue) {
     throw 'TinyWall is installed in this VM. Use a clean snapshot; the script will not layer firewalls.'
@@ -99,22 +108,40 @@ $preflight = [ordered]@{
     SnapshotReference = $SnapshotReference
     VmDescription = $vmDescription
     Target = "${TargetAddress}:$TargetPort"
-    SecureWallSha256 = (Get-FileHash -LiteralPath $app -Algorithm SHA256).Hash
+    InstallerSha256 = $msiHash
+    Architecture = $Architecture
 }
 $preflight | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $resultRoot 'preflight.json') -Encoding UTF8
 Write-EvidenceText 'audit-before.csv' @(& "$env:SystemRoot\System32\auditpol.exe" /get "/subcategory:$auditSubcategory" /r)
 Save-WfpState 'wfp-before.xml'
+$firewallBefore = Get-NetFirewallRule | Select-Object Name, DisplayName, Group, Enabled, Direction, Action
+$firewallBefore | Export-Clixml -LiteralPath (Join-Path $resultRoot 'firewall-rules-before.xml')
+$profilesBefore = Get-NetFirewallProfile | Select-Object Name, NotifyOnListen
+$profilesBefore | Export-Clixml -LiteralPath (Join-Path $resultRoot 'firewall-profiles-before.xml')
+$hostsPath = Join-Path $env:SystemRoot 'System32\drivers\etc\hosts'
+$hostsHashBefore = (Get-FileHash -LiteralPath $hostsPath -Algorithm SHA256).Hash
 
 try {
     if ((Invoke-Probe $allowProbe) -ne 0 -or (Invoke-Probe $ignoreProbe) -ne 0) {
         throw 'Baseline probes cannot reach the target before SecureWall installation.'
     }
 
-    $install = Start-Process -FilePath $app -ArgumentList '/install' -Wait -PassThru
-    if ($install.ExitCode -ne 0) {
-        throw "SecureWall /install failed with exit code $($install.ExitCode)."
+    $installLog = Join-Path $resultRoot 'msi-install.log'
+    $install = Start-Process -FilePath "$env:SystemRoot\System32\msiexec.exe" -ArgumentList @('/i', "`"$msi`"", '/qn', '/norestart', '/L*v', "`"$installLog`"") -WindowStyle Hidden -Wait -PassThru
+    if ($install.ExitCode -ne 0 -and $install.ExitCode -ne 3010) {
+        throw "SecureWall MSI install failed with exit code $($install.ExitCode)."
     }
     $installedByScript = $true
+
+    $registryView = if ($Architecture -eq 'x86') { [Microsoft.Win32.RegistryView]::Registry32 } else { [Microsoft.Win32.RegistryView]::Registry64 }
+    $machineKey = [Microsoft.Win32.RegistryKey]::OpenBaseKey([Microsoft.Win32.RegistryHive]::LocalMachine, $registryView)
+    try {
+        $installKey = $machineKey.OpenSubKey('Software\SecureWall')
+        try { $installDirectory = $installKey.GetValue('InstallDir') } finally { if ($installKey) { $installKey.Dispose() } }
+    } finally { $machineKey.Dispose() }
+    if ([string]::IsNullOrWhiteSpace($installDirectory)) { throw 'MSI did not register its installation directory.' }
+    $app = Join-Path $installDirectory 'SecureWall.exe'
+    if ((Get-Item -LiteralPath $app).VersionInfo.ProductName -ne 'SecureWall') { throw 'Installed executable identity check failed.' }
 
     $service = Get-Service -Name SecureWall -ErrorAction Stop
     $service.WaitForStatus([ServiceProcess.ServiceControllerStatus]::Running, [TimeSpan]::FromSeconds(120))
@@ -124,7 +151,7 @@ try {
         throw 'SecureWall WFP provider was not found after service startup.'
     }
 
-    $controller = Start-Process -FilePath $app -PassThru
+    $controller = Start-Process -FilePath $app -WindowStyle Hidden -PassThru
     Start-Sleep -Seconds 2
 
     $allowInitial = Invoke-Probe $allowProbe
@@ -186,14 +213,15 @@ finally {
     $serviceBeforeCleanup = Get-Service -Name SecureWall -ErrorAction SilentlyContinue
     if (-not $KeepInstalled -and ($installedByScript -or $serviceBeforeCleanup)) {
         try {
-            $uninstall = Start-Process -FilePath $app -ArgumentList '/uninstall' -Wait -PassThru
+            $uninstallLog = Join-Path $resultRoot 'msi-uninstall.log'
+            $uninstall = Start-Process -FilePath "$env:SystemRoot\System32\msiexec.exe" -ArgumentList @('/x', "`"$msi`"", '/qn', '/norestart', '/L*v', "`"$uninstallLog`"") -WindowStyle Hidden -Wait -PassThru
             Write-EvidenceText 'uninstall.txt' @("ExitCode=$($uninstall.ExitCode)")
-            if ($uninstall.ExitCode -ne 0) {
-                $cleanupFailures += "SecureWall /uninstall failed with exit code $($uninstall.ExitCode)."
+            if ($uninstall.ExitCode -ne 0 -and $uninstall.ExitCode -ne 3010) {
+                $cleanupFailures += "SecureWall MSI uninstall failed with exit code $($uninstall.ExitCode)."
             }
         }
         catch {
-            $cleanupFailures += "Could not run SecureWall /uninstall: $($_.Exception.Message)"
+            $cleanupFailures += "Could not run SecureWall MSI uninstall: $($_.Exception.Message)"
         }
     }
 
@@ -240,6 +268,23 @@ finally {
         if ($auditRestored -ne $true) {
             $cleanupFailures += 'Audit policy was not proven to match its pre-test state.'
         }
+        try {
+            $firewallAfter = Get-NetFirewallRule | Select-Object Name, DisplayName, Group, Enabled, Direction, Action
+            $firewallAfter | Export-Clixml -LiteralPath (Join-Path $resultRoot 'firewall-rules-after.xml')
+            if (Compare-Object $firewallBefore $firewallAfter -Property Name, DisplayName, Group, Enabled, Direction, Action) {
+                $cleanupFailures += 'Windows Firewall rules differ from the pre-test snapshot.'
+            }
+            $profilesAfter = Get-NetFirewallProfile | Select-Object Name, NotifyOnListen
+            if (Compare-Object $profilesBefore $profilesAfter -Property Name, NotifyOnListen) {
+                $cleanupFailures += 'Windows Firewall notification settings differ from the pre-test snapshot.'
+            }
+            if ((Get-FileHash -LiteralPath $hostsPath -Algorithm SHA256).Hash -ne $hostsHashBefore) {
+                $cleanupFailures += 'Hosts file differs from the pre-test snapshot.'
+            }
+            if (Get-ScheduledTask -TaskName 'SecureWall Controller' -ErrorAction SilentlyContinue) {
+                $cleanupFailures += 'SecureWall controller task remains after cleanup.'
+            }
+        } catch { $cleanupFailures += "Could not verify complete host restoration: $($_.Exception.Message)" }
     }
 
     Write-EvidenceText 'postflight.txt' @(

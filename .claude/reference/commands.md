@@ -28,16 +28,18 @@ $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild 
 
 ```powershell
 $exe = Resolve-Path TinyWall\bin\Debug\SecureWall.exe
-(Start-Process $exe -ArgumentList '/protocolselftest' -Wait -PassThru).ExitCode
-(Start-Process $exe -ArgumentList '/pipeintegrationtest' -Wait -PassThru).ExitCode
+(Start-Process $exe -ArgumentList '/protocolselftest' -WindowStyle Hidden -Wait -PassThru).ExitCode
+(Start-Process $exe -ArgumentList '/pipeintegrationtest' -WindowStyle Hidden -Wait -PassThru).ExitCode
 & $exe /promptpreview
 ```
 
-`/pipeintegrationtest` exercises the real authenticated named-pipe server and controller without starting the service or WFP. Run it under a normal interactive desktop token; a restricted automation token can be rejected by the pipe ACL and return `1`. `/promptpreview` is visible and interactive but does not start the service or register filters. Do not run `/install`, `/service`, or `/selfhosted` without the explicit VM/local-console approval described in `docs/TESTING.md`.
+`/pipeintegrationtest` exercises the real transport without starting the service or WFP. It rejects the synthetic endpoint under production authentication, then uses an explicit same-process test exception for positive exchanges. It does not establish standard-user authentication against the actual SYSTEM service; that remains a VM case. Run it under a normal interactive desktop token; a restricted automation token can be rejected by the pipe ACL and return `1`. `/promptpreview` is visible and interactive but does not start the service or register filters.
+
+Debug builds retain production identity checks. `/selfhosted` and `/service` launched from a build directory are unsupported: real controller exchanges require the protected installed executable and the SCM-registered SYSTEM service. Use the synthetic tests for local development and an installed service in a disposable VM for integration testing. Do not run `/install` or activate the real service without the explicit VM/local-console approval described in `docs/TESTING.md`.
 
 ## Isolated-VM bundle
 
-After Release builds of SecureWall and the dependency-free network probe:
+After building all three Release MSI packages and the dependency-free network probe:
 
 ```powershell
 dotnet build tests\SecureWall.NetworkProbe\SecureWall.NetworkProbe.csproj --configuration Release

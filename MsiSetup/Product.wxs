@@ -41,6 +41,27 @@
     <Property Id="ARPCOMMENTS" Value="$(var.Description)" />
     <Property Id="ARPCONTACT" Value="$(var.Manufacturer)" />
     <Property Id="ARPNOREPAIR" Value="yes" Secure="yes" /> 
+    <Condition Message="Repair and modification are not supported yet. Remove SecureWall explicitly, then install again.">
+      <![CDATA[NOT Installed OR (REMOVE="ALL" AND NOT REINSTALL)]]>
+    </Condition>
+    <Condition Message="Automatic upgrade removal is not supported. Remove SecureWall explicitly before installing another version.">
+      <![CDATA[NOT UPGRADINGPRODUCTCODE]]>
+    </Condition>
+    <Condition Message="Rollback must be enabled to install or remove SecureWall safely.">
+      <![CDATA[NOT RollbackDisabled]]>
+    </Condition>
+    <Property Id="EXISTINGSECUREWALLSERVICE" Secure="yes">
+      <RegistrySearch Id="ExistingSecureWallService" Root="HKLM" Key="SYSTEM\CurrentControlSet\Services\SecureWall" Name="ImagePath" Type="raw" />
+    </Property>
+    <Property Id="SECUREWALLDELETEPENDING" Secure="yes">
+      <RegistrySearch Id="SecureWallDeletePending" Root="HKLM" Key="SYSTEM\CurrentControlSet\Services\SecureWall" Name="DeleteFlag" Type="raw" />
+    </Property>
+    <Condition Message="SecureWall service deletion is pending. Close Services and other service-management tools, or restart Windows, before installing again.">
+      <![CDATA[Installed OR SECUREWALLDELETEPENDING <> "#1"]]>
+    </Condition>
+    <Condition Message="An existing SecureWall service must be removed with its original installer before a fresh installation. If it was already removed, close service-management tools or restart Windows first.">
+      <![CDATA[Installed OR (NOT EXISTINGSECUREWALLSERVICE AND SECUREWALLDELETEPENDING <> "#1")]]>
+    </Condition>
     <CustomAction Id="SetARPINSTALLLOCATION" Property="ARPINSTALLLOCATION" Value="[INSTALLDIR]" />
 
     <!-- Disable use of "Files in Use" dialogs, we manage that ourself over custom actions -->
@@ -102,7 +123,7 @@
     <Upgrade Id='{D257A00C-9D9B-4948-910F-5524F20819D0}'>
       <UpgradeVersion OnlyDetect='yes' Property='OLDER_INCOMPATIBLE_FOUND'
         Maximum="$(var.OldestUpgradeableVersion)" IncludeMaximum='no' />
-      <UpgradeVersion Property='OLDER_UPGRADEABLE_FOUND'
+      <UpgradeVersion OnlyDetect='yes' Property='OLDER_UPGRADEABLE_FOUND'
         Minimum="$(var.OldestUpgradeableVersion)" IncludeMinimum='yes'
         Maximum="$(var.ProductVersion)" IncludeMaximum='no' />
       <UpgradeVersion OnlyDetect='yes' Property='SELF_FOUND'
@@ -111,13 +132,19 @@
       <UpgradeVersion OnlyDetect='yes' Property='NEWER_FOUND'
         Minimum="$(var.ProductVersion)" IncludeMinimum='no' />
     </Upgrade>
+    <Condition Message="Automatic upgrades and equal-version replacements are not supported yet. Remove the existing SecureWall product explicitly, then install again.">
+      <![CDATA[Installed OR (NOT OLDER_UPGRADEABLE_FOUND AND NOT SELF_FOUND AND NOT OLDER_INCOMPATIBLE_FOUND AND NOT NEWER_FOUND)]]>
+    </Condition>
 
     <!-- Custom actions -->
     <CustomAction Id='FoundIncompatibleVersion' Error='An older version of $(var.ProductName) is installed that cannot be automatically updated. Please uninstall the existing version first, then try again.' />
     <CustomAction Id='FoundNewerVersion' Error='A newer version of $(var.ProductName) is already installed. Installation cannot continue.' />
-    <CustomAction Id='InstallCustom' FileKey='SecureWallEXE' ExeCommand='/install' Return='check' Execute='commit' Impersonate='no' />
-    <CustomAction Id='InstallCustomRollback' FileKey='SecureWallEXE' ExeCommand='/uninstall' Return='check' Execute='rollback' Impersonate='no' />
-    <CustomAction Id='UninstallCustom' FileKey='SecureWallEXE' ExeCommand='/uninstall' Return='check' Execute='deferred' Impersonate='no' />
+    <CustomAction Id='InstallCustom' FileKey='SecureWallEXE' ExeCommand='/install' Return='check' Execute='deferred' Impersonate='no' />
+    <CustomAction Id='InstallCustomRollback' FileKey='SecureWallEXE' ExeCommand='/msi-rollback-install' Return='check' Execute='rollback' Impersonate='no' />
+    <CustomAction Id='UninstallCustom' FileKey='SecureWallEXE' ExeCommand='/msi-cleanup' Return='check' Execute='deferred' Impersonate='no' />
+    <!-- File rollback precedes this reverse action because teardown precedes RemoveFiles.
+         Rebuild saved protection; transient runtime grants are intentionally not restored. -->
+    <CustomAction Id='UninstallCustomRollback' FileKey='SecureWallEXE' ExeCommand='/install' Return='check' Execute='rollback' Impersonate='no' />
     <CustomAction Id='StartControllerAndDetect' FileKey='SecureWallEXE' ExeCommand='/autowhitelist' Return='asyncNoWait' Execute='commit' />
     <CustomAction Id='StartController' FileKey='SecureWallEXE' ExeCommand='' Return='asyncNoWait' Execute='commit' />
 
@@ -128,13 +155,12 @@
       <Custom Action='FoundIncompatibleVersion' After='FindRelatedProducts'>OLDER_INCOMPATIBLE_FOUND</Custom>
       <!-- InstallValidate -->
       <Custom Action="SetARPINSTALLLOCATION" After="InstallValidate"></Custom>
-      <RemoveExistingProducts After='InstallValidate'>OLDER_UPGRADEABLE_FOUND</RemoveExistingProducts>
       <!-- InstallInitialize -->
-      <Custom Action='UninstallCustom' Before='UnpublishFeatures'>Installed</Custom>
+      <Custom Action='UninstallCustomRollback' Before='UninstallCustom'>Installed AND REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action='UninstallCustom' Before='UnpublishFeatures'>Installed AND REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE</Custom>
       <Custom Action='InstallCustomRollback' Before='InstallCustom'>NOT Installed</Custom>
       <Custom Action='InstallCustom' Before='InstallFinalize'>NOT Installed</Custom>
-      <Custom Action='StartControllerAndDetect' After='InstallCustom'>(NOT Installed) AND (NOT OLDER_UPGRADEABLE_FOUND)</Custom>
-      <Custom Action='StartController' After='InstallCustom'>(NOT Installed) AND OLDER_UPGRADEABLE_FOUND</Custom>
+      <Custom Action='StartControllerAndDetect' After='InstallCustom'>(NOT Installed) AND UILevel=5</Custom>
       <!-- InstallFinalize -->
     </InstallExecuteSequence>
 

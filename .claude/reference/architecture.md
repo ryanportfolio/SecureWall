@@ -12,4 +12,6 @@ Normal mode is default deny. Only committed runtime IDs for outbound ALE default
 
 Filter weights retain upstream order: blocklist, raw-socket permit/block, user block, user permit, default permit, default block. Prompt-created allows therefore cannot override explicit user blocks.
 
-Every default-block filter requires both persistent and boot-time WFP registrations. Any failure escapes the rule loop, rolls back the transaction, and prevents initial service startup from reporting Running. Non-critical filters retain TinyWall's best-effort compatibility behavior.
+Persistent and boot-time WFP registrations contain only a restrictive recovery baseline. All runtime policy uses a dynamic session, including saved permanent allows. The baseline has a lower weight than the runtime default block in the same sublayer, so live outbound default-block IDs remain promptable. Service loss removes runtime allowances and leaves baseline denial. Every registration failure aborts replacement; there is no best-effort exception for explicit blocks or optional permits.
+
+Policy changes durably journal the prior configuration before saving a candidate, transact WFP replacement, then publish state. Recovery failure closes the dynamic session. Startup resolves any pending journal before using stored configuration. Windows Firewall compatibility starts only after protective WFP setup; exact rule ownership and a durable profile-notification journal support cleanup after service loss.

@@ -6,8 +6,8 @@ namespace pylorak.TinyWall.Prompting
     // Minimal, privacy-preserving description of a blocked subject, assembled on the
     // controller for an optional "what is this?" lookup. By design it carries only the
     // executable's file name (never the full path, which can leak the Windows user name)
-    // and, when available, the Authenticode publisher. The remote endpoint is included
-    // only when the user explicitly opts in.
+    // plus the unverified embedded publisher, identity kind, service name and package SID.
+    // The remote endpoint is included only when the user explicitly opts in.
     internal sealed class AiExplainSubject
     {
         internal AiExplainSubject(

@@ -31,6 +31,19 @@ namespace pylorak.TinyWall
             }
 #endif
 
+            try
+            {
+                Installer.InstallationSafety.RequireNoTinyWall();
+#if !DEBUG
+                Installer.InstallationSafety.RequireProtectedInstallation();
+#endif
+            }
+            catch (Exception exception)
+            {
+                Utils.LogException(exception, Utils.LOG_ID_SERVICE);
+                return -1;
+            }
+
             using var SingleInstanceMutex = new Mutex(true, SecureWallProduct.ServiceMutexName, out bool mutexok);
             if (!mutexok)
             {
@@ -144,14 +157,49 @@ namespace pylorak.TinyWall
             {
                 return RunPipeIntegrationSelfTestCore();
             }
-            catch
+            catch (Exception exception)
             {
+                Console.Error.WriteLine(exception);
                 return 2;
             }
         }
 
         private static int RunPipeIntegrationSelfTestCore()
         {
+            using (var resetProbe = new System.IO.Pipes.NamedPipeServerStream(
+                $"SecureWallPipeSelfTest-{Guid.NewGuid():N}"))
+            {
+                if (PipeServerEndpoint.TryResetForNextClient(resetProbe))
+                    return 1; // An unconnected instance must be recreated.
+                resetProbe.Dispose();
+                if (PipeServerEndpoint.TryResetForNextClient(resetProbe))
+                    return 1; // A timed-out/disposed instance must be recreated.
+            }
+            // Exercise descriptor construction in memory only. This test never applies
+            // a DACL to a process and never starts the SYSTEM service.
+            byte[] Descriptor(string sddl)
+            {
+                var value = new System.Security.AccessControl.RawSecurityDescriptor(sddl);
+                var bytes = new byte[value.BinaryLength];
+                value.GetBinaryForm(bytes, 0);
+                return bytes;
+            }
+            var secured = new System.Security.AccessControl.RawSecurityDescriptor(
+                PipeServerIdentity.CreateProcessQueryDescriptor(Descriptor("O:SYG:SYD:(A;;GA;;;SY)(A;;GA;;;BA)")), 0);
+            if (secured.DiscretionaryAcl?.Count != 3 ||
+                !(secured.DiscretionaryAcl[2] is System.Security.AccessControl.CommonAce added) ||
+                added.AceQualifier != System.Security.AccessControl.AceQualifier.AccessAllowed ||
+                added.AccessMask != 0x101000 ||
+                !added.SecurityIdentifier.IsWellKnown(System.Security.Principal.WellKnownSidType.AuthenticatedUserSid))
+                return 1;
+            foreach (string denied in new[] { "O:SYG:SYD:(D;;0x1000;;;AU)(A;;GA;;;SY)", "O:SYG:SYD:(D;ID;0x1000;;;AU)(A;;GA;;;SY)" })
+            {
+                try { PipeServerIdentity.CreateProcessQueryDescriptor(Descriptor(denied)); return 1; }
+                catch (UnauthorizedAccessException) { }
+            }
+            try { PipeServerIdentity.CreateProcessQueryDescriptor(Descriptor("O:SYG:SY")); return 1; }
+            catch (InvalidOperationException) { }
+
             string pipeName = $"SecureWallPipeSelfTest-{Guid.NewGuid():N}";
             Guid token = Guid.NewGuid();
             var prompt = new PromptWireDto
@@ -189,57 +237,33 @@ namespace pylorak.TinyWall
             }
 
             using var server = new PipeServerEndpoint(HandleRequest, pipeName);
-            var controller = new Controller(pipeName);
-            PromptWireDto[] prompts = Controller.EndReadPendingPrompts(
-                controller.BeginReadPendingPrompts().Response);
-            PromptActionStatus allow = controller.AllowPrompt(token);
-            PromptActionStatus dismiss = controller.DismissPrompt(token);
-            PromptActionStatus unknown = controller.AllowPrompt(Guid.NewGuid());
-
-            return prompts.Length == 1 &&
-                prompts[0].Token == token &&
-                prompts[0].ExecutablePath == prompt.ExecutablePath &&
-                allow == PromptActionStatus.Allowed &&
-                dismiss == PromptActionStatus.Dismissed &&
-                unknown == PromptActionStatus.UnknownToken &&
-                requestCount == 4
-                    ? 0
-                    : 1;
+            for (int cycle = 0; cycle < 3; cycle++)
+            {
+                if (new Controller(pipeName).BeginReadPendingPrompts().Response.Type != MessageType.COM_ERROR || requestCount != cycle * 4)
+                    return 1;
+                var controller = new Controller(pipeName, System.Diagnostics.Process.GetCurrentProcess().Id);
+                PromptWireDto[] prompts = Controller.EndReadPendingPrompts(
+                    controller.BeginReadPendingPrompts().Response);
+                PromptActionStatus allow = controller.AllowPrompt(token);
+                PromptActionStatus dismiss = controller.DismissPrompt(token);
+                PromptActionStatus unknown = controller.AllowPrompt(Guid.NewGuid());
+                if (prompts.Length != 1 || prompts[0].Token != token ||
+                    prompts[0].ExecutablePath != prompt.ExecutablePath ||
+                    allow != PromptActionStatus.Allowed || dismiss != PromptActionStatus.Dismissed ||
+                    unknown != PromptActionStatus.UnknownToken || requestCount != (cycle + 1) * 4)
+                {
+                    Console.Error.WriteLine($"Pipe self-test failed: cycle={cycle}, prompts={prompts.Length}, allow={allow}, dismiss={dismiss}, unknown={unknown}, requests={requestCount}");
+                    Console.Error.WriteLine(PipeClientEndpoint.DebugSelfTestFailures);
+                    return 1;
+                }
+            }
+            Console.Error.WriteLine($"Pipe self-test passed: 3 rejection/recovery cycles, requests={requestCount}");
+            return 0;
         }
 #endif
 
         private static int InstallService()
         {
-            ServiceController[] services;
-            try
-            {
-                services = ServiceController.GetServices();
-            }
-            catch (Exception exception)
-            {
-                Utils.Log("Cannot verify that TinyWall is absent; refusing to install SecureWall.", Utils.LOG_ID_INSTALLER);
-                Utils.LogException(exception, Utils.LOG_ID_INSTALLER);
-                return -1;
-            }
-
-            try
-            {
-                var serviceNames = new string[services.Length];
-                for (int index = 0; index < services.Length; index++)
-                    serviceNames[index] = services[index].ServiceName;
-
-                if (InstallationConflictGuard.HasTinyWallService(serviceNames))
-                {
-                    Utils.Log("TinyWall is installed. Uninstall TinyWall and reboot before installing SecureWall.", Utils.LOG_ID_INSTALLER);
-                    return -1;
-                }
-            }
-            finally
-            {
-                foreach (ServiceController service in services)
-                    service.Dispose();
-            }
-
             return TinyWallDoctor.EnsureServiceInstalledAndRunning(Utils.LOG_ID_INSTALLER, true) ? 0 : -1;
         }
 
@@ -276,6 +300,12 @@ namespace pylorak.TinyWall
             }
 
             // Parse comman-line options
+            // Explicit maintenance mode overrides the noninteractive service default.
+            if (Utils.StringArrayContains(args, "/msi-cleanup"))
+                return TinyWallDoctor.UninstallForMsi();
+            if (Utils.StringArrayContains(args, "/msi-rollback-install"))
+                return TinyWallDoctor.RollbackFailedInstallForMsi();
+
             var opts = new CmdLineArgs();
             if (!Environment.UserInteractive || Utils.StringArrayContains(args, "/service"))
                 opts.ProgramMode = StartUpMode.Service;
@@ -365,7 +395,8 @@ namespace pylorak.TinyWall
                 case StartUpMode.SelfHosted:
                     using (var srv = new TinyWallService())
                     {
-                        StartService(srv);
+                        int startResult = StartService(srv);
+                        if (startResult != 0) return startResult;
                         int ret = StartController(opts);
                         srv.Stop();
                         srv.StoppedEvent.WaitOne();
@@ -377,7 +408,8 @@ namespace pylorak.TinyWall
 #if !DEBUG
                         pylorak.Windows.PathMapper.Instance.AutoUpdate = false;
 #endif
-                        StartService(srv);
+                        int startResult = StartService(srv);
+                        if (startResult != 0) return startResult;
 #if DEBUG
                         Console.WriteLine("Kill process to terminate...");
                         srv.StoppedEvent.WaitOne();
