@@ -94,8 +94,9 @@ namespace pylorak.TinyWall.Prompting
                 }
             }
 
-            // Keep the prompt on screen while the user reads the answer.
-            timeoutTimer.Stop();
+            // Reading may pause the display timeout, never the service token expiry.
+            _deadline?.PauseForReading();
+            timeoutTimer.Start();
 
             _aiButton.Enabled = false;
             ShowAiResult("Checking with the AI assistant…");

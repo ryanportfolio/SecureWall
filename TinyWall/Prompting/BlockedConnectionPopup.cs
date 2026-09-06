@@ -8,6 +8,8 @@ namespace pylorak.TinyWall.Prompting
     internal sealed partial class BlockedConnectionPopup : Form, IPromptView
     {
         private bool _closingProgrammatically;
+        private PromptDisplayDeadline? _deadline;
+        private bool _canAllow;
 
         internal BlockedConnectionPopup()
         {
@@ -27,6 +29,9 @@ namespace pylorak.TinyWall.Prompting
             if (prompt == null)
                 throw new ArgumentNullException(nameof(prompt));
 
+            _deadline = new PromptDisplayDeadline(DateTimeOffset.UtcNow, prompt.ExpiresUtc);
+            _canAllow = prompt.CanAllow;
+            timeoutTimer.Interval = 250;
             SetAiPrompt(prompt);
             identityLabel.Text = IdentityText(prompt);
             pathLabel.Text = string.IsNullOrWhiteSpace(prompt.ExecutablePath)
@@ -36,12 +41,12 @@ namespace pylorak.TinyWall.Prompting
             statusLabel.Text = string.Empty;
             allowButton.Enabled = prompt.CanAllow;
             noticeLabel.Text = prompt.CanAllow
-                ? "Allow creates a permanent outbound TCP/UDP exception. Ignore keeps this connection blocked."
+                ? "Allow permanently permits this app, package, or service to reach all destinations and ports over TCP/UDP."
                 : "SecureWall could not identify one exact service. Allow is disabled to avoid broadly permitting a shared host.";
             toolTip.SetToolTip(
                 allowButton,
                 prompt.CanAllow
-                    ? "Allow this exact app, package, or service to initiate TCP and UDP connections."
+                    ? "Permanent outbound TCP/UDP access to all destinations and ports. The shown destination does not limit this rule."
                     : "Unavailable because the service identity is ambiguous.");
 
             PositionBottomRight();
@@ -58,9 +63,8 @@ namespace pylorak.TinyWall.Prompting
                 PromptActionStatus.Expired => "This prompt expired; the connection remains blocked.",
                 _ => "The request could not be completed. The connection remains blocked.",
             };
-            if (status == PromptActionStatus.NotAllowable)
-                allowButton.Enabled = false;
-            timeoutTimer.Stop();
+            allowButton.Enabled = _canAllow && status != PromptActionStatus.NotAllowable &&
+                _deadline?.ShouldClose(DateTimeOffset.UtcNow) == false;
             timeoutTimer.Start();
         }
 
@@ -107,13 +111,12 @@ namespace pylorak.TinyWall.Prompting
 
         private void AllowButtonClick(object? sender, EventArgs eventArgs)
         {
-            timeoutTimer.Stop();
+            allowButton.Enabled = false;
             AllowRequested?.Invoke(this, EventArgs.Empty);
         }
 
         private void IgnoreButtonClick(object? sender, EventArgs eventArgs)
         {
-            timeoutTimer.Stop();
             IgnoreRequested?.Invoke(this, EventArgs.Empty);
         }
 
@@ -121,6 +124,8 @@ namespace pylorak.TinyWall.Prompting
 
         private void TimeoutTimerTick(object? sender, EventArgs eventArgs)
         {
+            if (_deadline?.ShouldClose(DateTimeOffset.UtcNow) != true) return;
+            allowButton.Enabled = false;
             timeoutTimer.Stop();
             PromptTimedOut?.Invoke(this, EventArgs.Empty);
         }

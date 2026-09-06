@@ -65,13 +65,14 @@ namespace pylorak.TinyWall
             PipeSecurity ps = new();
             ps.AddAccessRule(par);
 
+            // Retain the first instance across normal exchanges to reserve the pipe name.
+            // If another process owns the name, creation fails and clients reject its identity.
             while (m_Run)
             {
                 NamedPipeServerStream? pipeServer = null;
                 try
                 {
-                    // Create pipe server
-                    pipeServer = new NamedPipeServerStream(m_PipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Message, PipeOptions.WriteThrough, 2048 * 10, 2048 * 10, ps);
+                    pipeServer = PipeServerFactory.Create(m_PipeName, ps);
                     lock (m_ServerSyncRoot)
                     {
                         if (!m_Run)
@@ -79,18 +80,47 @@ namespace pylorak.TinyWall
                         m_ActiveServer = pipeServer;
                     }
 
-                    if (!pipeServer.IsConnected)
+                    while (m_Run)
                     {
-                        pipeServer.WaitForConnection();
-                        pipeServer.ReadMode = PipeTransmissionMode.Message;
-
-                        if (!AuthAsServer(pipeServer))
-                            throw new InvalidOperationException("Client authentication failed.");
+                        string stage = "connect";
+                        bool reusable = false;
+                        try
+                        {
+                            pipeServer.WaitForConnection();
+                            pipeServer.ReadMode = PipeTransmissionMode.Message;
+                            stage = "authenticate";
+                            if (!AuthAsServer(pipeServer))
+                                throw new InvalidOperationException("Client authentication failed.");
+                            stage = "read";
+                            var req = PipeMessageTransport.Read(pipeServer, 3000);
+                            stage = "callback";
+                            var resp = m_RcvCallback(req);
+                            stage = "write";
+                            PipeMessageTransport.Write(pipeServer, resp, 3000);
+                            // Disconnect discards unread output. Wait for the client's bounded ACK.
+                            stage = "acknowledge";
+                            PipeMessageTransport.WaitForResponseAcknowledgement(pipeServer);
+                        }
+                        catch (Exception exception)
+                        {
+                            _ = stage;
+                            _ = exception;
+#if DEBUG
+                            if (PipeServerIdentity.IsSelfTestPipe(m_PipeName))
+                                PipeClientEndpoint.RecordSelfTestFailure("server." + stage, exception);
+#endif
+                        }
+                        finally
+                        {
+                            // A client that leaves before sending bytes marks the
+                            // stream Broken, so IsConnected is false. Reset that
+                            // native instance too, or every future connect fails.
+                            // If reset fails, the outer loop disposes and recreates it.
+                            reusable = TryResetForNextClient(pipeServer);
+                        }
+                        if (!reusable)
+                            break;
                     }
-
-                    var req = SerializationHelper.DeserializeFromPipe<TwMessage>(pipeServer, 3000, TwMessageComError.Instance);
-                    var resp = m_RcvCallback(req);
-                    SerializationHelper.SerializeToPipe(pipeServer, resp);
                 }
                 catch
                 {
@@ -106,12 +136,26 @@ namespace pylorak.TinyWall
                     }
                     pipeServer?.Dispose();
                 }
-            } //while
+            }
         }
+
+        internal static bool TryResetForNextClient(NamedPipeServerStream pipe)
+        {
+            try
+            {
+                pipe.Disconnect();
+                return true;
+            }
+            catch (InvalidOperationException) { return false; } // Includes disposed streams.
+            catch (System.IO.IOException) { return false; }
+        }
+
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool GetNamedPipeClientProcessId(Microsoft.Win32.SafeHandles.SafePipeHandle pipe, out uint pid);
 
         private static bool AuthAsServer(PipeStream stream)
         {
-            if (!Utils.SafeNativeMethods.GetNamedPipeClientProcessId(stream.SafePipeHandle.DangerousGetHandle(), out ulong clientPid))
+            if (!GetNamedPipeClientProcessId(stream.SafePipeHandle, out uint clientPid))
                 return false;
 
             string clientFilePath = Utils.GetPathOfProcess((uint)clientPid);

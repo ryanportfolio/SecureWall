@@ -18,6 +18,9 @@ $appSource = Join-Path $repoRoot "TinyWall\bin\$Configuration"
 $probeSource = Join-Path $repoRoot "tests\SecureWall.NetworkProbe\bin\$Configuration"
 $appDestination = Join-Path $bundleRoot 'app'
 $probeDestination = Join-Path $bundleRoot 'probes'
+$installerDestination = Join-Path $bundleRoot 'installers'
+$installerSource = Join-Path $repoRoot 'artifacts\release'
+$installers = @('SecureWall_x86.msi', 'SecureWall_x64.msi', 'SecureWall_arm64.msi')
 
 $required = @(
     (Join-Path $appSource 'SecureWall.exe'),
@@ -26,24 +29,33 @@ $required = @(
     (Join-Path $PSScriptRoot 'Run-SecureWallVmValidation.ps1'),
     (Join-Path $PSScriptRoot 'README.md')
 )
+$required += $installers | ForEach-Object { Join-Path $installerSource $_ }
 foreach ($path in $required) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         throw "Missing bundle input: $path"
     }
 }
 
-New-Item -ItemType Directory -Force -Path $appDestination, $probeDestination | Out-Null
+New-Item -ItemType Directory -Force -Path $appDestination, $probeDestination, $installerDestination | Out-Null
 Copy-Item -Path (Join-Path $appSource '*') -Destination $appDestination -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $probeSource 'SecureWall.NetworkProbe.exe') -Destination (Join-Path $probeDestination 'SecureWall.AllowProbe.exe')
 Copy-Item -LiteralPath (Join-Path $probeSource 'SecureWall.NetworkProbe.exe') -Destination (Join-Path $probeDestination 'SecureWall.IgnoreProbe.exe')
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Run-SecureWallVmValidation.ps1') -Destination (Join-Path $bundleRoot 'Run-Validation.ps1')
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'README.md') -Destination (Join-Path $bundleRoot 'README.md')
+foreach ($installer in $installers) {
+    Copy-Item -LiteralPath (Join-Path $installerSource $installer) -Destination (Join-Path $installerDestination $installer)
+}
 
 $manifest = [ordered]@{
     CreatedUtc = (Get-Date).ToUniversalTime().ToString('O')
     Configuration = $Configuration
     SecureWallSha256 = (Get-FileHash -LiteralPath (Join-Path $appDestination 'SecureWall.exe') -Algorithm SHA256).Hash
     ProbeSha256 = (Get-FileHash -LiteralPath (Join-Path $probeDestination 'SecureWall.AllowProbe.exe') -Algorithm SHA256).Hash
+    InstallerSha256 = [ordered]@{
+        x86 = (Get-FileHash -LiteralPath (Join-Path $installerDestination 'SecureWall_x86.msi') -Algorithm SHA256).Hash
+        x64 = (Get-FileHash -LiteralPath (Join-Path $installerDestination 'SecureWall_x64.msi') -Algorithm SHA256).Hash
+        arm64 = (Get-FileHash -LiteralPath (Join-Path $installerDestination 'SecureWall_arm64.msi') -Algorithm SHA256).Hash
+    }
 }
 $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $bundleRoot 'bundle-manifest.json') -Encoding UTF8
 

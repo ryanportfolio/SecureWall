@@ -44,7 +44,7 @@ namespace pylorak.TinyWall.Prompting
             sb.Append("An application was blocked initiating an outbound connection.\n");
             sb.Append("Reported identity type: ").Append(KindText(subject.Kind)).Append('\n');
             sb.Append("Executable file name: ").Append(subject.ExecutableName).Append('\n');
-            sb.Append("Code-signing publisher: ")
+            sb.Append("Claimed publisher (signature and trust unverified): ")
               .Append(subject.Publisher ?? "none (unsigned or unverified)")
               .Append('\n');
 

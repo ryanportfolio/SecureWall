@@ -15,10 +15,12 @@ Source checks must confirm:
 - runtime service, pipe, task, data directory, installer, executable, and WFP provider identities are SecureWall;
 - upstream binary updates are disabled.
 - the staged MSI payload includes every runtime assembly emitted by a clean Release build, including `System.IO.Pipelines.dll`.
-- default-block registration failures propagate and roll back instead of being swallowed;
+- every filter registration failure propagates and rolls back instead of being swallowed;
 - Network Activity shows observed allows and blocks, exact TCP states, and local-only listener wording, with one-second refresh.
 
-Build `tests\SecureWall.NetworkProbe`, then run `tools\vm\Prepare-SecureWallVmBundle.ps1` to create an ignored, hash-manifested VM bundle. Its guarded runner verifies baseline connectivity, installs SecureWall directly, checks the WFP provider, drives separate Allow and Ignore probe executables, captures 5157/WFP/audit evidence, uninstalls, and requires the service, provider, and audit-policy lease to be clean afterward.
+Build all three MSI packages and `tests\SecureWall.NetworkProbe`, then run `tools\vm\Prepare-SecureWallVmBundle.ps1` to create an ignored, hash-manifested VM bundle. Its guarded runner verifies the selected MSI hash and baseline connectivity, installs that MSI silently, checks the WFP provider, drives separate Allow and Ignore probes, captures 5157/WFP/audit evidence, uninstalls through MSI, and compares service, provider, task, audit policy, firewall rules, notification flags and hosts state. This guided path does not execute every failure case below.
+
+The additional pre-switch fault, reboot, identity and MSI matrix is in [HARDENING-VALIDATION.md](HARDENING-VALIDATION.md). It is a required release gate; source tests and package ICE validation cannot substitute for it.
 
 ## Manual local-console VM matrix
 
@@ -44,7 +46,7 @@ Do not run this matrix on the development host. Use an expendable Windows VM wit
 | Controller exits/restarts | Service keeps enforcing; pending tokens expire; no grant on shutdown |
 | Service restarts/reboot | Default deny returns early; saved allows persist; audit flags are correct |
 | Audit category initially success-only/failure-only/both/none | SecureWall adds required flags and restores exact original flags on stop |
-| Config save or WFP reload fault injection | Allow reports failure; token remains pending; traffic remains blocked |
+| Config save or WFP reload fault injection | Allow reports failure and no new permission survives; recoverable failure preserves the pending token; failed recovery withdraws runtime grants |
 | Queue/candidate overflow | New entries are dropped fail-closed; memory stays bounded |
 | Uninstall | Service/task/provider/filters/compat rules removed; prior host settings restored |
 

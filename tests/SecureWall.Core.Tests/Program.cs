@@ -31,7 +31,7 @@ internal static class Program
             ("critical WFP filter pairs require both registrations", CriticalWfpFilterPairsRequireBothRegistrations),
             ("critical WFP filter pairs propagate persistent failure", CriticalWfpFilterPairsPropagatePersistentFailure),
             ("critical WFP filter pairs propagate boot-time failure", CriticalWfpFilterPairsPropagateBootTimeFailure),
-            ("optional WFP filter pairs remain best effort", OptionalWfpFilterPairsRemainBestEffort),
+            ("optional WFP filter failures propagate", OptionalWfpFilterFailuresPropagate),
             ("network activity statuses state observed facts", NetworkActivityStatusesStateObservedFacts),
             ("event 5157 parser uses named fields and 64-bit filter IDs", Event5157ParserUsesNamedFields),
             ("non-package SID sentinels are never package authority", NonPackageSidSentinelsAreRejected),
@@ -63,6 +63,9 @@ internal static class Program
             ("ai explain response parser maps http and malformed errors", AiExplainResponseParserMapsErrors),
             ("ai explain settings validate url and model", AiExplainSettingsValidateUrlAndModel),
         };
+        tests = tests.Concat(EnforcementHardeningTests.Cases)
+            .Concat(LifecycleHardeningTests.Cases)
+            .Concat(ControllerHardeningTests.Cases).ToArray();
         var failed = 0;
 
         foreach (var (name, test) in tests)
@@ -390,20 +393,17 @@ internal static class Program
             }, required: true));
     }
 
-    private static void OptionalWfpFilterPairsRemainBestEffort()
+    private static void OptionalWfpFilterFailuresPropagate()
     {
-        IReadOnlyList<ulong> persistentFailure = WfpFilterPairRegistration.Register(
+        AssertEx.Throws<InvalidOperationException>(() => WfpFilterPairRegistration.Register(
             _ => throw new InvalidOperationException("persistent failed"),
-            required: false);
-        IReadOnlyList<ulong> bootTimeFailure = WfpFilterPairRegistration.Register(lifetime =>
+            required: false));
+        AssertEx.Throws<InvalidOperationException>(() => WfpFilterPairRegistration.Register(lifetime =>
         {
             if (lifetime == WfpFilterLifetime.BootTime)
                 throw new InvalidOperationException("boot-time failed");
             return 101;
-        }, required: false);
-
-        AssertEx.Equal(0, persistentFailure.Count);
-        AssertEx.SequenceEqual(new ulong[] { 101 }, bootTimeFailure);
+        }, required: false));
     }
 
     private static void NetworkActivityStatusesStateObservedFacts()
@@ -855,7 +855,7 @@ internal static class Program
             ExecutablePath = $@"C:\apps\{executableName}",
             FirstSeenUtc = new DateTimeOffset(2026, 7, 14, 14, 0, 0, TimeSpan.Zero),
             LastSeenUtc = new DateTimeOffset(2026, 7, 14, 14, 0, 0, TimeSpan.Zero),
-            ExpiresUtc = new DateTimeOffset(2026, 7, 14, 14, 2, 0, TimeSpan.Zero),
+            ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(2),
             RemoteAddress = "203.0.113.20",
             RemotePort = 443,
             Protocol = 6,

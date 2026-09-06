@@ -1,6 +1,6 @@
 # SecureWall manual acceptance test
 
-This is an unsigned test build. The files are inert until you install an MSI or run `SecureWall.exe /install`. Keep TinyWall installed and running until you are physically ready for the short firewall swap.
+This is an unsigned test build. Use the MSI on a disposable VM or spare PC. Keep TinyWall installed and running on your daily-use machine until the full validation matrix passes. Do not start the extracted controller elevated; service activation is a privileged operation even when triggered by controller recovery.
 
 Safest target: a spare Windows 10/11 PC or disposable VM. If you use your primary PC, use a local console, save the TinyWall installer/config first, create a restore point, and do not depend on remote access for recovery.
 
@@ -24,17 +24,13 @@ The packages are intentionally unsigned test artifacts, so Windows may show an U
 
 Expected: installation succeeds, the SecureWall service becomes `Running`, and the SecureWall tray icon appears. Open **Network activity** from the tray menu. Fresh settings show listening, allowed/active, and blocked rows.
 
-## Direct install (recovery/development alternative)
+## Installation and maintenance limits
 
-Open an elevated PowerShell in the extracted folder:
+Direct service installation from an extracted Downloads/Desktop/test folder is rejected. LocalSystem execution requires a protected Program Files payload tree with trusted ownership and write permissions. Use the MSI to place the runtime correctly.
 
-```powershell
-& .\app\SecureWall.exe /install
-Get-Service SecureWall
-& .\app\SecureWall.exe
-```
+Repair and in-place upgrades are deliberately rejected before they change the installed product. Export the configuration, uninstall explicitly, and install the new package. Retain the old installer and a VM snapshot until the new build passes its acceptance checks. Rollback of a fresh installation and removal still require testing with the exact MSI.
 
-Expected: install exits successfully and the service becomes `Running`. Start the tray process with the final command.
+Runtime permissions disappear when the SecureWall service stops or crashes. Its persistent deny baseline remains until an explicit uninstall removes it. Loss of networking after service failure is intentional; recover through the local console.
 
 ## Acceptance checks
 
@@ -64,12 +60,12 @@ Use a reachable IP/port for your network; `1.1.1.1:443` is only an example.
 
 ## Uninstall and restore TinyWall
 
-Preferred: uninstall **SecureWall** from Windows Installed apps. For a direct install, use elevated PowerShell:
+Preferred: uninstall **SecureWall** from Windows Installed apps. If MSI removal fails, preserve its log and revert the disposable VM snapshot. The installed executable also has an interactive recovery command, run elevated from its protected installation directory:
 
 ```powershell
-& .\app\SecureWall.exe /uninstall
+& .\SecureWall.exe /uninstall
 ```
 
-Approve the uninstall prompt. Reboot, verify `Get-Service SecureWall` reports no service, then reinstall TinyWall and confirm its service is running. If any SecureWall acceptance check fails, stop testing and preserve `C:\ProgramData\SecureWall\logs` before uninstalling.
+Approve the interactive uninstall prompt. Reboot, verify that the service, provider, compatibility rules and task are absent and original host settings are restored, then reinstall TinyWall and confirm its service is running. If any SecureWall acceptance check fails, stop testing and preserve `C:\ProgramData\SecureWall\logs` and MSI logs. An absent service alone does not prove complete cleanup.
 
 Do not install SecureWall and TinyWall together. Do not test over a remote-only session.

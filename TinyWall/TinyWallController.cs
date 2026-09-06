@@ -447,6 +447,8 @@ namespace pylorak.TinyWall
 
         private async void PromptPollTimerTick(object? sender, EventArgs eventArgs)
         {
+            if (!ControllerDisposing)
+                PromptCoordinator?.Tick();
             if (ControllerDisposing || Interlocked.Exchange(ref PromptPollInFlight, 1) != 0)
                 return;
 
@@ -459,7 +461,7 @@ namespace pylorak.TinyWall
                 });
 
                 if (!ControllerDisposing)
-                    PromptCoordinator?.Enqueue(prompts);
+                    PromptCoordinator?.Reconcile(prompts);
             }
             catch (Exception exception)
             {
@@ -1375,7 +1377,8 @@ namespace pylorak.TinyWall
                 GlobalInstances.InitClient();
                 PromptCoordinator = new PromptDisplayCoordinator(
                     new ControllerPromptActionClient(GlobalInstances.Controller),
-                    () => new BlockedConnectionPopup());
+                    () => new BlockedConnectionPopup(),
+                    performAction: action => Task.Run(action));
                 PromptPollTimer.Enabled = true;
 
                 barrier.Wait();

@@ -39,6 +39,8 @@ namespace pylorak.TinyWall.Installer
 
         public override void Install(IDictionary stateSaver)
         {
+            InstallationSafety.RequireNoTinyWall();
+            InstallationSafety.RequireProtectedInstallation();
             base.Install(stateSaver);
 
             try

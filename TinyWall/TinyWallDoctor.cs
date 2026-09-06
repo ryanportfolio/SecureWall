@@ -1,5 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
+using Microsoft.Win32;
+using pylorak.TinyWall.Installer;
 using System.Configuration.Install;
 using System.Diagnostics;
 using System.ServiceProcess;
@@ -8,6 +11,7 @@ using pylorak.Windows;
 using pylorak.Windows.Services;
 using pylorak.Windows.WFP;
 using pylorak.Windows.WFP.Interop;
+using pylorak.TinyWall.Prompting;
 
 namespace pylorak.TinyWall
 {
@@ -21,7 +25,7 @@ namespace pylorak.TinyWall
             try
             {
                 using var sc = new ServiceController(TinyWallService.SERVICE_NAME);
-                return (sc.Status == ServiceControllerStatus.Running) || (sc.Status == ServiceControllerStatus.StartPending);
+                return sc.Status == ServiceControllerStatus.Running;
             }
             catch(Exception e)
             {
@@ -52,6 +56,19 @@ namespace pylorak.TinyWall
 
         internal static bool EnsureServiceInstalledAndRunning(string logContext, bool installing)
         {
+            try
+            {
+                InstallationSafety.RequireNoTinyWall();
+                InstallationSafety.RequireProtectedInstallation();
+                ValidateRegisteredServiceImage();
+                RequireServiceNotPendingDeletion();
+                WindowsFirewall.RequireServiceRunning();
+            }
+            catch (Exception exception)
+            {
+                Utils.LogException(exception, logContext);
+                return false;
+            }
             if (TinyWallDoctor.IsServiceRunning(logContext, installing))
                 return true;
 
@@ -60,11 +77,13 @@ namespace pylorak.TinyWall
                 // Run installers
                 try
                 {
-                    ManagedInstallerClass.InstallHelper(new string[] { "/i", Utils.ExecutablePath });
+                    if (!ServiceExists())
+                        ManagedInstallerClass.InstallHelper(new string[] { "/i", Utils.ExecutablePath });
                 }
                 catch(Exception e)
                 {
                     Utils.LogException(e, logContext);
+                    return false;
                 }
 
                 // Ensure dependencies
@@ -77,8 +96,8 @@ namespace pylorak.TinyWall
                     if (sc.Status == ServiceControllerStatus.Stopped)
                     {
                         sc.Start();
-                        sc.WaitForStatus(ServiceControllerStatus.Running, System.TimeSpan.FromSeconds(15));
                     }
+                    sc.WaitForStatus(ServiceControllerStatus.Running, ServiceLifecyclePolicy.StartupTimeout);
                 }
                 catch (Exception e)
                 {
@@ -107,6 +126,7 @@ namespace pylorak.TinyWall
 
         internal static int Uninstall()
         {
+            if (!Utils.RunningAsAdmin()) return -1;
             using (var frm = new System.Windows.Forms.Form())
             {
                 // See http://www.codeproject.com/Articles/18612/TopMost-MessageBox
@@ -170,7 +190,122 @@ namespace pylorak.TinyWall
                 return -1;
             }
 
-            // Terminate remaining TinyWall processes (e.g. controller)
+            return CleanupStoppedInstallation();
+        }
+
+        // Explicit MSI machine administration; never open a dialog or weaken the
+        // password-gated interactive controller protocol on this path.
+        internal static int UninstallForMsi() => CleanupForMsi(false);
+
+        // Only failed first-install rollback may escalate beyond graceful SCM stop.
+        internal static int RollbackFailedInstallForMsi() => CleanupForMsi(true);
+
+        private static int CleanupForMsi(bool failedInstallRollback)
+        {
+            try
+            {
+                InstallationSafety.RequireSystemMaintenance();
+                ValidateRegisteredServiceImage();
+                if (ServiceExists())
+                {
+                    if (failedInstallRollback)
+                    {
+                        // Registration and protected installation are validated
+                        // above. Suppress queued recovery even if startup exits
+                        // naturally during the graceful wait.
+                        using var scm = new ServiceControlManager();
+                        scm.SetStartupMode(TinyWallService.SERVICE_NAME, ServiceStartMode.Disabled);
+                        scm.SetRestartOnFailure(TinyWallService.SERVICE_NAME, false);
+                    }
+                    using var service = new ServiceController(TinyWallService.SERVICE_NAME);
+                    var timer = Stopwatch.StartNew();
+                    LifecycleServiceState State()
+                    {
+                        service.Refresh();
+                        return (LifecycleServiceState)service.Status;
+                    }
+                    bool StopGracefully()
+                    {
+                        try
+                        {
+                            return ServiceLifecyclePolicy.StopGracefully(State, () => service.Stop(),
+                                () => timer.Elapsed, System.Threading.Thread.Sleep);
+                        }
+                        catch (InvalidOperationException exception)
+                        {
+                            Utils.LogException(exception, Utils.LOG_ID_INSTALLER);
+                            return State() == LifecycleServiceState.Stopped;
+                        }
+                    }
+                    int result = -1;
+                    ServiceLifecyclePolicy.Cleanup(failedInstallRollback, StopGracefully,
+                        () => {
+                            ValidateRegisteredServiceImage();
+                            InstallationSafety.TerminateFailedInstallService();
+                        },
+                        () => ServiceLifecyclePolicy.WaitUntil(() => State() == LifecycleServiceState.Stopped,
+                            ServiceLifecyclePolicy.CleanupGrace, () => timer.Elapsed, System.Threading.Thread.Sleep),
+                        () => result = CleanupStoppedInstallation());
+                    return result;
+                }
+                return CleanupStoppedInstallation();
+            }
+            catch (Exception exception)
+            {
+                Utils.LogException(exception, Utils.LOG_ID_INSTALLER);
+                return -1;
+            }
+        }
+
+        private static bool ServiceExists()
+        {
+            using var machine = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
+            using var service = machine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\" + TinyWallService.SERVICE_NAME);
+            return service != null;
+        }
+
+        private static void RequireServiceNotPendingDeletion()
+        {
+            using var machine = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
+            using var service = machine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\" + TinyWallService.SERVICE_NAME);
+            if (service?.GetValue("DeleteFlag") is int flag && flag == 1)
+                throw new InvalidOperationException("SecureWall service deletion is pending. Close Services and other service-management tools, or restart Windows, before installing again.");
+        }
+
+        private static void ValidateRegisteredServiceImage()
+        {
+            using var machine = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
+            using var service = machine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\" + TinyWallService.SERVICE_NAME);
+            if (service == null) return;
+            string image = (service.GetValue("ImagePath") as string ?? "").Trim();
+            string expected = "\"" + Utils.ExecutablePath + "\"";
+            if (!string.Equals(image, expected, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(image, expected + " /service", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("The SecureWall service belongs to another executable. Remove it using its original installer.");
+        }
+
+        private static int CleanupStoppedInstallation()
+        {
+            try
+            {
+                ValidateRegisteredServiceImage();
+                if (ServiceExists())
+                {
+                    using var service = new ServiceController(TinyWallService.SERVICE_NAME);
+                    if (service.Status != ServiceControllerStatus.Stopped)
+                        throw new InvalidOperationException("Service must be stopped before cleanup.");
+                }
+                // Crash cleanup is independent of service disposal. Keep WFP
+                // protection when compatibility restoration fails.
+                WindowsFirewall.RestoreOwnedState();
+            }
+            catch (Exception exception)
+            {
+                Utils.LogException(exception, Utils.LOG_ID_INSTALLER);
+                return -1;
+            }
+
+            // Terminate only controllers from this exact installation.
             {
                 using var ownProc = Process.GetCurrentProcess();
                 int ownPid = ownProc.Id;
@@ -181,7 +316,9 @@ namespace pylorak.TinyWall
                     {
                         try
                         {
-                            if (p.ProcessName.Contains(SecureWallProduct.Name) && (p.Id != ownPid))
+                            if ((p.Id != ownPid) &&
+                                string.Equals(p.ProcessName, Path.GetFileNameWithoutExtension(Utils.ExecutablePath), StringComparison.OrdinalIgnoreCase) &&
+                                string.Equals(p.MainModule?.FileName, Utils.ExecutablePath, StringComparison.OrdinalIgnoreCase))
                             {
                                 ProcessManager.TerminateProcess(p, 2000);
                             }
@@ -211,6 +348,7 @@ namespace pylorak.TinyWall
             }
 
 
+            bool succeeded = true;
             try
             {
                 // Disable automatic start of controller
@@ -218,7 +356,8 @@ namespace pylorak.TinyWall
                 taskService.Connect();
                 taskService.GetFolder(@"\").DeleteTask(CONTROLLER_START_TASKSCH_NAME, 0);
             }
-            catch (Exception e) { Utils.LogException(e, Utils.LOG_ID_INSTALLER); }
+            catch (System.Runtime.InteropServices.COMException e) when (e.HResult == unchecked((int)0x80070002)) { }
+            catch (Exception e) { succeeded = false; Utils.LogException(e, Utils.LOG_ID_INSTALLER); }
 
             try
             {
@@ -226,19 +365,25 @@ namespace pylorak.TinyWall
                 using HostsFileManager hosts = new();
                 hosts.DisableHostsFile();
             }
-            catch (Exception e) { Utils.LogException(e, Utils.LOG_ID_INSTALLER); }
+            catch (Exception e) { succeeded = false; Utils.LogException(e, Utils.LOG_ID_INSTALLER); }
 
             try
             {
-                ManagedInstallerClass.InstallHelper(new string[] { "/u", Utils.ExecutablePath });
+                if (ServiceExists())
+                    ManagedInstallerClass.InstallHelper(new string[] { "/u", Utils.ExecutablePath });
+                InstallationSafety.EnsureStoppedServiceDeletion();
+                if (ServiceExists())
+                    Utils.Log("SecureWall service deletion was accepted by Windows and is pending open handles. Close Services and other service-management tools, or restart Windows, before installing again.", Utils.LOG_ID_INSTALLER);
             }
-            catch (Exception e) { Utils.LogException(e, Utils.LOG_ID_INSTALLER); }
+            catch (Exception e) { succeeded = false; Utils.LogException(e, Utils.LOG_ID_INSTALLER); }
 
-            return 0;
+            return succeeded ? 0 : -1;
         }
 
         internal static void EnsureHealth(string logContext)
         {
+            InstallationSafety.RequireNoTinyWall();
+            InstallationSafety.RequireProtectedInstallation();
             // Ensure that TinyWall's dependencies can be started
             try
             {
@@ -323,6 +468,9 @@ namespace pylorak.TinyWall
             using var scm = new ServiceControlManager();
             foreach (string srv in deps)
             {
+                // MpsSvc is an explicit prerequisite. Do not override an
+                // administrator's disabled Windows Firewall service setting.
+                if (string.Equals(srv, "MpsSvc", StringComparison.OrdinalIgnoreCase)) continue;
                 if (scm.GetStartupMode(srv) == (uint)ServiceStartMode.Disabled)
                     scm.SetStartupMode(srv, ServiceStartMode.Manual);
             }

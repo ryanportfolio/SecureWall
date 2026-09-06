@@ -14,6 +14,13 @@ namespace pylorak.TinyWall
             Endpoint = new PipeClientEndpoint(serverEndpoint);
         }
 
+#if DEBUG
+        internal Controller(string serverEndpoint, int expectedTestServerProcessId)
+        {
+            Endpoint = new PipeClientEndpoint(serverEndpoint, expectedTestServerProcessId);
+        }
+#endif
+
         public MessageType GetServerConfig(out ServerConfiguration? serverConfig, out ServerState? serverState, ref Guid clientChangeset)
         {
             // Detect if server settings have changed in comparison to ours and download

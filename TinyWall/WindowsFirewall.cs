@@ -2,13 +2,26 @@
 using System.IO;
 using System.Diagnostics.Eventing.Reader;
 using NetFwTypeLib;
+using System.Collections.Generic;
+using Microsoft.Win32;
+using pylorak.TinyWall.Prompting;
 using pylorak.Utilities;
+using System.ServiceProcess;
 
 namespace pylorak.TinyWall
 {
     class WindowsFirewall : Disposable
     {
         private readonly EventLogWatcher? WFEventWatcher;
+        private static readonly object Sync = new object();
+        private static bool Active;
+        private const string RecoveryKey = @"SOFTWARE\SecureWall\FirewallRecovery";
+        private const string NotificationValue = "OriginalNotifications";
+        private static readonly NET_FW_PROFILE_TYPE2_[] Profiles = {
+            NET_FW_PROFILE_TYPE2_.NET_FW_PROFILE2_DOMAIN,
+            NET_FW_PROFILE_TYPE2_.NET_FW_PROFILE2_PRIVATE,
+            NET_FW_PROFILE_TYPE2_.NET_FW_PROFILE2_PUBLIC
+        };
 
         // This is a list of apps that are allowed to change firewall rules
         private static readonly string[] WhitelistedApps = new string[]
@@ -22,6 +35,7 @@ namespace pylorak.TinyWall
 
         public WindowsFirewall()
         {
+            lock (Sync) Active = true;
             DisableMpsSvc();
 
             try
@@ -85,7 +99,8 @@ namespace pylorak.TinyWall
                 e.EventRecord?.Dispose();
             }
 
-            DisableMpsSvc();
+            try { DisableMpsSvc(); }
+            catch (Exception exception) { Utils.LogException(exception, Utils.LOG_ID_SERVICE); }
         }
 
         protected override void Dispose(bool disposing)
@@ -98,12 +113,18 @@ namespace pylorak.TinyWall
                 WFEventWatcher?.Dispose();
             }
 
-            RestoreMpsSvc();
+            lock (Sync)
+            {
+                Active = false;
+                try { RestoreOwnedState(); }
+                catch (Exception exception) { Utils.LogException(exception, Utils.LOG_ID_SERVICE); }
+            }
             base.Dispose(disposing);
         }
 
         private static INetFwPolicy2 GetFwPolicy2()
         {
+            RequireServiceRunning();
             Type tNetFwPolicy2 = Type.GetTypeFromProgID("HNetCfg.FwPolicy2");
             return (INetFwPolicy2)Activator.CreateInstance(tNetFwPolicy2);
         }
@@ -116,7 +137,7 @@ namespace pylorak.TinyWall
             rule.Name = name;
             rule.Action = action;
             rule.Direction = dir;
-            rule.Grouping = SecureWallProduct.Name;
+            rule.Grouping = FirewallRecoveryPolicy.Group;
             rule.Profiles = (int)NET_FW_PROFILE_TYPE2_.NET_FW_PROFILE2_PRIVATE | (int)NET_FW_PROFILE_TYPE2_.NET_FW_PROFILE2_PUBLIC | (int)NET_FW_PROFILE_TYPE2_.NET_FW_PROFILE2_DOMAIN;
             rule.Enabled = true;
             if ((NET_FW_RULE_DIRECTION_.NET_FW_RULE_DIR_IN == dir) && (NET_FW_ACTION_.NET_FW_ACTION_ALLOW == action))
@@ -125,60 +146,83 @@ namespace pylorak.TinyWall
             return rule;
         }
 
-        private static void MpsNotificationsDisable(INetFwPolicy2 pol, bool disable)
+        private static RegistryKey OpenRecoveryKey()
         {
-            if (pol.NotificationsDisabled[NET_FW_PROFILE_TYPE2_.NET_FW_PROFILE2_PRIVATE] != disable)
-                pol.NotificationsDisabled[NET_FW_PROFILE_TYPE2_.NET_FW_PROFILE2_PRIVATE] = disable;
-            if (pol.NotificationsDisabled[NET_FW_PROFILE_TYPE2_.NET_FW_PROFILE2_PUBLIC] != disable)
-                pol.NotificationsDisabled[NET_FW_PROFILE_TYPE2_.NET_FW_PROFILE2_PUBLIC] = disable;
-            if (pol.NotificationsDisabled[NET_FW_PROFILE_TYPE2_.NET_FW_PROFILE2_DOMAIN] != disable)
-                pol.NotificationsDisabled[NET_FW_PROFILE_TYPE2_.NET_FW_PROFILE2_DOMAIN] = disable;
+            // All installer/service architectures share one durable journal.
+            using var machine = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
+            return machine.CreateSubKey(RecoveryKey, true);
+        }
+
+        internal static void RequireServiceRunning()
+        {
+            using var service = new ServiceController("MpsSvc");
+            if (service.Status != ServiceControllerStatus.Running)
+                throw new InvalidOperationException("Windows Defender Firewall (MpsSvc) must be running before SecureWall can start or restore its compatibility settings. Start that service and retry.");
         }
 
         private static void DisableMpsSvc()
         {
-            try
+            lock (Sync)
             {
-                INetFwPolicy2 fwPolicy2 = GetFwPolicy2();
-
-                // Disable Windows Firewall notifications
-                MpsNotificationsDisable(fwPolicy2, true);
-
-                // Add new rules
-                string newRuleId = $"SecureWall Compat [{Utils.RandomString(6)}]";
-                fwPolicy2.Rules.Add(CreateFwRule(newRuleId, NET_FW_ACTION_.NET_FW_ACTION_ALLOW, NET_FW_RULE_DIRECTION_.NET_FW_RULE_DIR_IN));
-                fwPolicy2.Rules.Add(CreateFwRule(newRuleId, NET_FW_ACTION_.NET_FW_ACTION_ALLOW, NET_FW_RULE_DIRECTION_.NET_FW_RULE_DIR_OUT));
-
-                // Remove earlier rules
-                INetFwRules rules = fwPolicy2.Rules;
-                foreach (INetFwRule rule in rules)
-                {
-                    string ruleName = rule.Name;
-                    if (!string.IsNullOrEmpty(ruleName) && ruleName.Contains(SecureWallProduct.Name) && (ruleName != newRuleId))
-                        rules.Remove(rule.Name);
-                }
+                if (!Active) return;
+                INetFwPolicy2 policy = GetFwPolicy2();
+                // Reject foreign reserved names even when no owned rule exists,
+                // before writing the journal, notifications, or rules.
+                FirewallRecoveryPolicy.AcquireForRules(ReadRuleIdentities(policy), () => {
+                    using var journal = OpenRecoveryKey();
+                    FirewallRecoveryPolicy.Acquire(
+                        () => (int?)journal.GetValue(NotificationValue),
+                        () => new[] { policy.NotificationsDisabled[Profiles[0]], policy.NotificationsDisabled[Profiles[1]], policy.NotificationsDisabled[Profiles[2]] },
+                        original => { journal.SetValue(NotificationValue, original, RegistryValueKind.DWord); journal.Flush(); },
+                        () => {
+                            RemoveOwnedRules(policy);
+                            foreach (var profile in Profiles) policy.NotificationsDisabled[profile] = true;
+                            policy.Rules.Add(CreateFwRule(FirewallRecoveryPolicy.Inbound, NET_FW_ACTION_.NET_FW_ACTION_ALLOW, NET_FW_RULE_DIRECTION_.NET_FW_RULE_DIR_IN));
+                            policy.Rules.Add(CreateFwRule(FirewallRecoveryPolicy.Outbound, NET_FW_ACTION_.NET_FW_ACTION_ALLOW, NET_FW_RULE_DIRECTION_.NET_FW_RULE_DIR_OUT));
+                        });
+                });
             }
-            catch { }
         }
 
-        private static void RestoreMpsSvc()
+        private static IEnumerable<KeyValuePair<string, string>> ReadRuleIdentities(INetFwPolicy2 policy)
         {
-            try
+            foreach (INetFwRule rule in policy.Rules)
+                yield return new KeyValuePair<string, string>(rule.Name, rule.Grouping);
+        }
+
+        private static void RemoveOwnedRules(INetFwPolicy2 policy)
+        {
+            foreach (string name in FirewallRecoveryPolicy.OwnedRuleNames(ReadRuleIdentities(policy)))
+                policy.Rules.Remove(name);
+            foreach (INetFwRule rule in policy.Rules)
+                if (FirewallRecoveryPolicy.OwnsRule(rule.Name, rule.Grouping))
+                    throw new InvalidOperationException("Owned compatibility rule could not be removed.");
+        }
+
+        // Independent crash recovery: cleanup must succeed before uninstall deletes
+        // persistent WFP protection. Preserve the journal if any restoration fails.
+        internal static void RestoreOwnedState()
+        {
+            lock (Sync)
             {
-                INetFwPolicy2 fwPolicy2 = GetFwPolicy2();
-
-                // Enable Windows Firewall notifications
-                MpsNotificationsDisable(fwPolicy2, false);
-
-                // Remove earlier rules
-                INetFwRules rules = fwPolicy2.Rules;
-                foreach (INetFwRule rule in rules)
-                {
-                    if ((rule.Grouping != null) && rule.Grouping.Equals(SecureWallProduct.Name))
-                        rules.Remove(rule.Name);
-                }
+                using var machine = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
+                using var existingJournal = machine.OpenSubKey(RecoveryKey);
+                using var service = new ServiceController("MpsSvc");
+                // This ownership generation flushes the journal before adding any
+                // compatibility rule and clears it only after rule removal. A
+                // stopped MpsSvc with no record therefore needs no COM recovery.
+                // Existing, invalid, or unreadable records must still fail closed.
+                if (FirewallRecoveryPolicy.CanSkipStoppedServiceRecovery(
+                    service.Status == ServiceControllerStatus.Stopped,
+                    existingJournal?.GetValue(NotificationValue) != null)) return;
+                INetFwPolicy2 policy = GetFwPolicy2();
+                using var journal = OpenRecoveryKey();
+                FirewallRecoveryPolicy.Restore(
+                    () => RemoveOwnedRules(policy),
+                    () => (int?)journal.GetValue(NotificationValue),
+                    original => { for (int i = 0; i < Profiles.Length; i++) policy.NotificationsDisabled[Profiles[i]] = original[i]; },
+                    () => { journal.DeleteValue(NotificationValue); journal.Flush(); });
             }
-            catch { }
         }
     }
 }

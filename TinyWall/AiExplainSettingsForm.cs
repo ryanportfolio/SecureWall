@@ -24,7 +24,7 @@ namespace pylorak.TinyWall
             StartPosition = FormStartPosition.CenterParent;
             MinimizeBox = false;
             MaximizeBox = false;
-            ClientSize = new Size(460, 300);
+            ClientSize = new Size(460, 330);
 
             var layout = new TableLayoutPanel
             {
@@ -54,12 +54,12 @@ namespace pylorak.TinyWall
 
             var note = new Label
             {
-                Text = "Only the program's file name and code-signing publisher are sent by default. "
+                Text = "Default requests send the file name, unverified publisher, identity type, service name and package SID when present. "
                     + "The key is stored encrypted for your Windows account and never leaves this PC "
                     + "except in requests you trigger.",
                 AutoSize = false,
                 Dock = DockStyle.Fill,
-                Height = 60,
+                Height = 90,
             };
             layout.Controls.Add(note);
             layout.SetColumnSpan(note, 2);

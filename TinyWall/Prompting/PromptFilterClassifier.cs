@@ -2,6 +2,8 @@ namespace pylorak.TinyWall.Prompting
 {
     internal static class PromptFilterClassifier
     {
+        internal static bool IsRequiredProtection(bool isBlock) => isBlock;
+
         internal static bool IsRequiredDefaultBlock(
             bool isBlock,
             ulong filterWeight,

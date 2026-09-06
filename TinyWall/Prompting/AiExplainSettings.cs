@@ -39,7 +39,8 @@ namespace pylorak.TinyWall.Prompting
             if (!Uri.TryCreate(trimmed + "/" + ChatCompletionsPath, UriKind.Absolute, out Uri? built))
                 return false;
 
-            if (built!.Scheme != Uri.UriSchemeHttp && built.Scheme != Uri.UriSchemeHttps)
+            if (built!.Scheme != Uri.UriSchemeHttps || !string.IsNullOrEmpty(built.UserInfo) ||
+                !string.IsNullOrEmpty(built.Query) || !string.IsNullOrEmpty(built.Fragment))
                 return false;
 
             uri = built;

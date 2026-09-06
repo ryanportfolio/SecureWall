@@ -44,7 +44,8 @@ namespace pylorak.TinyWall
 
             try
             {
-                using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+                using var handler = new HttpClientHandler { AllowAutoRedirect = false };
+                using var http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(30) };
                 using var content = new StringContent(requestJson, Encoding.UTF8, "application/json");
                 using var request = new HttpRequestMessage(HttpMethod.Post, uri) { Content = content };
                 request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + _apiKey);
