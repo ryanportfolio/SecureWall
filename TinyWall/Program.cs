@@ -90,6 +90,11 @@ namespace pylorak.TinyWall
             popup.IgnoreRequested += ExitPreview;
             popup.PromptClosed += ExitPreview;
             popup.PromptTimedOut += ExitPreview;
+            // Sample every warning line regardless of what svchost.exe looks like on disk.
+            popup.RiskProbe = _ =>
+                ExecutableRiskFlags.Unsigned |
+                ExecutableRiskFlags.UserWritableLocation |
+                ExecutableRiskFlags.RecentlyModified;
             popup.ShowPrompt(new PromptWireDto
             {
                 Token = Guid.NewGuid(),

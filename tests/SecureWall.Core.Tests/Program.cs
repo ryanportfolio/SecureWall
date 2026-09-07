@@ -68,7 +68,8 @@ internal static class Program
             .Concat(ControllerHardeningTests.Cases)
             .Concat(NetEventParsingTests.Cases)
             .Concat(AtomicFileWriterTests.Cases)
-            .Concat(AuditPolicyLeaseTests.Cases).ToArray();
+            .Concat(AuditPolicyLeaseTests.Cases)
+            .Concat(ExecutableRiskTests.Cases).ToArray();
         var failed = 0;
 
         foreach (var (name, test) in tests)

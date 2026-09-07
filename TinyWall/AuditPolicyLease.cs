@@ -123,8 +123,13 @@ namespace pylorak.TinyWall
                         // Invariant: a journal entry holding the true original exists
                         // whenever the live policy differs from it, no matter which
                         // lease made the change (an outer lease may have changed nothing).
-                        if (Journaled.Add(subcategory))
+                        if (!Journaled.Contains(subcategory))
+                        {
+                            // Mark as journaled only after the write succeeded, so a
+                            // failed write is retried by the next acquire.
                             journal.Write(subcategory, TrueOriginals[subcategory]);
+                            Journaled.Add(subcategory);
+                        }
                         backend.Set(subcategory, target);
                     }
                 }

@@ -14,6 +14,7 @@ namespace pylorak.TinyWall.Prompting
         internal BlockedConnectionPopup()
         {
             InitializeComponent();
+            InitializeRiskWarnings();
             InitializeAiExplain();
         }
 
@@ -33,6 +34,7 @@ namespace pylorak.TinyWall.Prompting
             _canAllow = prompt.CanAllow;
             timeoutTimer.Interval = 250;
             SetAiPrompt(prompt);
+            SetRiskPrompt(prompt);
             identityLabel.Text = IdentityText(prompt);
             pathLabel.Text = string.IsNullOrWhiteSpace(prompt.ExecutablePath)
                 ? "No executable path was reported."

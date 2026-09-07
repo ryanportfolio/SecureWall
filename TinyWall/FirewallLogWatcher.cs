@@ -102,16 +102,25 @@ namespace pylorak.TinyWall
                 }
             }
 
+            _learningEnabled = false;
+            // LIFO: the inner (learning) lease restores the outer lease's live value, so the outer must dispose last.
+            // Each dispose has its own guard so a throw from one lease never skips the other.
             try
             {
-                _learningEnabled = false;
-                // LIFO: the inner (learning) lease restores the outer lease's live value, so the outer must dispose last.
                 DisposeAuditLease(ref _learningAuditLease);
+            }
+            catch (Exception exception)
+            {
+                Utils.Log("Cannot restore the previous filtering-platform audit policy (learning lease).", Utils.LOG_ID_SERVICE);
+                Utils.LogException(exception, Utils.LOG_ID_SERVICE);
+            }
+            try
+            {
                 DisposeAuditLease(ref _failureAuditLease);
             }
             catch (Exception exception)
             {
-                Utils.Log("Cannot restore the previous filtering-platform audit policy.", Utils.LOG_ID_SERVICE);
+                Utils.Log("Cannot restore the previous filtering-platform audit policy (failure lease).", Utils.LOG_ID_SERVICE);
                 Utils.LogException(exception, Utils.LOG_ID_SERVICE);
             }
 

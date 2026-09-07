@@ -24,6 +24,7 @@ namespace SecureWall.Core.Tests
                 yield return ("nested audit lease journals the true original when only it changes policy", InnerLeaseJournalsTrueOriginal);
                 yield return ("audit journal restore recovers a change made only by a nested lease", RestoreFromJournalAfterInnerOnlyChange);
                 yield return ("audit journal restore skips a malformed entry and restores the rest", RestoreFromJournalSkipsMalformedEntry);
+                yield return ("nested audit lease retries the journal write after a failed write", NestedLeaseRetriesJournalWriteAfterFailure);
             }
         }
 
@@ -44,8 +45,17 @@ namespace SecureWall.Core.Tests
 
             public bool TryRead(Guid subcategory, out AuditPolicyFlags original) => Entries.TryGetValue(subcategory, out original);
 
+            // Number of upcoming Write calls that throw before writes succeed again.
+            internal int FailNextWrites { get; set; }
+
             public void Write(Guid subcategory, AuditPolicyFlags original)
             {
+                if (FailNextWrites > 0)
+                {
+                    FailNextWrites--;
+                    _trace.Add("write-failed");
+                    throw new InvalidOperationException("Journal write failed.");
+                }
                 Entries[subcategory] = original;
                 _trace.Add("write");
             }
@@ -235,6 +245,29 @@ namespace SecureWall.Core.Tests
             failure.Dispose();
             AssertEx.Equal(0, trace.Count, "outer lease changed nothing and has nothing to restore or clear");
             AssertEx.Equal(AuditPolicyFlags.Failure, backend[subcategory]);
+        }
+
+        // A nested lease whose journal write throws must not leave the subcategory marked
+        // as journaled: the next nested acquire has to write the record again.
+        private static void NestedLeaseRetriesJournalWriteAfterFailure()
+        {
+            var (subcategory, backend, journal, trace) = Harness(AuditPolicyFlags.Failure);
+
+            using var failure = AuditPolicyLease.Acquire(backend, subcategory, AuditPolicyFlags.Failure, journal);
+            AssertEx.Equal(0, trace.Count, "outer lease changes nothing");
+
+            journal.FailNextWrites = 1;
+            AssertEx.Throws<InvalidOperationException>(() =>
+                AuditPolicyLease.Acquire(backend, subcategory, AuditPolicyFlags.Success, journal));
+            AssertEx.SequenceEqual(new[] { "write-failed" }, trace, "the backend is untouched when the journal write fails");
+            AssertEx.Equal(0, journal.Entries.Count);
+            AssertEx.Equal(AuditPolicyFlags.Failure, backend[subcategory]);
+
+            trace.Clear();
+            using var learning = AuditPolicyLease.Acquire(backend, subcategory, AuditPolicyFlags.Success, journal);
+            AssertEx.SequenceEqual(new[] { "write", "set" }, trace, "the retry writes the journal before setting");
+            AssertEx.Equal(AuditPolicyFlags.Failure, journal.Entries[subcategory]);
+            AssertEx.Equal(AuditPolicyFlags.Success | AuditPolicyFlags.Failure, backend[subcategory]);
         }
 
         // Crash after the inner-only change: a fresh backend/journal pair holding the

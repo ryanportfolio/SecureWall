@@ -1357,10 +1357,16 @@ namespace pylorak.TinyWall
 
         private bool ApplyPromptAllow(BlockedConnectionPrompt prompt)
         {
-            if (VisibleState.Mode != FirewallMode.Normal ||
-                !PromptAllowPolicy.TryCreate(prompt.Identity, out PromptAllowPolicy? allowPolicy) ||
+            if (VisibleState.Mode != FirewallMode.Normal)
+                return false;
+
+            // Recheck the file right before the exception is written: the path was captured
+            // when the connection was blocked, and the binary may be gone by the time the
+            // user clicks Allow.
+            if (!PromptAllowPolicy.TryCreate(prompt.Identity, File.Exists, out PromptAllowPolicy? allowPolicy, out string? refusalReason) ||
                 allowPolicy == null)
             {
+                Utils.Log("Refused a prompt allow: " + (refusalReason ?? "no policy could be created."), Utils.LOG_ID_SERVICE);
                 return false;
             }
 
