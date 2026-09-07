@@ -456,6 +456,34 @@ namespace pylorak.TinyWall
                     return filter.FilterId;
                 }, true);
             }
+
+            // DHCP and DNS survive without the dynamic session. Weight sits above the
+            // recovery deny and below every runtime filter, so these are inert while the
+            // service runs (default block, BlockAll and user blocks all outrank them).
+            foreach (RecoveryPermitRule rule in EnforcementPolicy.RecoveryPermitRules())
+            {
+                LayerKeyEnum layer = rule.Inbound
+                    ? (rule.IsIPv6 ? LayerKeyEnum.FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6 : LayerKeyEnum.FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4)
+                    : (rule.IsIPv6 ? LayerKeyEnum.FWPM_LAYER_ALE_AUTH_CONNECT_V6 : LayerKeyEnum.FWPM_LAYER_ALE_AUTH_CONNECT_V4);
+                using var filter = new Filter(rule.Name, string.Empty,
+                    SECUREWALL_PROVIDER_KEY, FilterActions.FWP_ACTION_PERMIT,
+                    EnforcementPolicy.RecoveryPermitWeight((ulong)FilterWeights.DefaultBlock));
+                filter.LayerKey = GetLayerKey(layer);
+                filter.SublayerKey = GetSublayerKey(layer);
+                filter.Conditions.Add(new ProtocolFilterCondition(rule.IpProtocol));
+                if (rule.LocalPort.HasValue)
+                    filter.Conditions.Add(new PortFilterCondition(rule.LocalPort.Value, RemoteOrLocal.Local));
+                if (rule.RemotePort.HasValue)
+                    filter.Conditions.Add(new PortFilterCondition(rule.RemotePort.Value, RemoteOrLocal.Remote));
+                WfpFilterPairRegistration.Register(lifetime =>
+                {
+                    filter.FilterKey = Guid.NewGuid();
+                    filter.Flags = lifetime == WfpFilterLifetime.Persistent
+                        ? FilterFlags.FWPM_FILTER_FLAG_PERSISTENT : FilterFlags.FWPM_FILTER_FLAG_BOOTTIME;
+                    baseline.RegisterFilter(filter);
+                    return filter.FilterId;
+                }, true);
+            }
             transaction.Commit();
             BaselineInstalled = true;
         }
@@ -1287,46 +1315,31 @@ namespace pylorak.TinyWall
             }
         }
 
-        private static void GetCompressedUpdate(UpdateModule module, WaitCallback installMethod)
+        private static void GetCompressedUpdate(UpdateModule module, Action<Stream> installMethod)
         {
-            string tmpCompressedPath = Path.GetTempFileName();
-            string tmpFile = Path.GetTempFileName();
-            try
-            {
-                using (var downloader = new WebClient())
-                {
-                    downloader.DownloadFile(module.UpdateURL, tmpCompressedPath);
-                }
-                Utils.DecompressDeflate(tmpCompressedPath, tmpFile);
+            // Download and decompress in memory. Staging through Path.GetTempFileName()
+            // put the payload in a shared temp folder where another local user could
+            // swap it between the hash check and the install.
+            using var downloader = new WebClient();
+            var compressedData = downloader.DownloadData(module.UpdateURL);
 
-                if (Hasher.HashFile(tmpFile).Equals(module.DownloadHash, StringComparison.OrdinalIgnoreCase))
-                {
+            using var compressedStream = new MemoryStream(compressedData, false);
+            using var decompressedStream = new MemoryStream();
+            Utils.DecompressDeflate(compressedStream, decompressedStream);
+            decompressedStream.Position = 0;
+
+            if (Hasher.HashStream(decompressedStream).Equals(module.DownloadHash, StringComparison.OrdinalIgnoreCase))
+            {
 #if !DEBUG  // don't install anything during debug
-                    installMethod(tmpFile);
+                decompressedStream.Position = 0;
+                installMethod(decompressedStream);
 #endif
-                }
-            }
-            catch { }
-            finally
-            {
-                try
-                {
-                    File.Delete(tmpCompressedPath);
-                }
-                catch { }
-
-                try
-                {
-                    File.Delete(tmpFile);
-                }
-                catch { }
             }
         }
 
-        private void HostsUpdateInstall(object file)
+        private void HostsUpdateInstall(Stream sourceStream)
         {
-            string tmpHostsPath = (string)file;
-            HostsFileManager.UpdateHostsFile(tmpHostsPath);
+            HostsFileManager.UpdateHostsFile(sourceStream);
 
             if (ActiveConfig.Service.Blocklists.EnableBlocklists
                 && ActiveConfig.Service.Blocklists.EnableHostsBlocklist)
@@ -1334,17 +1347,17 @@ namespace pylorak.TinyWall
                 HostsFileManager.EnableHostsFile();
             }
         }
-        private void DatabaseUpdateInstall(object file)
+        private void DatabaseUpdateInstall(Stream newDbStream)
         {
-            string tmpFilePath = (string)file;
-
             FileLocker.Unlock(DatabaseClasses.AppDatabase.DBPath);
-            using (var afu = new AtomicFileUpdater(DatabaseClasses.AppDatabase.DBPath))
+            try
             {
-                File.Copy(tmpFilePath, afu.TemporaryFilePath, true);
-                afu.Commit();
+                AtomicFileWriter.WriteFrom(DatabaseClasses.AppDatabase.DBPath, newDbStream);
             }
-            FileLocker.Lock(DatabaseClasses.AppDatabase.DBPath, FileAccess.Read, FileShare.Read);
+            finally
+            {
+                FileLocker.Lock(DatabaseClasses.AppDatabase.DBPath, FileAccess.Read, FileShare.Read);
+            }
             NotifyController(MessageType.DATABASE_UPDATED);
             Q.Add(new TwRequest(TwMessageSimple.CreateRequest(MessageType.REINIT)));
         }
@@ -1372,10 +1385,16 @@ namespace pylorak.TinyWall
 
         private bool ApplyPromptAllow(BlockedConnectionPrompt prompt)
         {
-            if (VisibleState.Mode != FirewallMode.Normal ||
-                !PromptAllowPolicy.TryCreate(prompt.Identity, out PromptAllowPolicy? allowPolicy) ||
+            if (VisibleState.Mode != FirewallMode.Normal)
+                return false;
+
+            // Recheck the file right before the exception is written: the path was captured
+            // when the connection was blocked, and the binary may be gone by the time the
+            // user clicks Allow.
+            if (!PromptAllowPolicy.TryCreate(prompt.Identity, File.Exists, out PromptAllowPolicy? allowPolicy, out string? refusalReason) ||
                 allowPolicy == null)
             {
+                Utils.Log("Refused a prompt allow: " + (refusalReason ?? "no policy could be created."), Utils.LOG_ID_SERVICE);
                 return false;
             }
 
@@ -1920,6 +1939,19 @@ namespace pylorak.TinyWall
 
         public TinyWallServer()
         {
+            // Put back audit policy left behind by an unclean exit before any new
+            // lease can journal over it. Registry only; MpsSvc is not needed.
+            try
+            {
+                AuditPolicyRestoreResult restored = FirewallLogWatcher.RestoreAuditPolicyFromJournal();
+                foreach (string record in restored.Malformed)
+                    Utils.Log("Skipped malformed audit policy recovery record " + record + "; it is kept in place for inspection.", Utils.LOG_ID_SERVICE);
+            }
+            catch (Exception exception)
+            {
+                Utils.Log("Cannot restore the audit policy recorded by a previous run; the record is kept for the next start or uninstall.", Utils.LOG_ID_SERVICE);
+                Utils.LogException(exception, Utils.LOG_ID_SERVICE);
+            }
             LogWatcher = new FirewallLogWatcher();
             Timer? minuteTimer = null;
             Timer? promptCandidateTimer = null;
@@ -2128,73 +2160,82 @@ namespace pylorak.TinyWall
 
         private void WfpNetEventCallback(NetEventData data)
         {
-            if (RuntimeStopping) return;
-            EventLogEvent eventType;
-            if (data.EventType == FWPM_NET_EVENT_TYPE.FWPM_NET_EVENT_TYPE_CLASSIFY_DROP)
-                eventType = EventLogEvent.BLOCKED;
-            else if (data.EventType == FWPM_NET_EVENT_TYPE.FWPM_NET_EVENT_TYPE_CLASSIFY_ALLOW)
-                eventType = EventLogEvent.ALLOWED;
-            else
-                return;
-
-            var entry = new FirewallLogEntry
+            // Called from the WFP wrapper on an FWPUClnt RPC thread. An exception
+            // thrown from here would cross back into native code and kill the service.
+            try
             {
-                Timestamp = data.timeStamp,
-                Event = eventType,
-                PackageId = data.packageId,
-                RemoteIp = data.remoteAddr?.ToString(),
-                LocalIp = data.localAddr?.ToString()
-            };
+                if (RuntimeStopping) return;
+                EventLogEvent eventType;
+                if (data.EventType == FWPM_NET_EVENT_TYPE.FWPM_NET_EVENT_TYPE_CLASSIFY_DROP)
+                    eventType = EventLogEvent.BLOCKED;
+                else if (data.EventType == FWPM_NET_EVENT_TYPE.FWPM_NET_EVENT_TYPE_CLASSIFY_ALLOW)
+                    eventType = EventLogEvent.ALLOWED;
+                else
+                    return;
 
-            if (!Utils.IsNullOrEmpty(data.appId))
-                entry.AppPath = PathMapper.Instance.ConvertPathIgnoreErrors(data.appId, PathFormat.Win32);
-            else
-                entry.AppPath = "System";
-            if (data.remotePort.HasValue)
-                entry.RemotePort = data.remotePort.Value;
-            if (data.direction.HasValue)
-                entry.Direction = data.direction == FwpmDirection.FWP_DIRECTION_OUT ? RuleDirection.Out : RuleDirection.In;
-            if (data.ipProtocol.HasValue)
-                entry.Protocol = (Protocol)data.ipProtocol;
-            if (data.localPort.HasValue)
-                entry.LocalPort = data.localPort.Value;
-            if (data.filterId.HasValue)
-                entry.FilterRuntimeId = data.filterId.Value;
+                var entry = new FirewallLogEntry
+                {
+                    Timestamp = data.timeStamp,
+                    Event = eventType,
+                    PackageId = data.packageId,
+                    RemoteIp = data.remoteAddr?.ToString(),
+                    LocalIp = data.localAddr?.ToString()
+                };
 
-            // Replace invalid IP strings with the "unspecified address" IPv6 specifier
-            if (string.IsNullOrEmpty(entry.RemoteIp))
-                entry.RemoteIp = "::";
-            if (string.IsNullOrEmpty(entry.LocalIp))
-                entry.LocalIp = "::";
+                if (!Utils.IsNullOrEmpty(data.appId))
+                    entry.AppPath = PathMapper.Instance.ConvertPathIgnoreErrors(data.appId, PathFormat.Win32);
+                else
+                    entry.AppPath = "System";
+                if (data.remotePort.HasValue)
+                    entry.RemotePort = data.remotePort.Value;
+                if (data.direction.HasValue)
+                    entry.Direction = data.direction == FwpmDirection.FWP_DIRECTION_OUT ? RuleDirection.Out : RuleDirection.In;
+                if (data.ipProtocol.HasValue)
+                    entry.Protocol = (Protocol)data.ipProtocol;
+                if (data.localPort.HasValue)
+                    entry.LocalPort = data.localPort.Value;
+                if (data.filterId.HasValue)
+                    entry.FilterRuntimeId = data.filterId.Value;
 
-            lock (FirewallLogEntries)
-            {
-                FirewallLogEntries.Enqueue(entry);
+                // Replace invalid IP strings with the "unspecified address" IPv6 specifier
+                if (string.IsNullOrEmpty(entry.RemoteIp))
+                    entry.RemoteIp = "::";
+                if (string.IsNullOrEmpty(entry.LocalIp))
+                    entry.LocalIp = "::";
+
+                lock (FirewallLogEntries)
+                {
+                    FirewallLogEntries.Enqueue(entry);
+                }
+
+                if (eventType == EventLogEvent.BLOCKED &&
+                    data.filterId.HasValue &&
+                    PromptableFilterIds.Contains(data.filterId.Value) &&
+                    data.direction == FwpmDirection.FWP_DIRECTION_OUT &&
+                    !string.IsNullOrWhiteSpace(entry.AppPath) &&
+                    !string.Equals(entry.AppPath, "System", StringComparison.OrdinalIgnoreCase) &&
+                    data.localPort.HasValue &&
+                    data.remotePort.HasValue &&
+                    data.ipProtocol.HasValue &&
+                    ((byte)data.ipProtocol.Value == (byte)Protocol.TCP ||
+                        (byte)data.ipProtocol.Value == (byte)Protocol.UDP))
+                {
+                    var candidate = new DropCandidate(
+                        new DateTimeOffset(data.timeStamp).ToUniversalTime(),
+                        data.filterId.Value,
+                        entry.AppPath,
+                        data.packageId,
+                        entry.LocalIp!,
+                        entry.LocalPort,
+                        entry.RemoteIp!,
+                        entry.RemotePort,
+                        (byte)data.ipProtocol.Value);
+                    DropCandidates.TryAdd(candidate);
+                }
             }
-
-            if (eventType == EventLogEvent.BLOCKED &&
-                data.filterId.HasValue &&
-                PromptableFilterIds.Contains(data.filterId.Value) &&
-                data.direction == FwpmDirection.FWP_DIRECTION_OUT &&
-                !string.IsNullOrWhiteSpace(entry.AppPath) &&
-                !string.Equals(entry.AppPath, "System", StringComparison.OrdinalIgnoreCase) &&
-                data.localPort.HasValue &&
-                data.remotePort.HasValue &&
-                data.ipProtocol.HasValue &&
-                ((byte)data.ipProtocol.Value == (byte)Protocol.TCP ||
-                    (byte)data.ipProtocol.Value == (byte)Protocol.UDP))
+            catch (Exception exception)
             {
-                var candidate = new DropCandidate(
-                    new DateTimeOffset(data.timeStamp).ToUniversalTime(),
-                    data.filterId.Value,
-                    entry.AppPath,
-                    data.packageId,
-                    entry.LocalIp!,
-                    entry.LocalPort,
-                    entry.RemoteIp!,
-                    entry.RemotePort,
-                    (byte)data.ipProtocol.Value);
-                DropCandidates.TryAdd(candidate);
+                Utils.LogException(exception, Utils.LOG_ID_SERVICE);
             }
         }
 

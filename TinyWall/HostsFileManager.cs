@@ -59,17 +59,21 @@ namespace pylorak.TinyWall
             FileLocker.Lock(HOSTS_ORIGINAL, FileAccess.Read, FileShare.Read);
         }
 
-        public void UpdateHostsFile(string path)
+        public void UpdateHostsFile(Stream newHostsStream)
         {
             // We keep a copy of the hosts file for ourself, so that
             // we can re-install it any time without a net connection.
+            // The new content arrives as a stream so it never sits in a
+            // world-accessible temp folder before landing next to the target.
             FileLocker.Unlock(HOSTS_BACKUP);
-            using (var afu = new AtomicFileUpdater(HOSTS_BACKUP))
+            try
             {
-                File.Copy(path, afu.TemporaryFilePath, true);
-                afu.Commit();
+                AtomicFileWriter.WriteFrom(HOSTS_BACKUP, newHostsStream);
             }
-            FileLocker.Lock(HOSTS_BACKUP, FileAccess.Read, FileShare.Read);
+            finally
+            {
+                FileLocker.Lock(HOSTS_BACKUP, FileAccess.Read, FileShare.Read);
+            }
         }
 
         public static string GetHostsHash()
@@ -142,7 +146,9 @@ namespace pylorak.TinyWall
                 if (File.Exists(sourcePath))
                 {
                     FileLocker.Unlock(HOSTS_PATH);
-                    File.Copy(sourcePath, HOSTS_PATH, true);
+                    // Staged in drivers\etc itself and swapped in atomically, so the
+                    // resolver never reads a half-written hosts file.
+                    AtomicFileWriter.CopyFrom(HOSTS_PATH, sourcePath);
                 }
             }
             finally

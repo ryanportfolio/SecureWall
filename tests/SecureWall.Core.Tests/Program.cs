@@ -65,7 +65,11 @@ internal static class Program
         };
         tests = tests.Concat(EnforcementHardeningTests.Cases)
             .Concat(LifecycleHardeningTests.Cases)
-            .Concat(ControllerHardeningTests.Cases).ToArray();
+            .Concat(ControllerHardeningTests.Cases)
+            .Concat(NetEventParsingTests.Cases)
+            .Concat(AtomicFileWriterTests.Cases)
+            .Concat(AuditPolicyLeaseTests.Cases)
+            .Concat(ExecutableRiskTests.Cases).ToArray();
         var failed = 0;
 
         foreach (var (name, test) in tests)
@@ -481,7 +485,7 @@ internal static class Program
         var category = Guid.NewGuid();
         var backend = new FakeAuditPolicyBackend(AuditPolicyFlags.Success);
 
-        var lease = AuditPolicyLease.Acquire(backend, category, AuditPolicyFlags.Failure);
+        var lease = AuditPolicyLease.Acquire(backend, category, AuditPolicyFlags.Failure, new AuditPolicyLeaseTests.InMemoryJournal());
         AssertEx.Equal(AuditPolicyFlags.Success | AuditPolicyFlags.Failure, backend.Current);
 
         lease.Dispose();

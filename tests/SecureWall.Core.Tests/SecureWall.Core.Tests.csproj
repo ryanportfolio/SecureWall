@@ -13,5 +13,23 @@
       Exclude="..\..\TinyWall\Prompting\BlockedConnectionPopup*.cs;..\..\TinyWall\Prompting\ControllerPromptActionClient.cs"
       Link="Prompting\%(Filename)%(Extension)" />
     <Compile Include="..\..\TinyWall\AuditPolicyLease.cs" Link="AuditPolicyLease.cs" />
+    <Compile Include="..\..\TinyWall\AtomicFileWriter.cs" Link="AtomicFileWriter.cs" />
+  </ItemGroup>
+
+  <!--
+    pylorak.Windows.WFP targets net48, so a plain ProjectReference fails restore (NU1201).
+    Build it as a dependency without referencing its output, then reference the built
+    assembly directly. Loading a net48 class library under net9.0 works for the pure
+    static helpers exercised here.
+  -->
+  <ItemGroup>
+    <ProjectReference
+      Include="..\..\pylorak.Windows.WFP\pylorak.Windows.WFP.csproj"
+      ReferenceOutputAssembly="false"
+      SkipGetTargetFrameworkProperties="true"
+      Private="false" />
+    <Reference Include="pylorak.Windows.WFP">
+      <HintPath>..\..\pylorak.Windows.WFP\bin\$(Configuration)\pylorak.Windows.WFP.dll</HintPath>
+    </Reference>
   </ItemGroup>
 </Project>

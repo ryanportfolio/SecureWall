@@ -89,6 +89,8 @@ Windows Security event 5157 supplies `ProcessID`, application path, direction, n
 
 The watcher leases only failure auditing for the `Filtering Platform Connection` subcategory. It first snapshots the existing system audit flags using `AuditQuerySystemPolicy`, adds failure auditing without removing existing flags, and restores exactly the captured flags during clean shutdown/uninstall. If auditing cannot be enabled, application and UWP prompts still work; service attribution safely degrades to ambiguous and cannot blanket-allow `svchost.exe`.
 
+The captured flags are journaled to `HKLM\SOFTWARE\SecureWall\AuditRecovery` (64-bit view; value name is the subcategory GUID, value is the original flags) before any `AuditSetSystemPolicy` call, whichever of the two in-process leases (failure auditing, learning-mode success auditing) makes the first change. An orderly lease disposal restores the flags and deletes the entry. Service start, interactive `/uninstall`, and `/msi-cleanup` restore any entry left behind by a crash, `FailFast`, or `Process.Kill` and clear it only after the backend accepted the write. A malformed entry is skipped, left in place, and reported by name; it does not block restoration of the healthy ones.
+
 For a correlated PID, the service enumerates services hosted by that PID:
 
 - one service: use `ServiceSubject(executablePath, serviceName)`;
@@ -148,7 +150,13 @@ Popup properties:
 - ambiguous service attribution explains why Allow is disabled;
 - queued prompts appear sequentially.
 
-The popup never claims an executable is safe. Unsigned, invalid-signature, user-writable-location, and recently changed binaries receive visible warnings, but the user remains able to allow a non-service executable.
+The popup never claims an executable is safe. When a prompt is shown, the controller probes the blocked file on a worker thread (`ExecutableRiskProbe`) and a pure classifier (`ExecutableRiskAssessment`) turns the facts into up to three warning lines rendered between the notice and the status line. No protocol message changes; the service sends only the path it already sent. The warnings are advisory: the user remains able to allow a non-service executable.
+
+- Signature: `WinVerifyTrust` on the embedded Authenticode signature, falling back to the system catalogs by SHA-256 when the file has none. The call is offline (`WTD_CACHE_ONLY_URL_RETRIEVAL`, `WTD_REVOKE_NONE`). Only a `Trusted` result is silent; a missing signature, a broken chain, or an unreadable file all read as "Not signed by a trusted publisher".
+- User-writable location: the executable's directory is under `USERPROFILE`, `TEMP`, `TMP`, `LOCALAPPDATA`, `APPDATA`, `PUBLIC`, or `Users\Public`, sits on a removable drive, or its DACL grants write bits (write data, create, append, delete, generic write/all) to the user's token SIDs, Everyone, Authenticated Users, Users, Interactive, or CREATOR OWNER when the user owns the directory. Allow and Deny bits accumulate across ACEs. The Administrators group is excluded so an elevated controller does not flag every admin-writable folder.
+- Recently changed: the file-system last-write time is younger than 24 hours; a timestamp in the future also counts.
+
+Known limits: revocation is not checked, so a revoked certificate still reads Trusted; an expired certificate whose signature carries no timestamp reads Invalid; the last-write time can be rewritten with `SetFileTime` by anything that can write the file; only the directory DACL is read, not the file's own; junctions and reparse points are not followed; group memberships absent from the token are missed.
 
 ### 8. Live network activity
 
@@ -163,13 +171,14 @@ Fresh settings show all categories. Filters, sorting, process/service identity, 
 
 ## Failure behavior
 
-- Service unavailable: popup polling stops and existing persistent WFP rules remain active.
+- Service unavailable: popup polling stops and the persistent recovery baseline remains active. The baseline is a deny at weight `DefaultBlock - 2` plus eight permits at `DefaultBlock - 1` (DHCPv4 and DHCPv6 request and reply, DNS over UDP and TCP to port 53 for IPv4 and IPv6) so a machine without the service can still lease an address and resolve names. The permits are not scoped by process or address. Every runtime filter, including the Normal-mode default block, BlockAll, and explicit user blocks, outranks them, so they are inert while the dynamic session exists and take effect only when the service is stopped, has crashed, or has not yet started after boot.
+- Service crash or kill: the audit-policy journal under `HKLM\SOFTWARE\SecureWall\AuditRecovery` keeps the original `Filtering Platform Connection` flags; the next service start, `/uninstall`, or `/msi-cleanup` restores them.
 - Controller exits: filtering remains active; prompt queue stays bounded and expires.
 - Configuration save fails: newly created allow filters are not retained as success; UI receives failure.
 - Filter reload fails: service logs failure and preserves or reconstructs default-deny filters; no optimistic success response.
 - Event audit unavailable: service-specific Allow is disabled when attribution is ambiguous.
 - Prompt flood: coalescing, cooldown, bounded queue, and one-visible-popup policy prevent resource exhaustion and security fatigue.
-- App changes on disk after event: before applying Allow, service verifies canonical path still exists and rechecks file identity metadata. The exception remains path-based because that is TinyWall's and WFP's supported application identity model; the UI warns that replacing a file at the same path inherits the rule.
+- App changes on disk after event: before applying Allow, the service rechecks with `File.Exists` that the path captured at block time still exists and refuses with a logged reason when it does not. The recheck applies only to Win32-form paths (drive letter, `\\?\`, UNC); the kernel pseudo-path `System` and NT-form subjects PathMapper could not map (`\Device\...`, `\??\...`) skip it, as a false "gone" verdict there would make kernel or unmapped-volume traffic impossible to allow. No file identity metadata (hash, size, timestamps) is compared, so a file replaced at the same path between the block and the click is allowed. The exception remains path-based because that is TinyWall's and WFP's supported application identity model; the popup's warnings (unsigned, user-writable folder, changed within 24 hours) are the only signal that the file may not be what the user expects.
 
 ## Verification strategy
 

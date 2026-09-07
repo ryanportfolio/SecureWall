@@ -18,7 +18,7 @@ The installer copies the complete runtime, installs and starts the LocalSystem s
 
 Alpha installers are unsigned. Windows may show an unknown-publisher warning. Verify the MSI against the release's `SHA256SUMS.txt` before running it. Real WFP, reboot, and audit-policy behavior remains unverified until the matrices in [docs/TESTING.md](docs/TESTING.md) and [docs/HARDENING-VALIDATION.md](docs/HARDENING-VALIDATION.md) are complete.
 
-The hardening design keeps a persistent deny-only baseline and loads permissions into the service's dynamic WFP session. Service loss therefore interrupts networking until protection restarts or SecureWall is explicitly removed. Extracted bundles are not supported install locations; privileged registration requires a protected Program Files tree.
+The hardening design keeps a persistent baseline that denies everything except DHCP and DNS, and loads all other permissions into the service's dynamic WFP session. Service loss therefore interrupts networking, apart from address leases and name resolution, until protection restarts or SecureWall is explicitly removed. Extracted bundles are not supported install locations; privileged registration requires a protected Program Files tree.
 
 ## Intended prompt behavior
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -20,47 +21,227 @@ namespace pylorak.TinyWall
         void Set(Guid subcategory, AuditPolicyFlags flags);
     }
 
+    // Durable record of the machine's original audit policy, written before the
+    // first mutation and cleared only after restoration succeeds. Survives crashes,
+    // FailFast, and Process.Kill so a later start or uninstall can put the original
+    // value back.
+    internal interface IAuditPolicyJournal
+    {
+        bool TryRead(Guid subcategory, out AuditPolicyFlags original);
+        void Write(Guid subcategory, AuditPolicyFlags original);
+        void Clear(Guid subcategory);
+        // Healthy entries only; names of records that could not be decoded go to
+        // malformed so the caller can restore everything else and still report them.
+        IReadOnlyList<KeyValuePair<Guid, AuditPolicyFlags>> ReadAll(out IReadOnlyList<string> malformed);
+    }
+
+    // Outcome of one RestoreFromJournal pass. Failed entries stay journaled and
+    // are fatal to the caller (an uninstall must not proceed past them); malformed
+    // records also stay but hold no recoverable value, so they are report-only.
+    internal sealed class AuditPolicyRestoreResult
+    {
+        internal AuditPolicyRestoreResult(
+            IReadOnlyList<Guid> restored,
+            IReadOnlyList<string> malformed,
+            IReadOnlyList<KeyValuePair<Guid, Exception>> failed)
+        {
+            Restored = restored;
+            Malformed = malformed;
+            Failed = failed;
+        }
+
+        internal IReadOnlyList<Guid> Restored { get; }
+        internal IReadOnlyList<string> Malformed { get; }
+        internal IReadOnlyList<KeyValuePair<Guid, Exception>> Failed { get; }
+    }
+
+    // Thrown when at least one healthy journal entry could not be written back.
+    // Result carries everything that did restore and every malformed name.
+    internal sealed class AuditPolicyRestoreException : InvalidOperationException
+    {
+        internal AuditPolicyRestoreException(AuditPolicyRestoreResult result)
+            : base(BuildMessage(result), result.Failed[0].Value)
+        {
+            Result = result;
+        }
+
+        internal AuditPolicyRestoreResult Result { get; }
+
+        internal IEnumerable<Guid> FailedSubcategories
+        {
+            get
+            {
+                foreach (var failure in Result.Failed)
+                    yield return failure.Key;
+            }
+        }
+
+        private static string BuildMessage(AuditPolicyRestoreResult result)
+        {
+            var names = new List<string>();
+            foreach (var failure in result.Failed)
+                names.Add(failure.Key.ToString("B"));
+            string message = "Audit policy restore failed for subcategory " + string.Join(", ", names) + "; the journal entry is kept for the next attempt.";
+            if (result.Malformed.Count > 0)
+                message += " Skipped malformed records: " + string.Join(", ", result.Malformed) + ".";
+            return message;
+        }
+    }
+
     internal sealed class AuditPolicyLease : IDisposable
     {
+        // Leases on one subcategory nest inside this process (failure auditing plus
+        // learning-mode success auditing). The outermost lease captures the machine's
+        // true original; whichever lease first changes the live policy journals that
+        // true original, so a journal entry exists whenever live differs from it.
+        // An inner lease restores to the value it found on acquire; the entry is
+        // cleared once a restore puts the true original back. Dispose in LIFO order.
+        private static readonly object Sync = new object();
+        private static readonly Dictionary<Guid, int> LiveLeases = new Dictionary<Guid, int>();
+        private static readonly Dictionary<Guid, AuditPolicyFlags> TrueOriginals = new Dictionary<Guid, AuditPolicyFlags>();
+        private static readonly HashSet<Guid> Journaled = new HashSet<Guid>();
+
         private readonly IAuditPolicyBackend _backend;
+        private readonly IAuditPolicyJournal _journal;
         private readonly Guid _subcategory;
-        private readonly AuditPolicyFlags _original;
+        private readonly AuditPolicyFlags _restoreValue;
         private readonly bool _changed;
         private int _disposed;
 
         private AuditPolicyLease(
             IAuditPolicyBackend backend,
+            IAuditPolicyJournal journal,
             Guid subcategory,
-            AuditPolicyFlags original,
+            AuditPolicyFlags restoreValue,
             bool changed)
         {
             _backend = backend;
+            _journal = journal;
             _subcategory = subcategory;
-            _original = original;
+            _restoreValue = restoreValue;
             _changed = changed;
         }
 
         internal static AuditPolicyLease Acquire(
             IAuditPolicyBackend backend,
             Guid subcategory,
-            AuditPolicyFlags requiredFlags)
+            AuditPolicyFlags requiredFlags,
+            IAuditPolicyJournal journal)
         {
             if (backend == null)
                 throw new ArgumentNullException(nameof(backend));
+            if (journal == null)
+                throw new ArgumentNullException(nameof(journal));
             if ((requiredFlags & ~(AuditPolicyFlags.Success | AuditPolicyFlags.Failure)) != 0)
                 throw new ArgumentOutOfRangeException(nameof(requiredFlags));
 
-            AuditPolicyFlags original = backend.Query(subcategory);
-            AuditPolicyFlags enabled = original & (AuditPolicyFlags.Success | AuditPolicyFlags.Failure);
-            AuditPolicyFlags target = enabled | requiredFlags;
-            if (target == AuditPolicyFlags.Unchanged)
-                target = AuditPolicyFlags.None;
+            lock (Sync)
+            {
+                LiveLeases.TryGetValue(subcategory, out int live);
+                bool nested = live > 0;
 
-            bool changed = target != original;
-            if (changed)
-                backend.Set(subcategory, target);
+                // The value this lease restores on dispose: the machine's original for
+                // the outermost lease, the outer lease's live value for a nested one.
+                AuditPolicyFlags restoreValue;
+                if (!nested && journal.TryRead(subcategory, out AuditPolicyFlags journaled))
+                {
+                    // Stale record from an unclean exit: the live value is already ours.
+                    // Put the original back before snapshotting; keep the record until
+                    // the backend accepted it.
+                    backend.Set(subcategory, journaled);
+                    journal.Clear(subcategory);
+                    restoreValue = journaled;
+                }
+                else
+                {
+                    restoreValue = backend.Query(subcategory);
+                }
 
-            return new AuditPolicyLease(backend, subcategory, original, changed);
+                if (!nested)
+                {
+                    TrueOriginals[subcategory] = restoreValue;
+                    Journaled.Remove(subcategory);
+                }
+
+                AuditPolicyFlags enabled = restoreValue & (AuditPolicyFlags.Success | AuditPolicyFlags.Failure);
+                AuditPolicyFlags target = enabled | requiredFlags;
+                if (target == AuditPolicyFlags.Unchanged)
+                    target = AuditPolicyFlags.None;
+
+                bool changed = target != restoreValue;
+                try
+                {
+                    if (changed)
+                    {
+                        // Invariant: a journal entry holding the true original exists
+                        // whenever the live policy differs from it, no matter which
+                        // lease made the change (an outer lease may have changed nothing).
+                        if (!Journaled.Contains(subcategory))
+                        {
+                            // Mark as journaled only after the write succeeded, so a
+                            // failed write is retried by the next acquire.
+                            journal.Write(subcategory, TrueOriginals[subcategory]);
+                            Journaled.Add(subcategory);
+                        }
+                        backend.Set(subcategory, target);
+                    }
+                }
+                catch
+                {
+                    if (!nested)
+                        ForgetSubcategory(subcategory);
+                    throw;
+                }
+
+                LiveLeases[subcategory] = live + 1;
+                return new AuditPolicyLease(backend, journal, subcategory, restoreValue, changed);
+            }
+        }
+
+        private static void ForgetSubcategory(Guid subcategory)
+        {
+            LiveLeases.Remove(subcategory);
+            TrueOriginals.Remove(subcategory);
+            Journaled.Remove(subcategory);
+        }
+
+        // Crash recovery: restore every healthy journaled subcategory and clear each
+        // record once its backend write succeeded. Failed and malformed entries stay
+        // journaled. Every entry is attempted; then, only if a healthy entry failed,
+        // one AuditPolicyRestoreException names the failed subcategories. Malformed
+        // records never throw: they are reported in the result so an uninstall can
+        // log them and continue.
+        internal static AuditPolicyRestoreResult RestoreFromJournal(IAuditPolicyBackend backend, IAuditPolicyJournal journal)
+        {
+            if (backend == null)
+                throw new ArgumentNullException(nameof(backend));
+            if (journal == null)
+                throw new ArgumentNullException(nameof(journal));
+
+            lock (Sync)
+            {
+                var restored = new List<Guid>();
+                var failed = new List<KeyValuePair<Guid, Exception>>();
+                IReadOnlyList<KeyValuePair<Guid, AuditPolicyFlags>> entries = journal.ReadAll(out IReadOnlyList<string> malformed);
+                foreach (var entry in entries)
+                {
+                    try
+                    {
+                        backend.Set(entry.Key, entry.Value);
+                        journal.Clear(entry.Key);
+                        restored.Add(entry.Key);
+                    }
+                    catch (Exception exception)
+                    {
+                        failed.Add(new KeyValuePair<Guid, Exception>(entry.Key, exception));
+                    }
+                }
+
+                var result = new AuditPolicyRestoreResult(restored, malformed, failed);
+                if (failed.Count > 0)
+                    throw new AuditPolicyRestoreException(result);
+                return result;
+            }
         }
 
         public void Dispose()
@@ -68,8 +249,39 @@ namespace pylorak.TinyWall
             if (Interlocked.Exchange(ref _disposed, 1) != 0)
                 return;
 
-            if (_changed)
-                _backend.Set(_subcategory, _original);
+            lock (Sync)
+            {
+                try
+                {
+                    if (_changed)
+                        _backend.Set(_subcategory, _restoreValue);
+
+                    // Clear only once the live policy is back at the true original;
+                    // an inner lease restoring to an outer lease's value leaves it.
+                    // The restore value alone is not proof: an outer lease that changed
+                    // nothing restores nothing, and an inner restore may have failed
+                    // and left the live policy modified. Query the backend and clear
+                    // only when the live value equals the true original; a failed
+                    // query propagates and leaves the record in place.
+                    if (Journaled.Contains(_subcategory) &&
+                        TrueOriginals.TryGetValue(_subcategory, out AuditPolicyFlags trueOriginal) &&
+                        _restoreValue == trueOriginal &&
+                        _backend.Query(_subcategory) == trueOriginal)
+                    {
+                        _journal.Clear(_subcategory);
+                        Journaled.Remove(_subcategory);
+                    }
+                }
+                finally
+                {
+                    // A failed restore leaves the journal in place; the next Acquire or
+                    // RestoreFromJournal retries it, so this lease must stop counting as live.
+                    if (LiveLeases.TryGetValue(_subcategory, out int live) && live > 1)
+                        LiveLeases[_subcategory] = live - 1;
+                    else
+                        ForgetSubcategory(_subcategory);
+                }
+            }
         }
     }
 

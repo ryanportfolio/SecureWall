@@ -305,6 +305,33 @@ namespace pylorak.TinyWall
                 return -1;
             }
 
+            // A healthy journal entry that fails to restore aborts cleanup, like the
+            // firewall-rule journal above: the MSI deletes HKLM\Software\SecureWall on
+            // uninstall and standalone /uninstall removes the service that would retry,
+            // so continuing would leave the audit policy modified with no record.
+            // Malformed records hold no recoverable value and never block uninstall.
+            try
+            {
+                AuditPolicyRestoreResult restored = FirewallLogWatcher.RestoreAuditPolicyFromJournal();
+                foreach (string record in restored.Malformed)
+                    Utils.Log("Skipped malformed audit policy recovery record " + record + " under HKLM\\" + RegistryAuditPolicyJournal.RecoveryKey + "; it holds no recoverable value and does not block uninstall.", Utils.LOG_ID_INSTALLER);
+            }
+            catch (AuditPolicyRestoreException exception)
+            {
+                Utils.LogException(exception, Utils.LOG_ID_INSTALLER);
+                foreach (Guid subcategory in exception.FailedSubcategories)
+                    Utils.Log("Uninstall aborted: audit policy subcategory " + subcategory.ToString("B") + " could not be restored to its original value. The journal at HKLM\\" + RegistryAuditPolicyJournal.RecoveryKey + " is kept; fix the audit policy write (auditpol /get /subcategory:" + subcategory.ToString("B") + ") and run the uninstall again.", Utils.LOG_ID_INSTALLER);
+                return -1;
+            }
+            catch (Exception exception)
+            {
+                // The journal could not even be read: its contents are unknown, so
+                // keep the installation until an operator can inspect it.
+                Utils.LogException(exception, Utils.LOG_ID_INSTALLER);
+                Utils.Log("Uninstall aborted: the audit policy journal at HKLM\\" + RegistryAuditPolicyJournal.RecoveryKey + " could not be read or restored; it is kept in place.", Utils.LOG_ID_INSTALLER);
+                return -1;
+            }
+
             // Terminate only controllers from this exact installation.
             {
                 using var ownProc = Process.GetCurrentProcess();

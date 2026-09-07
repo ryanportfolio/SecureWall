@@ -102,15 +102,25 @@ namespace pylorak.TinyWall
                 }
             }
 
+            _learningEnabled = false;
+            // LIFO: the inner (learning) lease restores the outer lease's live value, so the outer must dispose last.
+            // Each dispose has its own guard so a throw from one lease never skips the other.
             try
             {
-                _learningEnabled = false;
                 DisposeAuditLease(ref _learningAuditLease);
+            }
+            catch (Exception exception)
+            {
+                Utils.Log("Cannot restore the previous filtering-platform audit policy (learning lease).", Utils.LOG_ID_SERVICE);
+                Utils.LogException(exception, Utils.LOG_ID_SERVICE);
+            }
+            try
+            {
                 DisposeAuditLease(ref _failureAuditLease);
             }
             catch (Exception exception)
             {
-                Utils.Log("Cannot restore the previous filtering-platform audit policy.", Utils.LOG_ID_SERVICE);
+                Utils.Log("Cannot restore the previous filtering-platform audit policy (failure lease).", Utils.LOG_ID_SERVICE);
                 Utils.LogException(exception, Utils.LOG_ID_SERVICE);
             }
 
@@ -293,7 +303,8 @@ namespace pylorak.TinyWall
                     lease = AuditPolicyLease.Acquire(
                         WindowsAuditPolicyBackend.Instance,
                         ConnectionLoggingAuditSubcategory,
-                        requiredFlags);
+                        requiredFlags,
+                        RegistryAuditPolicyJournal.Instance);
                 }, null);
                 return lease ?? throw new InvalidOperationException("Audit policy lease acquisition did not complete.");
             }
@@ -316,6 +327,23 @@ namespace pylorak.TinyWall
 
                 throw;
             }
+        }
+
+        // Crash recovery for audit policy left behind by an unclean exit (crash,
+        // FailFast, Process.Kill, MSI cleanup). Reads only the registry journal;
+        // needs no MpsSvc, so callers can run it before any other startup work.
+        // Throws AuditPolicyRestoreException when a healthy entry failed to restore;
+        // malformed records are only reported in the result.
+        internal static AuditPolicyRestoreResult RestoreAuditPolicyFromJournal()
+        {
+            AuditPolicyRestoreResult? result = null;
+            Privilege.RunWithPrivilege(Privilege.Security, true, delegate (object? state)
+            {
+                result = AuditPolicyLease.RestoreFromJournal(
+                    WindowsAuditPolicyBackend.Instance,
+                    RegistryAuditPolicyJournal.Instance);
+            }, null);
+            return result ?? throw new InvalidOperationException("Audit policy journal restoration did not run.");
         }
 
         private static void DisposeAuditLease(ref AuditPolicyLease? lease)
