@@ -305,6 +305,12 @@ namespace pylorak.TinyWall
                 return -1;
             }
 
+            // Audit policy left behind by a crashed service is not a security
+            // exposure the way orphan allow rules are: log and keep going so WFP
+            // cleanup still runs. The journal stays for a later retry.
+            try { FirewallLogWatcher.RestoreAuditPolicyFromJournal(); }
+            catch (Exception exception) { Utils.LogException(exception, Utils.LOG_ID_INSTALLER); }
+
             // Terminate only controllers from this exact installation.
             {
                 using var ownProc = Process.GetCurrentProcess();

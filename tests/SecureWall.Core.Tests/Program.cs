@@ -67,7 +67,8 @@ internal static class Program
             .Concat(LifecycleHardeningTests.Cases)
             .Concat(ControllerHardeningTests.Cases)
             .Concat(NetEventParsingTests.Cases)
-            .Concat(AtomicFileWriterTests.Cases).ToArray();
+            .Concat(AtomicFileWriterTests.Cases)
+            .Concat(AuditPolicyLeaseTests.Cases).ToArray();
         var failed = 0;
 
         foreach (var (name, test) in tests)
@@ -483,7 +484,7 @@ internal static class Program
         var category = Guid.NewGuid();
         var backend = new FakeAuditPolicyBackend(AuditPolicyFlags.Success);
 
-        var lease = AuditPolicyLease.Acquire(backend, category, AuditPolicyFlags.Failure);
+        var lease = AuditPolicyLease.Acquire(backend, category, AuditPolicyFlags.Failure, new AuditPolicyLeaseTests.InMemoryJournal());
         AssertEx.Equal(AuditPolicyFlags.Success | AuditPolicyFlags.Failure, backend.Current);
 
         lease.Dispose();

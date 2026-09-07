@@ -105,6 +105,7 @@ namespace pylorak.TinyWall
             try
             {
                 _learningEnabled = false;
+                // LIFO: the inner (learning) lease restores the outer lease's live value, so the outer must dispose last.
                 DisposeAuditLease(ref _learningAuditLease);
                 DisposeAuditLease(ref _failureAuditLease);
             }
@@ -293,7 +294,8 @@ namespace pylorak.TinyWall
                     lease = AuditPolicyLease.Acquire(
                         WindowsAuditPolicyBackend.Instance,
                         ConnectionLoggingAuditSubcategory,
-                        requiredFlags);
+                        requiredFlags,
+                        RegistryAuditPolicyJournal.Instance);
                 }, null);
                 return lease ?? throw new InvalidOperationException("Audit policy lease acquisition did not complete.");
             }
@@ -316,6 +318,19 @@ namespace pylorak.TinyWall
 
                 throw;
             }
+        }
+
+        // Crash recovery for audit policy left behind by an unclean exit (crash,
+        // FailFast, Process.Kill, MSI cleanup). Reads only the registry journal;
+        // needs no MpsSvc, so callers can run it before any other startup work.
+        internal static void RestoreAuditPolicyFromJournal()
+        {
+            Privilege.RunWithPrivilege(Privilege.Security, true, delegate (object? state)
+            {
+                AuditPolicyLease.RestoreFromJournal(
+                    WindowsAuditPolicyBackend.Instance,
+                    RegistryAuditPolicyJournal.Instance);
+            }, null);
         }
 
         private static void DisposeAuditLease(ref AuditPolicyLease? lease)
