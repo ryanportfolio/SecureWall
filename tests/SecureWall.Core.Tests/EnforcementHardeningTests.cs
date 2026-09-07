@@ -21,6 +21,8 @@ namespace SecureWall.Core.Tests
                 yield return ("failed user deny aborts a partially registered replacement", DenyFailure);
                 yield return ("failed permit cannot return allow success", PermitFailure);
                 yield return ("recovery baseline cannot outrank promptable default deny", RecoveryPriority);
+                yield return ("recovery permit sits between recovery deny and runtime default block", RecoveryPermitWeight);
+                yield return ("recovery permit set is exactly DHCP and DNS", RecoveryPermitRules);
                 yield return ("BlockAll excludes both LAN and WSL opt-in permits", BlockAll);
                 yield return ("eleven minutes of polling cannot prevent password relock", PollingTimeout);
                 yield return ("successful user activity restarts inactivity window", UserTimeout);
@@ -145,6 +147,43 @@ namespace SecureWall.Core.Tests
             Check(EnforcementPolicy.RecoveryBlockWeight(defaultBlock) < defaultBlock, "Baseline steals promptable drops.");
             Check(PromptFilterClassifier.IsPromptable(true, defaultBlock, defaultBlock, true), "Runtime default deny is not promptable.");
             Check(!PromptFilterClassifier.IsPromptable(true, EnforcementPolicy.RecoveryBlockWeight(defaultBlock), defaultBlock, true), "Recovery baseline became prompt authority.");
+        }
+
+        private static void RecoveryPermitWeight()
+        {
+            const ulong defaultBlock = 3000000;
+            ulong deny = EnforcementPolicy.RecoveryBlockWeight(defaultBlock);
+            ulong permit = EnforcementPolicy.RecoveryPermitWeight(defaultBlock);
+            Check(deny < permit, "Recovery deny outranks or ties the recovery permit; DHCP/DNS would stay blocked without the service.");
+            Check(permit < defaultBlock, "Recovery permit outranks or ties the runtime default block; BlockAll and user blocks would lose.");
+            Check(!PromptFilterClassifier.IsPromptable(true, permit, defaultBlock, true), "Recovery permit weight became prompt authority.");
+            Check(!PromptFilterClassifier.IsPromptable(false, permit, defaultBlock, true), "A permit became prompt authority.");
+            Throws<ArgumentOutOfRangeException>(() => EnforcementPolicy.RecoveryPermitWeight(1));
+            Throws<ArgumentOutOfRangeException>(() => EnforcementPolicy.RecoveryBlockWeight(1));
+        }
+
+        private static void RecoveryPermitRules()
+        {
+            const byte tcp = 6, udp = 17;
+            var expected = new HashSet<(bool v6, bool inbound, byte proto, ushort? local, ushort? remote)>
+            {
+                (false, false, udp, 68, 67),
+                (true, false, udp, 546, 547),
+                (false, false, udp, null, 53),
+                (true, false, udp, null, 53),
+                (false, false, tcp, null, 53),
+                (true, false, tcp, null, 53),
+                (false, true, udp, 68, 67),
+                (true, true, udp, 546, 547),
+            };
+            var rules = EnforcementPolicy.RecoveryPermitRules();
+            var actual = new HashSet<(bool, bool, byte, ushort?, ushort?)>(
+                rules.Select(r => (r.IsIPv6, r.Inbound, r.IpProtocol, r.LocalPort, r.RemotePort)));
+            Check(rules.Count == 8 && actual.Count == 8, "Recovery permit rule count changed.");
+            Check(actual.SetEquals(expected), "Recovery permit set is not exactly DHCPv4/v6 request+reply and DNS UDP/TCP v4/v6.");
+            Check(rules.All(r => r.LocalPort.HasValue || r.RemotePort.HasValue), "A recovery permit has no port condition.");
+            Check(rules.Select(r => r.Name).Distinct().Count() == 8 && rules.All(r => r.Name.StartsWith("SecureWall recovery permit ", StringComparison.Ordinal)),
+                "Recovery permit names are not unique or not provider-prefixed.");
         }
 
         private static void BlockAll()

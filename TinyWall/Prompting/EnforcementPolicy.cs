@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Runtime.InteropServices;
 using System.Net;
@@ -49,12 +50,40 @@ namespace pylorak.TinyWall.Prompting
         }
 
         internal static bool OptionalPermitEnabled(bool blockAll, bool configured) => !blockAll && configured;
+        // Recovery baseline ordering inside the SecureWall sublayer:
+        //   runtime default block (defaultBlock) > recovery permit (defaultBlock - 1) > recovery deny (defaultBlock - 2).
+        // Runtime filters always outrank the baseline, so BlockAll and explicit user blocks
+        // still cover DHCP and DNS while the service runs. The permits only matter when the
+        // dynamic session is gone (service stopped, crashed, or the boot window).
         internal static ulong RecoveryBlockWeight(ulong runtimeDefaultBlockWeight)
         {
-            if (runtimeDefaultBlockWeight == 0)
+            if (runtimeDefaultBlockWeight < 2)
+                throw new ArgumentOutOfRangeException(nameof(runtimeDefaultBlockWeight));
+            return runtimeDefaultBlockWeight - 2;
+        }
+
+        internal static ulong RecoveryPermitWeight(ulong runtimeDefaultBlockWeight)
+        {
+            if (runtimeDefaultBlockWeight < 2)
                 throw new ArgumentOutOfRangeException(nameof(runtimeDefaultBlockWeight));
             return runtimeDefaultBlockWeight - 1;
         }
+
+        private const byte ProtocolTcp = 6;
+        private const byte ProtocolUdp = 17;
+
+        // Minimum a machine needs to obtain a lease and resolve names without the service.
+        internal static IReadOnlyList<RecoveryPermitRule> RecoveryPermitRules() => new[]
+        {
+            new RecoveryPermitRule("SecureWall recovery permit DHCPv4 request", false, false, ProtocolUdp, 68, 67),
+            new RecoveryPermitRule("SecureWall recovery permit DHCPv6 request", true, false, ProtocolUdp, 546, 547),
+            new RecoveryPermitRule("SecureWall recovery permit DNS UDP v4", false, false, ProtocolUdp, null, 53),
+            new RecoveryPermitRule("SecureWall recovery permit DNS UDP v6", true, false, ProtocolUdp, null, 53),
+            new RecoveryPermitRule("SecureWall recovery permit DNS TCP v4", false, false, ProtocolTcp, null, 53),
+            new RecoveryPermitRule("SecureWall recovery permit DNS TCP v6", true, false, ProtocolTcp, null, 53),
+            new RecoveryPermitRule("SecureWall recovery permit DHCPv4 reply", false, true, ProtocolUdp, 68, 67),
+            new RecoveryPermitRule("SecureWall recovery permit DHCPv6 reply", true, true, ProtocolUdp, 546, 547),
+        };
     }
 
     // Used by the minute tick before optional housekeeping. Revocation is mandatory even

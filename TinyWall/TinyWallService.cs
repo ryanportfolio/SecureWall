@@ -456,6 +456,34 @@ namespace pylorak.TinyWall
                     return filter.FilterId;
                 }, true);
             }
+
+            // DHCP and DNS survive without the dynamic session. Weight sits above the
+            // recovery deny and below every runtime filter, so these are inert while the
+            // service runs (default block, BlockAll and user blocks all outrank them).
+            foreach (RecoveryPermitRule rule in EnforcementPolicy.RecoveryPermitRules())
+            {
+                LayerKeyEnum layer = rule.Inbound
+                    ? (rule.IsIPv6 ? LayerKeyEnum.FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6 : LayerKeyEnum.FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4)
+                    : (rule.IsIPv6 ? LayerKeyEnum.FWPM_LAYER_ALE_AUTH_CONNECT_V6 : LayerKeyEnum.FWPM_LAYER_ALE_AUTH_CONNECT_V4);
+                using var filter = new Filter(rule.Name, string.Empty,
+                    SECUREWALL_PROVIDER_KEY, FilterActions.FWP_ACTION_PERMIT,
+                    EnforcementPolicy.RecoveryPermitWeight((ulong)FilterWeights.DefaultBlock));
+                filter.LayerKey = GetLayerKey(layer);
+                filter.SublayerKey = GetSublayerKey(layer);
+                filter.Conditions.Add(new ProtocolFilterCondition(rule.IpProtocol));
+                if (rule.LocalPort.HasValue)
+                    filter.Conditions.Add(new PortFilterCondition(rule.LocalPort.Value, RemoteOrLocal.Local));
+                if (rule.RemotePort.HasValue)
+                    filter.Conditions.Add(new PortFilterCondition(rule.RemotePort.Value, RemoteOrLocal.Remote));
+                WfpFilterPairRegistration.Register(lifetime =>
+                {
+                    filter.FilterKey = Guid.NewGuid();
+                    filter.Flags = lifetime == WfpFilterLifetime.Persistent
+                        ? FilterFlags.FWPM_FILTER_FLAG_PERSISTENT : FilterFlags.FWPM_FILTER_FLAG_BOOTTIME;
+                    baseline.RegisterFilter(filter);
+                    return filter.FilterId;
+                }, true);
+            }
             transaction.Commit();
             BaselineInstalled = true;
         }
