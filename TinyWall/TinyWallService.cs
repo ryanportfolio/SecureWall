@@ -1287,46 +1287,31 @@ namespace pylorak.TinyWall
             }
         }
 
-        private static void GetCompressedUpdate(UpdateModule module, WaitCallback installMethod)
+        private static void GetCompressedUpdate(UpdateModule module, Action<Stream> installMethod)
         {
-            string tmpCompressedPath = Path.GetTempFileName();
-            string tmpFile = Path.GetTempFileName();
-            try
-            {
-                using (var downloader = new WebClient())
-                {
-                    downloader.DownloadFile(module.UpdateURL, tmpCompressedPath);
-                }
-                Utils.DecompressDeflate(tmpCompressedPath, tmpFile);
+            // Download and decompress in memory. Staging through Path.GetTempFileName()
+            // put the payload in a shared temp folder where another local user could
+            // swap it between the hash check and the install.
+            using var downloader = new WebClient();
+            var compressedData = downloader.DownloadData(module.UpdateURL);
 
-                if (Hasher.HashFile(tmpFile).Equals(module.DownloadHash, StringComparison.OrdinalIgnoreCase))
-                {
+            using var compressedStream = new MemoryStream(compressedData, false);
+            using var decompressedStream = new MemoryStream();
+            Utils.DecompressDeflate(compressedStream, decompressedStream);
+            decompressedStream.Position = 0;
+
+            if (Hasher.HashStream(decompressedStream).Equals(module.DownloadHash, StringComparison.OrdinalIgnoreCase))
+            {
 #if !DEBUG  // don't install anything during debug
-                    installMethod(tmpFile);
+                decompressedStream.Position = 0;
+                installMethod(decompressedStream);
 #endif
-                }
-            }
-            catch { }
-            finally
-            {
-                try
-                {
-                    File.Delete(tmpCompressedPath);
-                }
-                catch { }
-
-                try
-                {
-                    File.Delete(tmpFile);
-                }
-                catch { }
             }
         }
 
-        private void HostsUpdateInstall(object file)
+        private void HostsUpdateInstall(Stream sourceStream)
         {
-            string tmpHostsPath = (string)file;
-            HostsFileManager.UpdateHostsFile(tmpHostsPath);
+            HostsFileManager.UpdateHostsFile(sourceStream);
 
             if (ActiveConfig.Service.Blocklists.EnableBlocklists
                 && ActiveConfig.Service.Blocklists.EnableHostsBlocklist)
@@ -1334,17 +1319,17 @@ namespace pylorak.TinyWall
                 HostsFileManager.EnableHostsFile();
             }
         }
-        private void DatabaseUpdateInstall(object file)
+        private void DatabaseUpdateInstall(Stream newDbStream)
         {
-            string tmpFilePath = (string)file;
-
             FileLocker.Unlock(DatabaseClasses.AppDatabase.DBPath);
-            using (var afu = new AtomicFileUpdater(DatabaseClasses.AppDatabase.DBPath))
+            try
             {
-                File.Copy(tmpFilePath, afu.TemporaryFilePath, true);
-                afu.Commit();
+                AtomicFileWriter.WriteFrom(DatabaseClasses.AppDatabase.DBPath, newDbStream);
             }
-            FileLocker.Lock(DatabaseClasses.AppDatabase.DBPath, FileAccess.Read, FileShare.Read);
+            finally
+            {
+                FileLocker.Lock(DatabaseClasses.AppDatabase.DBPath, FileAccess.Read, FileShare.Read);
+            }
             NotifyController(MessageType.DATABASE_UPDATED);
             Q.Add(new TwRequest(TwMessageSimple.CreateRequest(MessageType.REINIT)));
         }

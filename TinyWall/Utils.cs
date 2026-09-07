@@ -263,17 +263,15 @@ namespace pylorak.TinyWall
             }
         }
 
-        internal static void DecompressDeflate(string inputFile, string outputFile)
+        internal static void DecompressDeflate(Stream inStream, Stream outStream)
         {
-            using var outFile = new FileStream(outputFile, FileMode.Create, FileAccess.Write);
-            using var inFile = new FileStream(inputFile, FileMode.Open, FileAccess.Read);
-            using var decompressedInFile = new DeflateStream(inFile, CompressionMode.Decompress, true);
+            using var decompressor = new DeflateStream(inStream, CompressionMode.Decompress, true);
 
             byte[] buffer = new byte[4096];
             int numRead;
-            while ((numRead = decompressedInFile.Read(buffer, 0, buffer.Length)) != 0)
+            while ((numRead = decompressor.Read(buffer, 0, buffer.Length)) != 0)
             {
-                outFile.Write(buffer, 0, numRead);
+                outStream.Write(buffer, 0, numRead);
             }
         }
 
@@ -339,11 +337,24 @@ namespace pylorak.TinyWall
 
         internal static string RandomString(int length)
         {
+            // Used as the PBKDF2 salt source, so this must come from a cryptographic RNG.
+            // Rejection sampling keeps the 62-character alphabet uniform: 256 % 62 = 8,
+            // so octets >= 248 are discarded instead of skewing the low residues.
             const string chars = @"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+            const int acceptLimit = 256 - (256 % 62);
+            using var rng = System.Security.Cryptography.RandomNumberGenerator.Create();
             char[] buffer = new char[length];
-            for (int i = 0; i < length; i++)
+            byte[] octets = new byte[Math.Max(length, 1)];
+            int filled = 0;
+            while (filled < length)
             {
-                buffer[i] = chars[_rng.Next(chars.Length)];
+                rng.GetBytes(octets);
+                for (int i = 0; (i < octets.Length) && (filled < length); i++)
+                {
+                    if (octets[i] >= acceptLimit)
+                        continue;
+                    buffer[filled++] = chars[octets[i] % chars.Length];
+                }
             }
             return new string(buffer);
         }

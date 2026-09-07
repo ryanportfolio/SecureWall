@@ -13,6 +13,7 @@
       Exclude="..\..\TinyWall\Prompting\BlockedConnectionPopup*.cs;..\..\TinyWall\Prompting\ControllerPromptActionClient.cs"
       Link="Prompting\%(Filename)%(Extension)" />
     <Compile Include="..\..\TinyWall\AuditPolicyLease.cs" Link="AuditPolicyLease.cs" />
+    <Compile Include="..\..\TinyWall\AtomicFileWriter.cs" Link="AtomicFileWriter.cs" />
   </ItemGroup>
 
   <!--
