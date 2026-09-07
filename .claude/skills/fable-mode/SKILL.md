@@ -4,14 +4,14 @@ description: Use PROACTIVELY the moment you notice a task has many layers - mult
 unknowns that could change the approach, debugging where the first theory might be wrong, or anything
 that needs verification before handoff. Also use when a task keeps failing or stalling, or when Nate
 says "fable mode", "think like Fable", "use the Fable skill", "use the Fable method", "work like
-Fable", "slow down and do this right", or "think this through first". Loads Fable 5's working
+Fable", "slow down and do this right", or "think this through first". Loads the latest Fable model's working
 discipline (the five-gate task loop plus standing habits) so any session, especially one running on
 Opus 4.8 or Sonnet 5, applies it.
 ---
 
 # The Fable Method
 
-Fable 5's working discipline, written down so any model can run it. A skill file can't transfer
+The latest Fable model's working discipline, written down so any model can run it. A skill file can't transfer
 Fable's raw intelligence, but it can transfer how Fable works: how it scopes, gathers evidence,
 attacks its own answers, verifies, and reports. Run this loop on Opus or Sol or above
 and the output gets noticeably more Fable-like on planning, debugging, and review.
