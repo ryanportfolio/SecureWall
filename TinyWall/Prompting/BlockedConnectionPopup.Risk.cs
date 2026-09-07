@@ -11,7 +11,7 @@ namespace pylorak.TinyWall.Prompting
     // grows the popup by its own height. Advisory only: it never changes what Allow does.
     internal sealed partial class BlockedConnectionPopup
     {
-        private const int RiskLineHeight = 18;
+        // Logical (96 dpi) pixels; scaled with LogicalToDeviceUnits at apply time.
         private const int RiskLabelGap = 4;
 
         private Label? _riskLabel;
@@ -74,12 +74,17 @@ namespace pylorak.TinyWall.Prompting
                 return;
 
             var lines = ExecutableRiskAssessment.Describe(flags);
-            int newHeight = lines.Count == 0 ? 0 : lines.Count * RiskLineHeight + RiskLabelGap;
-            int delta = newHeight - _riskHeight;
-
             _riskLabel.Text = lines.Count == 0
                 ? string.Empty
                 : "⚠ " + string.Join(Environment.NewLine + "⚠ ", lines);
+
+            // Measure the wrapped text at the label's current (already DPI-scaled) width
+            // so the height follows the font and scale factor rather than a fixed 18 px.
+            int newHeight = lines.Count == 0
+                ? 0
+                : _riskLabel.GetPreferredSize(new Size(_riskLabel.Width, 0)).Height + LogicalToDeviceUnits(RiskLabelGap);
+            int delta = newHeight - _riskHeight;
+
             _riskLabel.Height = newHeight;
             _riskLabel.Visible = lines.Count > 0;
 

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using pylorak.TinyWall.Prompting;
 
@@ -23,6 +23,10 @@ namespace SecureWall.Core.Tests
                 yield return ("executable risk describes flags in a fixed order", DescribeIsOrderedAndComplete);
                 yield return ("prompt allow policy refuses when the executable no longer exists", AllowPolicyRefusesMissingExecutable);
                 yield return ("prompt allow policy skips the file check for packages", AllowPolicySkipsFileCheckForPackages);
+                yield return ("prompt allow policy classifies which paths get the file check", AllowPolicyClassifiesCheckablePaths);
+                yield return ("prompt allow policy allows the kernel pseudo-path without a file check", AllowPolicyAllowsSystemPseudoPath);
+                yield return ("prompt allow policy allows an unmapped NT path without a file check", AllowPolicyAllowsNtFormPathWithoutCheck);
+                yield return ("prompt allow policy still refuses a missing Win32 path", AllowPolicyStillRefusesMissingWin32Path);
             }
         }
 
@@ -164,6 +168,90 @@ namespace SecureWall.Core.Tests
             AssertEx.True(policy != null);
             AssertEx.False(asked, "package identities carry no path to check");
             AssertEx.True(reason == null);
+        }
+
+        private static void AllowPolicyClassifiesCheckablePaths()
+        {
+            foreach (string checkable in new[]
+            {
+                @"C:\apps\gone.exe",
+                @"d:\x.exe",
+                @"\\?\C:\apps\long.exe",
+                @"\\?\UNC\server\share\x.exe",
+                @"\\server\share\x.exe",
+            })
+            {
+                AssertEx.True(PromptAllowPolicy.RequiresExistenceCheck(checkable), checkable);
+            }
+
+            foreach (string skipped in new[]
+            {
+                "System",
+                "system",
+                @"\Device\HarddiskVolume3\x.exe",
+                @"\??\C:\x.exe",
+                @"\SystemRoot\System32\x.exe",
+                @"\\.\PhysicalDrive0",
+                @"\\?\GLOBALROOT\Device\HarddiskVolume3\x.exe",
+                @"\\?\Volume{0000}\x.exe",
+                "x.exe",
+                "",
+                "   ",
+            })
+            {
+                AssertEx.False(PromptAllowPolicy.RequiresExistenceCheck(skipped), skipped);
+            }
+        }
+
+        private static void AllowPolicyAllowsSystemPseudoPath()
+        {
+            var identity = PromptIdentity.ForExecutable("System");
+            bool asked = false;
+
+            bool created = PromptAllowPolicy.TryCreate(
+                identity,
+                _ => { asked = true; return false; },
+                out PromptAllowPolicy? policy,
+                out string? reason);
+
+            AssertEx.True(created);
+            AssertEx.True(policy != null);
+            AssertEx.False(asked, "the kernel pseudo-path is never a file");
+            AssertEx.True(reason == null);
+        }
+
+        private static void AllowPolicyAllowsNtFormPathWithoutCheck()
+        {
+            var identity = PromptIdentity.ForExecutable(@"\Device\HarddiskVolume3\x.exe");
+            bool asked = false;
+
+            bool created = PromptAllowPolicy.TryCreate(
+                identity,
+                _ => { asked = true; return false; },
+                out PromptAllowPolicy? policy,
+                out string? reason);
+
+            AssertEx.True(created);
+            AssertEx.True(policy != null);
+            AssertEx.False(asked, "unmapped NT paths cannot be checked with File.Exists");
+            AssertEx.True(reason == null);
+        }
+
+        private static void AllowPolicyStillRefusesMissingWin32Path()
+        {
+            var identity = PromptIdentity.ForService(@"C:\gone.exe", "GoneSvc");
+            var asked = new List<string>();
+
+            bool created = PromptAllowPolicy.TryCreate(
+                identity,
+                path => { asked.Add(path); return false; },
+                out PromptAllowPolicy? policy,
+                out string? reason);
+
+            AssertEx.False(created);
+            AssertEx.True(policy == null);
+            AssertEx.SequenceEqual(new[] { @"C:\gone.exe" }, asked);
+            AssertEx.True(reason != null && reason.Contains(@"C:\gone.exe"), reason);
         }
     }
 }
