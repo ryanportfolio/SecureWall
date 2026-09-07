@@ -2128,73 +2128,82 @@ namespace pylorak.TinyWall
 
         private void WfpNetEventCallback(NetEventData data)
         {
-            if (RuntimeStopping) return;
-            EventLogEvent eventType;
-            if (data.EventType == FWPM_NET_EVENT_TYPE.FWPM_NET_EVENT_TYPE_CLASSIFY_DROP)
-                eventType = EventLogEvent.BLOCKED;
-            else if (data.EventType == FWPM_NET_EVENT_TYPE.FWPM_NET_EVENT_TYPE_CLASSIFY_ALLOW)
-                eventType = EventLogEvent.ALLOWED;
-            else
-                return;
-
-            var entry = new FirewallLogEntry
+            // Called from the WFP wrapper on an FWPUClnt RPC thread. An exception
+            // thrown from here would cross back into native code and kill the service.
+            try
             {
-                Timestamp = data.timeStamp,
-                Event = eventType,
-                PackageId = data.packageId,
-                RemoteIp = data.remoteAddr?.ToString(),
-                LocalIp = data.localAddr?.ToString()
-            };
+                if (RuntimeStopping) return;
+                EventLogEvent eventType;
+                if (data.EventType == FWPM_NET_EVENT_TYPE.FWPM_NET_EVENT_TYPE_CLASSIFY_DROP)
+                    eventType = EventLogEvent.BLOCKED;
+                else if (data.EventType == FWPM_NET_EVENT_TYPE.FWPM_NET_EVENT_TYPE_CLASSIFY_ALLOW)
+                    eventType = EventLogEvent.ALLOWED;
+                else
+                    return;
 
-            if (!Utils.IsNullOrEmpty(data.appId))
-                entry.AppPath = PathMapper.Instance.ConvertPathIgnoreErrors(data.appId, PathFormat.Win32);
-            else
-                entry.AppPath = "System";
-            if (data.remotePort.HasValue)
-                entry.RemotePort = data.remotePort.Value;
-            if (data.direction.HasValue)
-                entry.Direction = data.direction == FwpmDirection.FWP_DIRECTION_OUT ? RuleDirection.Out : RuleDirection.In;
-            if (data.ipProtocol.HasValue)
-                entry.Protocol = (Protocol)data.ipProtocol;
-            if (data.localPort.HasValue)
-                entry.LocalPort = data.localPort.Value;
-            if (data.filterId.HasValue)
-                entry.FilterRuntimeId = data.filterId.Value;
+                var entry = new FirewallLogEntry
+                {
+                    Timestamp = data.timeStamp,
+                    Event = eventType,
+                    PackageId = data.packageId,
+                    RemoteIp = data.remoteAddr?.ToString(),
+                    LocalIp = data.localAddr?.ToString()
+                };
 
-            // Replace invalid IP strings with the "unspecified address" IPv6 specifier
-            if (string.IsNullOrEmpty(entry.RemoteIp))
-                entry.RemoteIp = "::";
-            if (string.IsNullOrEmpty(entry.LocalIp))
-                entry.LocalIp = "::";
+                if (!Utils.IsNullOrEmpty(data.appId))
+                    entry.AppPath = PathMapper.Instance.ConvertPathIgnoreErrors(data.appId, PathFormat.Win32);
+                else
+                    entry.AppPath = "System";
+                if (data.remotePort.HasValue)
+                    entry.RemotePort = data.remotePort.Value;
+                if (data.direction.HasValue)
+                    entry.Direction = data.direction == FwpmDirection.FWP_DIRECTION_OUT ? RuleDirection.Out : RuleDirection.In;
+                if (data.ipProtocol.HasValue)
+                    entry.Protocol = (Protocol)data.ipProtocol;
+                if (data.localPort.HasValue)
+                    entry.LocalPort = data.localPort.Value;
+                if (data.filterId.HasValue)
+                    entry.FilterRuntimeId = data.filterId.Value;
 
-            lock (FirewallLogEntries)
-            {
-                FirewallLogEntries.Enqueue(entry);
+                // Replace invalid IP strings with the "unspecified address" IPv6 specifier
+                if (string.IsNullOrEmpty(entry.RemoteIp))
+                    entry.RemoteIp = "::";
+                if (string.IsNullOrEmpty(entry.LocalIp))
+                    entry.LocalIp = "::";
+
+                lock (FirewallLogEntries)
+                {
+                    FirewallLogEntries.Enqueue(entry);
+                }
+
+                if (eventType == EventLogEvent.BLOCKED &&
+                    data.filterId.HasValue &&
+                    PromptableFilterIds.Contains(data.filterId.Value) &&
+                    data.direction == FwpmDirection.FWP_DIRECTION_OUT &&
+                    !string.IsNullOrWhiteSpace(entry.AppPath) &&
+                    !string.Equals(entry.AppPath, "System", StringComparison.OrdinalIgnoreCase) &&
+                    data.localPort.HasValue &&
+                    data.remotePort.HasValue &&
+                    data.ipProtocol.HasValue &&
+                    ((byte)data.ipProtocol.Value == (byte)Protocol.TCP ||
+                        (byte)data.ipProtocol.Value == (byte)Protocol.UDP))
+                {
+                    var candidate = new DropCandidate(
+                        new DateTimeOffset(data.timeStamp).ToUniversalTime(),
+                        data.filterId.Value,
+                        entry.AppPath,
+                        data.packageId,
+                        entry.LocalIp!,
+                        entry.LocalPort,
+                        entry.RemoteIp!,
+                        entry.RemotePort,
+                        (byte)data.ipProtocol.Value);
+                    DropCandidates.TryAdd(candidate);
+                }
             }
-
-            if (eventType == EventLogEvent.BLOCKED &&
-                data.filterId.HasValue &&
-                PromptableFilterIds.Contains(data.filterId.Value) &&
-                data.direction == FwpmDirection.FWP_DIRECTION_OUT &&
-                !string.IsNullOrWhiteSpace(entry.AppPath) &&
-                !string.Equals(entry.AppPath, "System", StringComparison.OrdinalIgnoreCase) &&
-                data.localPort.HasValue &&
-                data.remotePort.HasValue &&
-                data.ipProtocol.HasValue &&
-                ((byte)data.ipProtocol.Value == (byte)Protocol.TCP ||
-                    (byte)data.ipProtocol.Value == (byte)Protocol.UDP))
+            catch (Exception exception)
             {
-                var candidate = new DropCandidate(
-                    new DateTimeOffset(data.timeStamp).ToUniversalTime(),
-                    data.filterId.Value,
-                    entry.AppPath,
-                    data.packageId,
-                    entry.LocalIp!,
-                    entry.LocalPort,
-                    entry.RemoteIp!,
-                    entry.RemotePort,
-                    (byte)data.ipProtocol.Value);
-                DropCandidates.TryAdd(candidate);
+                Utils.LogException(exception, Utils.LOG_ID_SERVICE);
             }
         }
 

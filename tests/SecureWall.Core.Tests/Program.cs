@@ -65,7 +65,8 @@ internal static class Program
         };
         tests = tests.Concat(EnforcementHardeningTests.Cases)
             .Concat(LifecycleHardeningTests.Cases)
-            .Concat(ControllerHardeningTests.Cases).ToArray();
+            .Concat(ControllerHardeningTests.Cases)
+            .Concat(NetEventParsingTests.Cases).ToArray();
         var failed = 0;
 
         foreach (var (name, test) in tests)

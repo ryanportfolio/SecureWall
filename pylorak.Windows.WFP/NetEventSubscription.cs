@@ -122,7 +122,7 @@ namespace pylorak.Windows.WFP
 
             if ((flags & Interop.NetEventHeaderValidField.FWPM_NET_EVENT_FLAG_APP_ID_SET) != 0)
             {
-                appId = Marshal.PtrToStringAuto(nativeEvent.header.appId.data);
+                appId = NetEventSubscription.ReadAppIdPath(nativeEvent.header.appId.data, nativeEvent.header.appId.size);
             }
             if ((flags & Interop.NetEventHeaderValidField.FWPM_NET_EVENT_FLAG_IP_PROTOCOL_SET) != 0)
             {
@@ -167,7 +167,7 @@ namespace pylorak.Windows.WFP
 
             if ((flags & Interop.NetEventHeaderValidField.FWPM_NET_EVENT_FLAG_APP_ID_SET) != 0)
             {
-                appId = Marshal.PtrToStringAuto(nativeEvent.header.appId.data);
+                appId = NetEventSubscription.ReadAppIdPath(nativeEvent.header.appId.data, nativeEvent.header.appId.size);
             }
             if ((flags & Interop.NetEventHeaderValidField.FWPM_NET_EVENT_FLAG_IP_PROTOCOL_SET) != 0)
             {
@@ -232,6 +232,25 @@ namespace pylorak.Windows.WFP
             _callback = callback;
         }
 
+        /// <summary>
+        /// Reads the null-terminated UTF-16 path carried in an FWP_BYTE_BLOB (appId),
+        /// never touching more than <paramref name="size"/> bytes of the buffer.
+        /// Stops at the first null; an odd trailing byte is ignored.
+        /// </summary>
+        public static unsafe string ReadAppIdPath(IntPtr data, uint size)
+        {
+            if (data == IntPtr.Zero)
+                return string.Empty;
+
+            var maxChars = (int)Math.Min(size / 2, int.MaxValue);
+            var chars = (char*)data.ToPointer();
+            var length = 0;
+            while ((length < maxChars) && (chars[length] != '\0'))
+                ++length;
+
+            return new string(chars, 0, length);
+        }
+
         protected virtual void Dispose(bool disposing)
         {
             if (!IsDisposed)
@@ -290,11 +309,20 @@ namespace pylorak.Windows.WFP
 
         private void NativeCallbackHandler0(IntPtr context, IntPtr netEvent1)
         {
-            Interop.FWPM_NET_EVENT1 ev = PInvokeHelper.PtrToStructure<Interop.FWPM_NET_EVENT1>(netEvent1);
-            NetEventData data;
-            lock (SBuilder)
-                data = new NetEventData(ev, SBuilder);
-            _callback(data);
+            try
+            {
+                Interop.FWPM_NET_EVENT1 ev = PInvokeHelper.PtrToStructure<Interop.FWPM_NET_EVENT1>(netEvent1);
+                NetEventData data;
+                lock (SBuilder)
+                    data = new NetEventData(ev, SBuilder);
+                _callback(data);
+            }
+            catch (Exception e)
+            {
+                // Runs on an FWPUClnt RPC thread. A managed exception escaping back into
+                // native code terminates the process, so nothing may propagate from here.
+                System.Diagnostics.Debug.WriteLine(e);
+            }
         }
 
         protected override void Dispose(bool disposing)
@@ -351,11 +379,20 @@ namespace pylorak.Windows.WFP
 
         private void NativeCallbackHandler1(IntPtr context, IntPtr netEvent1)
         {
-            var ev = PInvokeHelper.PtrToStructure<Interop.FWPM_NET_EVENT2>(netEvent1);
-            NetEventData data;
-            lock (SBuilder)
-                data = new NetEventData(ev, SBuilder);
-            _callback(data);
+            try
+            {
+                var ev = PInvokeHelper.PtrToStructure<Interop.FWPM_NET_EVENT2>(netEvent1);
+                NetEventData data;
+                lock (SBuilder)
+                    data = new NetEventData(ev, SBuilder);
+                _callback(data);
+            }
+            catch (Exception e)
+            {
+                // Runs on an FWPUClnt RPC thread. A managed exception escaping back into
+                // native code terminates the process, so nothing may propagate from here.
+                System.Diagnostics.Debug.WriteLine(e);
+            }
         }
 
         protected override void Dispose(bool disposing)
