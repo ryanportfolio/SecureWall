@@ -13,7 +13,7 @@ somewhere else, verify the exact branch or checkout the user asked about. Do not
 merge, pull into another checkout, or touch paths outside the current workspace
 unless the user explicitly asks in the current session.
 
-## 2026-07-14 — SecureWall safety and build
+## 2026-07-14: SecureWall safety and build
 
 - `dotnet build` fails at `ResolveComReference`; use Visual Studio Build Tools' .NET Framework `MSBuild.exe`.
 - In sandboxed sessions, `dotnet` may use another account's empty global package cache. Never commit a machine-specific cache path; set `NUGET_PACKAGES` only as a local workaround.
@@ -26,3 +26,11 @@ unless the user explicitly asks in the current session.
 - SecureWall and TinyWall should not be installed together; both manage host firewall behavior.
 - Never swallow default-block registration failures. Both persistent and boot-time copies are required so the enclosing WFP transaction rolls back fail-closed.
 - Network Activity status wording is evidence-scoped: WFP permit/drop observations are `Allowed`/`Blocked`; an open socket is `Listening (local endpoint)` and is not proof of external reachability.
+
+## 2026-09-07: Hardening branch
+
+- Checkouts under long paths (worktrees below `AppData\Local\Temp\claude\...`) exceed MAX_PATH for MSBuild and the test harness; map the tree to a drive letter first (`subst W: "<path>"`) and build from there.
+- Never `git clean` this tree; delete `bin/` and `obj/` by path instead.
+- The recovery baseline is no longer deny-only: eight DHCP/DNS permits sit at `DefaultBlock - 1`. Any new baseline rule must stay below `DefaultBlock` or it will outrank runtime blocks.
+- `AuditPolicyLease` marks a subcategory journaled only after the registry write succeeds; do not reorder the write and the `AuditSetSystemPolicy` call.
+- The Allow existence recheck applies only to Win32-form paths; `System` and unmapped NT-form subjects skip it on purpose.

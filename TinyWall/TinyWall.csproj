@@ -25,7 +25,7 @@
     <Company>Károly Pados and SecureWall contributors</Company>
     <Description>A default-deny Windows firewall with explicit outbound connection prompts.</Description>
     <Copyright>Copyright © 2011 Károly Pados; SecureWall modifications © 2026 SecureWall contributors</Copyright>
-    <Version>0.1.1</Version>
+    <Version>0.2.0</Version>
   </PropertyGroup>
   <PropertyGroup>
     <ApplicationIcon>Resources\img\firewall.ico</ApplicationIcon>
