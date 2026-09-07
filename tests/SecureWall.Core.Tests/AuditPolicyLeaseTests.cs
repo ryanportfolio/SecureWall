@@ -25,6 +25,9 @@ namespace SecureWall.Core.Tests
                 yield return ("audit journal restore recovers a change made only by a nested lease", RestoreFromJournalAfterInnerOnlyChange);
                 yield return ("audit journal restore skips a malformed entry and restores the rest", RestoreFromJournalSkipsMalformedEntry);
                 yield return ("nested audit lease retries the journal write after a failed write", NestedLeaseRetriesJournalWriteAfterFailure);
+                yield return ("outer audit lease keeps the journal when an inner restore failed and live policy differs", OuterDisposeKeepsJournalAfterInnerRestoreFailure);
+                yield return ("audit lease dispose keeps the journal when the live policy query fails", DisposeKeepsJournalWhenQueryFails);
+                yield return ("audit journal restore throws and names a healthy entry whose backend set fails", RestoreFromJournalFailedHealthyEntryThrows);
             }
         }
 
@@ -82,13 +85,20 @@ namespace SecureWall.Core.Tests
 
             internal HashSet<Guid> FailSetFor { get; } = new();
 
+            internal HashSet<Guid> FailQueryFor { get; } = new();
+
             internal AuditPolicyFlags this[Guid subcategory]
             {
                 get => _policy[subcategory];
                 set => _policy[subcategory] = value;
             }
 
-            public AuditPolicyFlags Query(Guid subcategory) => _policy[subcategory];
+            public AuditPolicyFlags Query(Guid subcategory)
+            {
+                if (FailQueryFor.Contains(subcategory))
+                    throw new InvalidOperationException("AuditQuerySystemPolicy failed.");
+                return _policy[subcategory];
+            }
 
             public void Set(Guid subcategory, AuditPolicyFlags flags)
             {
@@ -270,6 +280,58 @@ namespace SecureWall.Core.Tests
             AssertEx.Equal(AuditPolicyFlags.Success | AuditPolicyFlags.Failure, backend[subcategory]);
         }
 
+        // Machine already audits Failure, so the outer lease changes nothing. The inner
+        // lease's restore fails and leaves Success|Failure live. The outer dispose has
+        // no Set to make and its restore value equals the true original, but it must not
+        // clear the journal: the live policy is still modified.
+        private static void OuterDisposeKeepsJournalAfterInnerRestoreFailure()
+        {
+            var (subcategory, backend, journal, trace) = Harness(AuditPolicyFlags.Failure);
+            var failure = AuditPolicyLease.Acquire(backend, subcategory, AuditPolicyFlags.Failure, journal);
+            var learning = AuditPolicyLease.Acquire(backend, subcategory, AuditPolicyFlags.Success, journal);
+            AssertEx.Equal(AuditPolicyFlags.Failure, journal.Entries[subcategory]);
+
+            backend.FailSetFor.Add(subcategory);
+            AssertEx.Throws<InvalidOperationException>(() => learning.Dispose());
+            AssertEx.Equal(AuditPolicyFlags.Success | AuditPolicyFlags.Failure, backend[subcategory], "inner restore failed, live policy stays modified");
+            AssertEx.Equal(AuditPolicyFlags.Failure, journal.Entries[subcategory]);
+
+            trace.Clear();
+            failure.Dispose();
+            AssertEx.Equal(0, trace.Count, "outer lease changed nothing and must not clear");
+            AssertEx.Equal(AuditPolicyFlags.Failure, journal.Entries[subcategory], "journal survives while live differs from the true original");
+            AssertEx.Equal(AuditPolicyFlags.Success | AuditPolicyFlags.Failure, backend[subcategory]);
+
+            // The next recovery pass puts the true original back and clears the record.
+            backend.FailSetFor.Remove(subcategory);
+            var result = AuditPolicyLease.RestoreFromJournal(backend, journal);
+            AssertEx.SequenceEqual(new[] { subcategory }, result.Restored);
+            AssertEx.Equal(AuditPolicyFlags.Failure, backend[subcategory]);
+            AssertEx.Equal(0, journal.Entries.Count);
+        }
+
+        // Dispose cannot prove the live policy is back at the original when the query
+        // fails, so the journal stays for the next acquire or recovery pass.
+        private static void DisposeKeepsJournalWhenQueryFails()
+        {
+            var (subcategory, backend, journal, trace) = Harness(AuditPolicyFlags.None);
+            var lease = AuditPolicyLease.Acquire(backend, subcategory, AuditPolicyFlags.Failure, journal);
+            trace.Clear();
+
+            backend.FailQueryFor.Add(subcategory);
+            AssertEx.Throws<InvalidOperationException>(() => lease.Dispose());
+
+            AssertEx.SequenceEqual(new[] { "set" }, trace, "the restore ran; the clear did not");
+            AssertEx.Equal(AuditPolicyFlags.None, backend[subcategory]);
+            AssertEx.Equal(AuditPolicyFlags.None, journal.Entries[subcategory]);
+
+            // A later acquire treats the record as stale and restores it, then clears.
+            backend.FailQueryFor.Remove(subcategory);
+            trace.Clear();
+            using var retry = AuditPolicyLease.Acquire(backend, subcategory, AuditPolicyFlags.Failure, journal);
+            AssertEx.SequenceEqual(new[] { "set", "clear", "write", "set" }, trace);
+        }
+
         // Crash after the inner-only change: a fresh backend/journal pair holding the
         // same state (modified live policy, journaled true original) restores Failure.
         private static void RestoreFromJournalAfterInnerOnlyChange()
@@ -305,13 +367,38 @@ namespace SecureWall.Core.Tests
             journal.Entries[healthy] = AuditPolicyFlags.Failure;
             journal.Malformed.Add("not-a-guid");
 
-            var exception = AssertEx.Throws<InvalidOperationException>(() => AuditPolicyLease.RestoreFromJournal(backend, journal));
+            // Malformed records carry no recoverable value: report them, never throw,
+            // so an uninstall logs them and continues.
+            var result = AuditPolicyLease.RestoreFromJournal(backend, journal);
 
             AssertEx.SequenceEqual(new[] { "set", "clear" }, trace, "the healthy entry is restored and cleared");
             AssertEx.Equal(AuditPolicyFlags.Failure, backend[healthy]);
             AssertEx.Equal(0, journal.Entries.Count);
-            AssertEx.True(exception.Message.Contains("not-a-guid"), "the skipped record is named: " + exception.Message);
-            AssertEx.True(exception.InnerException == null, "no backend failure to report");
+            AssertEx.SequenceEqual(new[] { healthy }, result.Restored);
+            AssertEx.SequenceEqual(new[] { "not-a-guid" }, result.Malformed, "the skipped record is named");
+            AssertEx.Equal(0, result.Failed.Count, "no backend failure to report");
+        }
+
+        private static void RestoreFromJournalFailedHealthyEntryThrows()
+        {
+            var trace = new List<string>();
+            var backend = new FakeBackend(trace);
+            var journal = new InMemoryJournal(trace);
+            var healthy = Guid.NewGuid();
+            backend[healthy] = AuditPolicyFlags.Success | AuditPolicyFlags.Failure;
+            journal.Entries[healthy] = AuditPolicyFlags.Failure;
+            backend.FailSetFor.Add(healthy);
+
+            var exception = AssertEx.Throws<AuditPolicyRestoreException>(() => AuditPolicyLease.RestoreFromJournal(backend, journal));
+
+            AssertEx.Equal(0, trace.Count, "nothing restored, nothing cleared");
+            AssertEx.SequenceEqual(new[] { healthy }, exception.FailedSubcategories);
+            AssertEx.Equal(0, exception.Result.Restored.Count);
+            AssertEx.Equal(0, exception.Result.Malformed.Count);
+            AssertEx.True(exception.Message.Contains(healthy.ToString("B")), "the failed subcategory is named: " + exception.Message);
+            AssertEx.True(exception.InnerException is InvalidOperationException, "the backend failure is the inner exception");
+            AssertEx.Equal(AuditPolicyFlags.Failure, journal.Entries[healthy], "the entry survives for the next attempt");
+            AssertEx.Equal(AuditPolicyFlags.Success | AuditPolicyFlags.Failure, backend[healthy]);
         }
 
         private static void RestoreFromJournalRestoresAll()
@@ -357,11 +444,13 @@ namespace SecureWall.Core.Tests
             journal.Entries[healthy] = AuditPolicyFlags.None;
             backend.FailSetFor.Add(broken);
 
-            AssertEx.Throws<InvalidOperationException>(() => AuditPolicyLease.RestoreFromJournal(backend, journal));
+            var exception = AssertEx.Throws<AuditPolicyRestoreException>(() => AuditPolicyLease.RestoreFromJournal(backend, journal));
 
             AssertEx.Equal(AuditPolicyFlags.None, backend[healthy]);
             AssertEx.Equal(AuditPolicyFlags.Failure, backend[broken]);
             AssertEx.SequenceEqual(new[] { broken }, journal.Entries.Keys);
+            AssertEx.SequenceEqual(new[] { broken }, exception.FailedSubcategories);
+            AssertEx.SequenceEqual(new[] { healthy }, exception.Result.Restored, "the healthy entry still restored before the throw");
         }
     }
 }

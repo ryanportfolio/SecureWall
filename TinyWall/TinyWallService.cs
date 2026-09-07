@@ -1941,7 +1941,12 @@ namespace pylorak.TinyWall
         {
             // Put back audit policy left behind by an unclean exit before any new
             // lease can journal over it. Registry only; MpsSvc is not needed.
-            try { FirewallLogWatcher.RestoreAuditPolicyFromJournal(); }
+            try
+            {
+                AuditPolicyRestoreResult restored = FirewallLogWatcher.RestoreAuditPolicyFromJournal();
+                foreach (string record in restored.Malformed)
+                    Utils.Log("Skipped malformed audit policy recovery record " + record + "; it is kept in place for inspection.", Utils.LOG_ID_SERVICE);
+            }
             catch (Exception exception)
             {
                 Utils.Log("Cannot restore the audit policy recorded by a previous run; the record is kept for the next start or uninstall.", Utils.LOG_ID_SERVICE);

@@ -35,6 +35,59 @@ namespace pylorak.TinyWall
         IReadOnlyList<KeyValuePair<Guid, AuditPolicyFlags>> ReadAll(out IReadOnlyList<string> malformed);
     }
 
+    // Outcome of one RestoreFromJournal pass. Failed entries stay journaled and
+    // are fatal to the caller (an uninstall must not proceed past them); malformed
+    // records also stay but hold no recoverable value, so they are report-only.
+    internal sealed class AuditPolicyRestoreResult
+    {
+        internal AuditPolicyRestoreResult(
+            IReadOnlyList<Guid> restored,
+            IReadOnlyList<string> malformed,
+            IReadOnlyList<KeyValuePair<Guid, Exception>> failed)
+        {
+            Restored = restored;
+            Malformed = malformed;
+            Failed = failed;
+        }
+
+        internal IReadOnlyList<Guid> Restored { get; }
+        internal IReadOnlyList<string> Malformed { get; }
+        internal IReadOnlyList<KeyValuePair<Guid, Exception>> Failed { get; }
+    }
+
+    // Thrown when at least one healthy journal entry could not be written back.
+    // Result carries everything that did restore and every malformed name.
+    internal sealed class AuditPolicyRestoreException : InvalidOperationException
+    {
+        internal AuditPolicyRestoreException(AuditPolicyRestoreResult result)
+            : base(BuildMessage(result), result.Failed[0].Value)
+        {
+            Result = result;
+        }
+
+        internal AuditPolicyRestoreResult Result { get; }
+
+        internal IEnumerable<Guid> FailedSubcategories
+        {
+            get
+            {
+                foreach (var failure in Result.Failed)
+                    yield return failure.Key;
+            }
+        }
+
+        private static string BuildMessage(AuditPolicyRestoreResult result)
+        {
+            var names = new List<string>();
+            foreach (var failure in result.Failed)
+                names.Add(failure.Key.ToString("B"));
+            string message = "Audit policy restore failed for subcategory " + string.Join(", ", names) + "; the journal entry is kept for the next attempt.";
+            if (result.Malformed.Count > 0)
+                message += " Skipped malformed records: " + string.Join(", ", result.Malformed) + ".";
+            return message;
+        }
+    }
+
     internal sealed class AuditPolicyLease : IDisposable
     {
         // Leases on one subcategory nest inside this process (failure auditing plus
@@ -154,9 +207,11 @@ namespace pylorak.TinyWall
 
         // Crash recovery: restore every healthy journaled subcategory and clear each
         // record once its backend write succeeded. Failed and malformed entries stay
-        // journaled; after every entry was attempted, one exception reports the first
-        // failure and names the records that could not be decoded.
-        internal static void RestoreFromJournal(IAuditPolicyBackend backend, IAuditPolicyJournal journal)
+        // journaled. Every entry is attempted; then, only if a healthy entry failed,
+        // one AuditPolicyRestoreException names the failed subcategories. Malformed
+        // records never throw: they are reported in the result so an uninstall can
+        // log them and continue.
+        internal static AuditPolicyRestoreResult RestoreFromJournal(IAuditPolicyBackend backend, IAuditPolicyJournal journal)
         {
             if (backend == null)
                 throw new ArgumentNullException(nameof(backend));
@@ -165,7 +220,8 @@ namespace pylorak.TinyWall
 
             lock (Sync)
             {
-                Exception? first = null;
+                var restored = new List<Guid>();
+                var failed = new List<KeyValuePair<Guid, Exception>>();
                 IReadOnlyList<KeyValuePair<Guid, AuditPolicyFlags>> entries = journal.ReadAll(out IReadOnlyList<string> malformed);
                 foreach (var entry in entries)
                 {
@@ -173,20 +229,18 @@ namespace pylorak.TinyWall
                     {
                         backend.Set(entry.Key, entry.Value);
                         journal.Clear(entry.Key);
+                        restored.Add(entry.Key);
                     }
                     catch (Exception exception)
                     {
-                        first ??= exception;
+                        failed.Add(new KeyValuePair<Guid, Exception>(entry.Key, exception));
                     }
                 }
 
-                if (first != null || malformed.Count > 0)
-                {
-                    string message = "Audit policy journal restoration did not complete.";
-                    if (malformed.Count > 0)
-                        message += " Skipped malformed records: " + string.Join(", ", malformed) + ".";
-                    throw new InvalidOperationException(message, first);
-                }
+                var result = new AuditPolicyRestoreResult(restored, malformed, failed);
+                if (failed.Count > 0)
+                    throw new AuditPolicyRestoreException(result);
+                return result;
             }
         }
 
@@ -204,9 +258,15 @@ namespace pylorak.TinyWall
 
                     // Clear only once the live policy is back at the true original;
                     // an inner lease restoring to an outer lease's value leaves it.
+                    // The restore value alone is not proof: an outer lease that changed
+                    // nothing restores nothing, and an inner restore may have failed
+                    // and left the live policy modified. Query the backend and clear
+                    // only when the live value equals the true original; a failed
+                    // query propagates and leaves the record in place.
                     if (Journaled.Contains(_subcategory) &&
                         TrueOriginals.TryGetValue(_subcategory, out AuditPolicyFlags trueOriginal) &&
-                        _restoreValue == trueOriginal)
+                        _restoreValue == trueOriginal &&
+                        _backend.Query(_subcategory) == trueOriginal)
                     {
                         _journal.Clear(_subcategory);
                         Journaled.Remove(_subcategory);

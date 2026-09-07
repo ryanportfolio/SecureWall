@@ -332,14 +332,18 @@ namespace pylorak.TinyWall
         // Crash recovery for audit policy left behind by an unclean exit (crash,
         // FailFast, Process.Kill, MSI cleanup). Reads only the registry journal;
         // needs no MpsSvc, so callers can run it before any other startup work.
-        internal static void RestoreAuditPolicyFromJournal()
+        // Throws AuditPolicyRestoreException when a healthy entry failed to restore;
+        // malformed records are only reported in the result.
+        internal static AuditPolicyRestoreResult RestoreAuditPolicyFromJournal()
         {
+            AuditPolicyRestoreResult? result = null;
             Privilege.RunWithPrivilege(Privilege.Security, true, delegate (object? state)
             {
-                AuditPolicyLease.RestoreFromJournal(
+                result = AuditPolicyLease.RestoreFromJournal(
                     WindowsAuditPolicyBackend.Instance,
                     RegistryAuditPolicyJournal.Instance);
             }, null);
+            return result ?? throw new InvalidOperationException("Audit policy journal restoration did not run.");
         }
 
         private static void DisposeAuditLease(ref AuditPolicyLease? lease)
