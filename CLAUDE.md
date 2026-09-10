@@ -29,6 +29,7 @@ Real install, boot-time filters, audit policy, service attribution, and network
 behavior are authoritative only after the manual matrix in `docs/TESTING.md`
 runs on an expendable local-console Windows VM. Never claim production firewall
 verification from build/tests/preview alone.
+- Browser per session, never shared. The desktop app's Browser pane (`mcp__Claude_Browser__*`, `preview_start`) is one Chrome per app: a second session or subagent gets "Another task's Chrome owns browser slot". The official playwright plugin is one persistent profile: the second connection gets "Browser is already in use ... use --isolated" and deadlocks. Parallel or subagent browser work uses `@playwright/mcp --isolated` (in-memory profile; copy `.mcp.json` from claude-starter).
 
 ## Core principles
 
