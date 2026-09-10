@@ -12,6 +12,7 @@ This is the Codex boundary for the AI Operating System starter. Claude Code keep
 ## Capabilities
 
 - Inspect tools exposed in the current session before using subagents, browser control, connectors, or interactive input. Config flags alone are not proof.
+- Browser per session, never shared. The official playwright plugin holds one persistent profile; a second connection fails with "Browser is already in use ... use --isolated" and deadlocks. Parallel or subagent browser work uses `@playwright/mcp --isolated` (in-memory profile; copy `.mcp.json` from claude-starter).
 - Serial fallback is valid only when independence is not part of the deliverable. `impartial-review`, `advocate`, and `why` require fresh independent context; if unavailable, report the gap.
 - Claude `Workflow` programs are not Codex programs. Recreate their intent with exposed Codex agents or flag them blocked.
 - Codex hooks may reinforce this file, but critical rules stay here because hooks depend on trust and feature availability.
