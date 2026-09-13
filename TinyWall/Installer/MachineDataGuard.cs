@@ -29,6 +29,10 @@ namespace pylorak.TinyWall.Installer
             }
         }
 
+        // Diagnostics performs its own full read-only validation on its writer thread.
+        // It must neither hold the policy-data cache lock during IO nor change that cache.
+        internal static void RequireForDiagnostics() => Validate(create: false);
+
         private static void Validate(bool create)
         {
             string path = PathName;

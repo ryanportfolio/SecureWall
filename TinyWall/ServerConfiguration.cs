@@ -155,6 +155,9 @@ namespace pylorak.TinyWall
         public bool AutoUpdateCheck { get; set; } = false;
 
         [DataMember(EmitDefaultValue = false)]
+        public bool EnableDiagnosticLogging { get; set; } = false;
+
+        [DataMember(EmitDefaultValue = false)]
         public FirewallMode StartupMode { get; set; } = FirewallMode.Normal;
 
         [DataMember(EmitDefaultValue = false)]

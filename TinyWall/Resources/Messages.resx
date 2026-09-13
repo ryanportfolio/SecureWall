@@ -400,4 +400,10 @@ The selected executable could be part of {0}. To ensure that this application ca
   <data name="UiThemeAuto" xml:space="preserve">
     <value>Automatic</value>
   </data>
+  <data name="EnableDiagnosticLogging" xml:space="preserve">
+    <value>Enable diagnostic logging</value>
+  </data>
+  <data name="DiagnosticLoggingHelp" xml:space="preserve">
+    <value>Record local service and policy diagnostics for troubleshooting.</value>
+  </data>
 </root>

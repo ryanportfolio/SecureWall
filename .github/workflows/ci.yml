@@ -23,6 +23,10 @@ jobs:
       - name: Run pure security tests
         run: dotnet run --project tests\SecureWall.Core.Tests\SecureWall.Core.Tests.csproj
 
+      - name: Run diagnostic collector fixtures
+        shell: powershell
+        run: .\tests\diagnostics\Test-SecureWallDiagnostics.ps1
+
       - name: Build Debug application
         shell: pwsh
         run: |

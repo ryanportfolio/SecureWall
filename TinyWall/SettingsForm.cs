@@ -39,12 +39,14 @@ namespace pylorak.TinyWall
         private readonly DarkModeCS? DarkMode;
         private readonly WmPaintFilter? ListRepaintFilter;
         private bool LoadingSettings;
+        private CheckBox chkEnableDiagnosticLogging = null!;
         private string? m_NewPassword;
         private Size IconSize = new((int)Math.Round(16 * Utils.DpiScalingFactor), (int)Math.Round(16 * Utils.DpiScalingFactor));
 
         internal SettingsForm(ServerConfiguration service, ControllerSettings controller)
         {
             InitializeComponent();
+            InitializeDiagnosticsControls();
             Utils.SetRightToLeft(this);
             if (Utils.IsDarkModeActive(controller))
             {
@@ -115,6 +117,35 @@ namespace pylorak.TinyWall
             get { return m_NewPassword; }
         }
 
+        private void InitializeDiagnosticsControls()
+        {
+            // Place below the localized password group. AutoScroll preserves access at
+            // larger fonts/DPI; wrapping help does not compete with existing option rows.
+            tabPage1.AutoScroll = true;
+            var panel = new FlowLayoutPanel
+            {
+                Name = "diagnosticsPanel", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                FlowDirection = FlowDirection.TopDown, WrapContents = false,
+                Location = new Point(groupBox1.Left, groupBox1.Bottom + 3),
+                TabIndex = groupBox1.TabIndex + 1,
+            };
+            chkEnableDiagnosticLogging = new CheckBox
+            {
+                Name = "chkEnableDiagnosticLogging", Text = Resources.Messages.EnableDiagnosticLogging,
+                AutoSize = true, TabIndex = 0, UseVisualStyleBackColor = true,
+                AccessibleDescription = Resources.Messages.DiagnosticLoggingHelp,
+            };
+            var help = new Label
+            {
+                Name = "diagnosticLoggingHelp", AutoSize = true,
+                Text = Resources.Messages.DiagnosticLoggingHelp,
+                MaximumSize = new Size(groupBox1.Width, 0), TabIndex = 1,
+            };
+            panel.Controls.Add(chkEnableDiagnosticLogging);
+            panel.Controls.Add(help);
+            tabPage1.Controls.Add(panel);
+        }
+
         private void InitSettingsUI()
         {
             LoadingSettings = true;
@@ -123,6 +154,7 @@ namespace pylorak.TinyWall
                 // General page
                 chkAutoUpdateCheck.Enabled = SecureWallProduct.UpdateFeedEnabled;
                 chkAutoUpdateCheck.Checked = SecureWallProduct.UpdateFeedEnabled && TmpConfig.Service.AutoUpdateCheck;
+                chkEnableDiagnosticLogging.Checked = TmpConfig.Service.EnableDiagnosticLogging;
                 btnUpdate.Enabled = SecureWallProduct.UpdateFeedEnabled;
                 btnUpdate.Visible = SecureWallProduct.UpdateFeedEnabled;
                 btnWeb.Visible = false;
@@ -349,6 +381,7 @@ namespace pylorak.TinyWall
             TmpConfig.Controller.AskForExceptionDetails = chkAskForExceptionDetails.Checked;
             TmpConfig.Controller.EnableGlobalHotkeys = chkEnableHotkeys.Checked;
             TmpConfig.Service.AutoUpdateCheck = chkAutoUpdateCheck.Checked;
+            TmpConfig.Service.EnableDiagnosticLogging = chkEnableDiagnosticLogging.Checked;
             TmpConfig.Controller.SettingsTabIndex = tabControl1.SelectedIndex;
             TmpConfig.Service.LockHostsFile = chkLockHostsFile.Checked;
             TmpConfig.Service.Blocklists.EnablePortBlocklist = chkBlockMalwarePorts.Checked;

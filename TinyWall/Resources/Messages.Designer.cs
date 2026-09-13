@@ -822,5 +822,23 @@ namespace pylorak.TinyWall.Resources {
                 return ResourceManager.GetString("YouDoNotHaveAdministrativePrivilegesNeeded", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Enable diagnostic logging.
+        /// </summary>
+        internal static string EnableDiagnosticLogging {
+            get {
+                return ResourceManager.GetString("EnableDiagnosticLogging", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Record local service and policy diagnostics for troubleshooting.
+        /// </summary>
+        internal static string DiagnosticLoggingHelp {
+            get {
+                return ResourceManager.GetString("DiagnosticLoggingHelp", resourceCulture);
+            }
+        }
     }
 }
