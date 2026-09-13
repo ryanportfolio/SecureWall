@@ -978,66 +978,6 @@
   <data name="&gt;&gt;comboLanguages.ZOrder" xml:space="preserve">
     <value>8</value>
   </data>
-  <data name="chkEnableHotkeys.AutoSize" type="System.Boolean, mscorlib">
-    <value>True</value>
-  </data>
-  <data name="chkEnableHotkeys.Dock" type="System.Windows.Forms.DockStyle, System.Windows.Forms">
-    <value>Fill</value>
-  </data>
-  <data name="chkEnableHotkeys.Location" type="System.Drawing.Point, System.Drawing">
-    <value>3, 111</value>
-  </data>
-  <data name="chkEnableHotkeys.Size" type="System.Drawing.Size, System.Drawing">
-    <value>216, 21</value>
-  </data>
-  <data name="chkEnableHotkeys.TabIndex" type="System.Int32, mscorlib">
-    <value>40</value>
-  </data>
-  <data name="chkEnableHotkeys.Text" xml:space="preserve">
-    <value>Enable global hotkeys</value>
-  </data>
-  <data name="&gt;&gt;chkEnableHotkeys.Name" xml:space="preserve">
-    <value>chkEnableHotkeys</value>
-  </data>
-  <data name="&gt;&gt;chkEnableHotkeys.Type" xml:space="preserve">
-    <value>System.Windows.Forms.CheckBox, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;chkEnableHotkeys.Parent" xml:space="preserve">
-    <value>tableLayoutPanel1</value>
-  </data>
-  <data name="&gt;&gt;chkEnableHotkeys.ZOrder" xml:space="preserve">
-    <value>9</value>
-  </data>
-  <data name="chkAutoUpdateCheck.AutoSize" type="System.Boolean, mscorlib">
-    <value>True</value>
-  </data>
-  <data name="chkAutoUpdateCheck.Dock" type="System.Windows.Forms.DockStyle, System.Windows.Forms">
-    <value>Fill</value>
-  </data>
-  <data name="chkAutoUpdateCheck.Location" type="System.Drawing.Point, System.Drawing">
-    <value>3, 57</value>
-  </data>
-  <data name="chkAutoUpdateCheck.Size" type="System.Drawing.Size, System.Drawing">
-    <value>216, 21</value>
-  </data>
-  <data name="chkAutoUpdateCheck.TabIndex" type="System.Int32, mscorlib">
-    <value>20</value>
-  </data>
-  <data name="chkAutoUpdateCheck.Text" xml:space="preserve">
-    <value>Automatically check for updates</value>
-  </data>
-  <data name="&gt;&gt;chkAutoUpdateCheck.Name" xml:space="preserve">
-    <value>chkAutoUpdateCheck</value>
-  </data>
-  <data name="&gt;&gt;chkAutoUpdateCheck.Type" xml:space="preserve">
-    <value>System.Windows.Forms.CheckBox, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;chkAutoUpdateCheck.Parent" xml:space="preserve">
-    <value>tableLayoutPanel1</value>
-  </data>
-  <data name="&gt;&gt;chkAutoUpdateCheck.ZOrder" xml:space="preserve">
-    <value>10</value>
-  </data>
   <data name="chkAskForExceptionDetails.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
   </data>
@@ -1093,7 +1033,7 @@
     <value>0</value>
   </data>
   <data name="tableLayoutPanel1.LayoutSettings" type="System.Windows.Forms.TableLayoutSettings, System.Windows.Forms">
-    <value>&lt;?xml version="1.0" encoding="utf-16"?&gt;&lt;TableLayoutSettings&gt;&lt;Controls&gt;&lt;Control Name="comboUiTheme" Row="1" RowSpan="1" Column="1" ColumnSpan="1" /&gt;&lt;Control Name="label13" Row="1" RowSpan="1" Column="0" ColumnSpan="1" /&gt;&lt;Control Name="label11" Row="0" RowSpan="1" Column="0" ColumnSpan="1" /&gt;&lt;Control Name="chkHostsBlocklist" Row="4" RowSpan="1" Column="4" ColumnSpan="1" /&gt;&lt;Control Name="chkEnableBlocklists" Row="2" RowSpan="1" Column="3" ColumnSpan="2" /&gt;&lt;Control Name="chkBlockMalwarePorts" Row="3" RowSpan="1" Column="4" ColumnSpan="1" /&gt;&lt;Control Name="chkDisplayOffBlock" Row="0" RowSpan="1" Column="3" ColumnSpan="2" /&gt;&lt;Control Name="chkLockHostsFile" Row="1" RowSpan="1" Column="3" ColumnSpan="2" /&gt;&lt;Control Name="comboLanguages" Row="0" RowSpan="1" Column="1" ColumnSpan="1" /&gt;&lt;Control Name="chkEnableHotkeys" Row="4" RowSpan="1" Column="0" ColumnSpan="2" /&gt;&lt;Control Name="chkAutoUpdateCheck" Row="2" RowSpan="1" Column="0" ColumnSpan="2" /&gt;&lt;Control Name="chkAskForExceptionDetails" Row="3" RowSpan="1" Column="0" ColumnSpan="2" /&gt;&lt;/Controls&gt;&lt;Columns Styles="AutoSize,0,AutoSize,0,Absolute,30,Absolute,20,AutoSize,0" /&gt;&lt;Rows Styles="Percent,20,Percent,20,Percent,20,Percent,20,Percent,20" /&gt;&lt;/TableLayoutSettings&gt;</value>
+    <value>&lt;?xml version="1.0" encoding="utf-16"?&gt;&lt;TableLayoutSettings&gt;&lt;Controls&gt;&lt;Control Name="comboUiTheme" Row="1" RowSpan="1" Column="1" ColumnSpan="1" /&gt;&lt;Control Name="label13" Row="1" RowSpan="1" Column="0" ColumnSpan="1" /&gt;&lt;Control Name="label11" Row="0" RowSpan="1" Column="0" ColumnSpan="1" /&gt;&lt;Control Name="chkHostsBlocklist" Row="4" RowSpan="1" Column="4" ColumnSpan="1" /&gt;&lt;Control Name="chkEnableBlocklists" Row="2" RowSpan="1" Column="3" ColumnSpan="2" /&gt;&lt;Control Name="chkBlockMalwarePorts" Row="3" RowSpan="1" Column="4" ColumnSpan="1" /&gt;&lt;Control Name="chkDisplayOffBlock" Row="0" RowSpan="1" Column="3" ColumnSpan="2" /&gt;&lt;Control Name="chkLockHostsFile" Row="1" RowSpan="1" Column="3" ColumnSpan="2" /&gt;&lt;Control Name="comboLanguages" Row="0" RowSpan="1" Column="1" ColumnSpan="1" /&gt;&lt;Control Name="chkAskForExceptionDetails" Row="2" RowSpan="1" Column="0" ColumnSpan="2" /&gt;&lt;/Controls&gt;&lt;Columns Styles="AutoSize,0,AutoSize,0,Absolute,30,Absolute,20,AutoSize,0" /&gt;&lt;Rows Styles="Percent,20,Percent,20,Percent,20,Percent,20,Percent,20" /&gt;&lt;/TableLayoutSettings&gt;</value>
   </data>
   <data name="label9.Location" type="System.Drawing.Point, System.Drawing">
     <value>249, 60</value>

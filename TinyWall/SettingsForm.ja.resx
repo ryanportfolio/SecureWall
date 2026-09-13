@@ -192,12 +192,6 @@
   <data name="chkLockHostsFile.Text" xml:space="preserve">
     <value>Hosts ファイルの変更を防止する</value>
   </data>
-  <data name="chkEnableHotkeys.Text" xml:space="preserve">
-    <value>グローバル ホットキーを有効化</value>
-  </data>
-  <data name="chkAutoUpdateCheck.Text" xml:space="preserve">
-    <value>アップデートの有無を自動的に確認</value>
-  </data>
   <data name="chkAskForExceptionDetails.Text" xml:space="preserve">
     <value>例外時に詳細を表示する</value>
   </data>

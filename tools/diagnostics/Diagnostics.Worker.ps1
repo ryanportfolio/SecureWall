@@ -96,7 +96,8 @@ try {
             else {
                 $state = if ($service.State -in @('Stopped', 'Start Pending', 'Stop Pending', 'Running', 'Continue Pending', 'Pause Pending', 'Paused', 'Unknown')) { $service.State } else { 'Unknown' }
                 $mode = if ($service.StartMode -in @('Boot', 'System', 'Auto', 'Manual', 'Disabled')) { $service.StartMode } else { 'Unknown' }
-                @{ status = 'success'; data = @{ state = $state; start_mode = $mode; process_id = [int]$service.ProcessId; exit_code = [uint32]$service.ExitCode } }
+                @{ status = 'success'; data = @{ state = $state; start_mode = $mode; process_id = [int]$service.ProcessId; exit_code = [uint32]$service.ExitCode;
+                    registration = Get-SafeServiceRegistration $service } }
             }
         }
         'binary' { Get-BinaryIdentity }

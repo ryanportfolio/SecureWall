@@ -192,12 +192,6 @@
   <data name="chkLockHostsFile.Text" xml:space="preserve">
     <value>阻止对host文件的更改</value>
   </data>
-  <data name="chkEnableHotkeys.Text" xml:space="preserve">
-    <value>启用全局热键</value>
-  </data>
-  <data name="chkAutoUpdateCheck.Text" xml:space="preserve">
-    <value>自动检测更新</value>
-  </data>
   <data name="chkAskForExceptionDetails.Text" xml:space="preserve">
     <value>例外详情提示</value>
   </data>

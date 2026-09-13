@@ -149,8 +149,13 @@ internal static class RuntimeJournalTests
 
     private static void PrivacyAndLifecycle()
     {
-        var sink = new MemorySink();
-        using var journal = new RuntimeJournal(() => sink, 323);
+        using var blockedWriter = new BlockingSink();
+        var sink = blockedWriter.Memory;
+        using var journal = new RuntimeJournal(() => blockedWriter, 323);
+        journal.SetEnabled(true);
+        Wait(() => blockedWriter.Entered.IsSet);
+        // Deliberately hold the writer outside the queue lock so this schema/exception
+        // test does not race the journal's intentional nonblocking contention drops.
         journal.Emit(RuntimeEvent.service_start, RuntimeResult.attempt);
         journal.Run(RuntimeEvent.baseline_register, () => { });
         journal.SetEnabled(true);
@@ -167,6 +172,7 @@ internal static class RuntimeJournalTests
         journal.Run(RuntimeEvent.fail_closed, () => { });
         journal.Emit(RuntimeEvent.service_shutdown, RuntimeResult.success);
         journal.Emit((RuntimeEvent)999, RuntimeResult.success);
+        blockedWriter.Release.Set();
         Stop(journal);
         // Optional integration fixture: exercise the real producer against the PowerShell
         // collector without exposing production settings, WFP, or a service process.
@@ -178,7 +184,7 @@ internal static class RuntimeJournalTests
         }
         Check(Has(sink, "baseline_register", "success") && Has(sink, "policy_recovery", "failure") && Has(sink, "service_shutdown"));
         string[] fields = { "schema", "run_id", "process_id", "sequence", "utc", "uptime_ms", "event", "result", "hresult",
-            "dropped_records", "write_failures", "observed_allow", "observed_drop", "audit_available" };
+            "dropped_records", "write_failures", "observed_allow", "observed_drop", "audit_available", "observed_port_blocklist_drop" };
         long previousSequence = 0, previousUptime = 0;
         foreach (string line in sink.Lines)
         {
@@ -187,7 +193,7 @@ internal static class RuntimeJournalTests
             using var json = JsonDocument.Parse(line);
             var row = json.RootElement;
             Check(row.EnumerateObject().Select(p => p.Name).Order().SequenceEqual(fields.Order()));
-            Check(row.GetProperty("schema").GetInt32() == 1 && row.GetProperty("process_id").GetInt32() == 323);
+            Check(row.GetProperty("schema").GetInt32() == 2 && row.GetProperty("process_id").GetInt32() == 323);
             Check(Guid.TryParseExact(row.GetProperty("run_id").GetString(), "D", out _));
             Check(row.GetProperty("utc").GetString()!.EndsWith("Z", StringComparison.Ordinal));
             long sequence = row.GetProperty("sequence").GetInt64(), uptime = row.GetProperty("uptime_ms").GetInt64();

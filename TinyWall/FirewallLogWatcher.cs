@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics.Eventing.Reader;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
 using System.Xml.Linq;
 using Microsoft.Samples;
 using pylorak.TinyWall.Prompting;
@@ -32,8 +33,19 @@ namespace pylorak.TinyWall
         internal delegate void BlockedConnectionDelegate(FirewallLogWatcher sender, BlockedConnectionAuditEvent blockedConnection);
         internal event BlockedConnectionDelegate? BlockedConnection;
 
-        internal FirewallLogWatcher()
+        private readonly Action<RuntimeEvent, RuntimeResult, int>? diagnostic;
+        private int subscriptionHResult;
+        internal int SubscriptionHResult => Volatile.Read(ref subscriptionHResult);
+        internal long RecordErrors => _recordErrors.Total;
+
+        private void Report(RuntimeEvent code, RuntimeResult result, int hresult = 0)
         {
+            try { diagnostic?.Invoke(code, result, hresult); } catch { }
+        }
+
+        internal FirewallLogWatcher(Action<RuntimeEvent, RuntimeResult, int>? diagnostic = null)
+        {
+            this.diagnostic = diagnostic;
             try
             {
                 _failureAuditLease = AcquireAuditLease(AuditPolicyFlags.Failure);
@@ -41,6 +53,7 @@ namespace pylorak.TinyWall
             }
             catch (Exception exception)
             {
+                Volatile.Write(ref subscriptionHResult, exception.HResult);
                 Utils.Log("Cannot enable filtering-platform failure auditing; service attribution is unavailable.", Utils.LOG_ID_SERVICE);
                 Utils.LogException(exception, Utils.LOG_ID_SERVICE);
             }
@@ -50,6 +63,7 @@ namespace pylorak.TinyWall
         private void StartSubscription()
         {
             if (_health.Stopped) return;
+            Report(RuntimeEvent.audit_subscribe, RuntimeResult.attempt);
             try
             {
                 var query = new EventLogQuery("Security", PathType.LogName,
@@ -61,16 +75,21 @@ namespace pylorak.TinyWall
                 // Set before enabling: a synchronous failure callback must win.
                 _health.Starting();
                 watcher.Enabled = true;
+                bool subscribed = _health.SubscriptionAvailable;
+                Report(RuntimeEvent.audit_subscribe, subscribed ? RuntimeResult.success : RuntimeResult.failure,
+                    subscribed ? 0 : SubscriptionHResult);
             }
             catch (Exception exception)
             {
                 ReportSubscriptionFailure(_logWatcher, exception);
+                Report(RuntimeEvent.audit_subscribe, RuntimeResult.failure, exception.HResult);
             }
         }
 
         private void ReportSubscriptionFailure(object? sender, Exception exception)
         {
             if (sender != null && !_lifetime.Fail(sender)) return;
+            Volatile.Write(ref subscriptionHResult, exception.HResult);
             _health.Failed();
             _subscriptionErrors.Record();
             if (_subscriptionErrors.TryReport(DateTimeOffset.UtcNow, out long count))
@@ -122,8 +141,8 @@ namespace pylorak.TinyWall
                 // EventLogWatcher.Dispose waits for callbacks. A callback may be waiting
                 // for LearningNewExceptions while a policy transition takes _lifecycle.
                 // The lifetime seam releases that lock before entering this drain.
-                try { watcher?.Dispose(); }
-                catch (Exception exception) { Utils.LogException(exception, Utils.LOG_ID_SERVICE); }
+                try { watcher?.Dispose(); Report(RuntimeEvent.audit_unsubscribe, RuntimeResult.success); }
+                catch (Exception exception) { Report(RuntimeEvent.audit_unsubscribe, RuntimeResult.failure, exception.HResult); Utils.LogException(exception, Utils.LOG_ID_SERVICE); }
                 try { DisposeAuditLease(ref _learningAuditLease); }
                 catch (Exception exception) { Utils.LogException(exception, Utils.LOG_ID_SERVICE); }
                 try { DisposeAuditLease(ref _failureAuditLease); }
@@ -300,9 +319,10 @@ namespace pylorak.TinyWall
                 port <= 65535;
         }
 
-        private static AuditPolicyLease AcquireAuditLease(AuditPolicyFlags requiredFlags)
+        private AuditPolicyLease AcquireAuditLease(AuditPolicyFlags requiredFlags)
         {
             AuditPolicyLease? lease = null;
+            Report(RuntimeEvent.audit_lease_start, RuntimeResult.attempt);
             try
             {
                 Privilege.RunWithPrivilege(Privilege.Security, true, delegate (object? state)
@@ -313,10 +333,13 @@ namespace pylorak.TinyWall
                         requiredFlags,
                         RegistryAuditPolicyJournal.Instance);
                 }, null);
-                return lease ?? throw new InvalidOperationException("Audit policy lease acquisition did not complete.");
+                if (lease == null) throw new InvalidOperationException("Audit policy lease acquisition did not complete.");
+                Report(RuntimeEvent.audit_lease_start, RuntimeResult.success);
+                return lease;
             }
-            catch
+            catch (Exception error)
             {
+                Report(RuntimeEvent.audit_lease_start, RuntimeResult.failure, error.HResult);
                 if (lease != null)
                 {
                     try
@@ -353,17 +376,23 @@ namespace pylorak.TinyWall
             return result ?? throw new InvalidOperationException("Audit policy journal restoration did not run.");
         }
 
-        private static void DisposeAuditLease(ref AuditPolicyLease? lease)
+        private void DisposeAuditLease(ref AuditPolicyLease? lease)
         {
             AuditPolicyLease? captured = lease;
             lease = null;
             if (captured == null)
                 return;
 
-            Privilege.RunWithPrivilege(Privilege.Security, true, delegate (object? state)
+            Report(RuntimeEvent.audit_lease_stop, RuntimeResult.attempt);
+            try
             {
-                captured.Dispose();
-            }, null);
+                Privilege.RunWithPrivilege(Privilege.Security, true, delegate (object? state)
+                {
+                    captured.Dispose();
+                }, null);
+                Report(RuntimeEvent.audit_lease_stop, RuntimeResult.success);
+            }
+            catch (Exception error) { Report(RuntimeEvent.audit_lease_stop, RuntimeResult.failure, error.HResult); throw; }
         }
     }
 }

@@ -24,6 +24,8 @@ namespace pylorak.TinyWall
         internal void Emit(RuntimeEvent eventCode, RuntimeResult result, int hresult = 0) => journal?.Emit(eventCode, result, hresult);
         internal void SetEnabled(bool enabled) => journal?.SetEnabled(enabled);
         internal void ObserveDecision(bool allowed) => journal?.ObserveDecision(allowed);
+        internal void ObservePortBlocklistDrop() => journal?.ObservePortBlocklistDrop();
+        internal bool Enabled => journal?.Enabled == true;
         internal void SetAuditAvailable(bool available) => journal?.SetAuditAvailable(available);
 
         internal void Run(RuntimeEvent eventCode, Action action)

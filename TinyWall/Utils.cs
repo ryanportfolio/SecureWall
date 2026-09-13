@@ -711,8 +711,10 @@ namespace pylorak.TinyWall
 
         internal static void FlushDnsCache()
         {
-            _ = SafeNativeMethods.DnsFlushResolverCache();
+            _ = TryFlushDnsCache();
         }
+
+        internal static bool TryFlushDnsCache() => SafeNativeMethods.DnsFlushResolverCache() != 0;
 
         internal static string MachineDataRecoveryMessage =>
             "SecureWall could not validate its protected data directory: " + Installer.MachineDataGuard.PathName +

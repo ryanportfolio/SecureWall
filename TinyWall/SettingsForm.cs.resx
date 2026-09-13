@@ -180,12 +180,6 @@
   <data name="chkLockHostsFile.Text" xml:space="preserve">
     <value>Zamezit změnám v host souboru</value>
   </data>
-  <data name="chkEnableHotkeys.Text" xml:space="preserve">
-    <value>Povolit klávesové zkratky</value>
-  </data>
-  <data name="chkAutoUpdateCheck.Text" xml:space="preserve">
-    <value>Automaticky kontrolovat aktualizace</value>
-  </data>
   <data name="chkAskForExceptionDetails.Text" xml:space="preserve">
     <value>Zažádat o detaily vyjímky</value>
   </data>

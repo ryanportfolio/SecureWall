@@ -189,7 +189,7 @@ internal static class HostsAdapterTests
     private static void NativeWiring()
     {
         string source = PromptTransactionIntegrationTests.Source("TinyWall/HostsFileManager.cs");
-        AssertEx.True(source.Contains("Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), @\"drivers\\etc\\hosts\"),\n            Utils.AppDataPath, Utils.FlushDnsCache)"));
+        AssertEx.True(source.Contains("Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), @\"drivers\\etc\\hosts\"),\n            Utils.AppDataPath, Utils.TryFlushDnsCache)"));
         AssertEx.Equal(1, source.Split("FileLocker.Lock(").Length - 1);
         AssertEx.True(source.Contains("!FileLocker.IsLocked(path) && !FileLocker.Lock(path, FileAccess.Read, FileShare.Read)"));
         AssertEx.True(source.Contains("catch (FileNotFoundException) { return false; }"));

@@ -180,12 +180,6 @@
   <data name="chkLockHostsFile.Text" xml:space="preserve">
     <value>호스트(hosts) 파일 수정 차단</value>
   </data>
-  <data name="chkEnableHotkeys.Text" xml:space="preserve">
-    <value>전역 단축키 사용</value>
-  </data>
-  <data name="chkAutoUpdateCheck.Text" xml:space="preserve">
-    <value>업데이트 자동 확인</value>
-  </data>
   <data name="chkAskForExceptionDetails.Text" xml:space="preserve">
     <value>예외 세부 정보에 대해 알림</value>
   </data>

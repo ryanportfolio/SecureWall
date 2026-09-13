@@ -5,7 +5,7 @@ namespace pylorak.TinyWall
     internal static class Utils
     {
         internal static string AppDataPath => throw new InvalidOperationException("Native machine-data access is forbidden in core tests.");
-        internal static void FlushDnsCache() => throw new InvalidOperationException("Native DNS mutation is forbidden in core tests.");
+        internal static bool TryFlushDnsCache() => throw new InvalidOperationException("Native DNS mutation is forbidden in core tests.");
     }
 
     internal static class Hasher

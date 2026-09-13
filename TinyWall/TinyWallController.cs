@@ -299,9 +299,6 @@ namespace pylorak.TinyWall
         [AllowNull]
         private SynchronizationContext SyncCtx;
 
-        private Hotkey? HotKeyWhitelistExecutable;
-        private Hotkey? HotKeyWhitelistProcess;
-        private Hotkey? HotKeyWhitelistWindow;
 
         private readonly CmdLineArgs StartupOpts;
         private PromptDisplayCoordinator? PromptCoordinator;
@@ -393,9 +390,6 @@ namespace pylorak.TinyWall
                 PromptCoordinator = null;
 
                 // Manually added
-                HotKeyWhitelistExecutable?.Dispose();
-                HotKeyWhitelistProcess?.Dispose();
-                HotKeyWhitelistWindow?.Dispose();
                 MouseInterceptor.Dispose();
 
                 using (WaitHandle wh = new AutoResetEvent(false))
@@ -571,21 +565,6 @@ namespace pylorak.TinyWall
         private void StartUpdate(object sender, AnyEventArgs e)
         {
             Updater.StartUpdate();
-        }
-
-        void HotKeyWhitelistProcess_Pressed(object sender, HandledEventArgs e)
-        {
-            mnuWhitelistByProcess_Click(this, EventArgs.Empty);
-        }
-
-        void HotKeyWhitelistExecutable_Pressed(object sender, HandledEventArgs e)
-        {
-            mnuWhitelistByExecutable_Click(this, EventArgs.Empty);
-        }
-
-        void HotKeyWhitelistWindow_Pressed(object sender, HandledEventArgs e)
-        {
-            mnuWhitelistByWindow_Click(this, EventArgs.Empty);
         }
 
         private void mnuQuit_Click(object sender, EventArgs e)
@@ -1223,34 +1202,14 @@ namespace pylorak.TinyWall
             Thread.Sleep(500);
         }
 
-        private static void SetHotkey(System.ComponentModel.ComponentResourceManager resman, ref Hotkey? hk, HandledEventHandler hkCallback, Keys keyCode, ToolStripMenuItem menu, string mnuName)
-        {
-            if (ActiveConfig.Controller.EnableGlobalHotkeys)
-            {   // enable hotkey
-                if (hk == null)
-                {
-                    hk = new Hotkey(keyCode, true, true, false, false);
-                    hk.Pressed += hkCallback;
-                    hk.Register();
-                    resman.ApplyResources(menu, mnuName);
-                }
-            }
-            else
-            {   // disable hotkey
-                hk?.Dispose();
-                hk = null;
-                menu.ShortcutKeyDisplayString = string.Empty;
-            }
-        }
-
         private void ApplyControllerSettings()
         {
-            var resources = new System.ComponentModel.ComponentResourceManager(typeof(TinyWallController));
-            SetHotkey(resources, ref HotKeyWhitelistWindow, new HandledEventHandler(HotKeyWhitelistWindow_Pressed), Keys.W, mnuWhitelistByWindow, "mnuWhitelistByWindow");
-            SetHotkey(resources, ref HotKeyWhitelistExecutable, new HandledEventHandler(HotKeyWhitelistExecutable_Pressed), Keys.E, mnuWhitelistByExecutable, "mnuWhitelistByExecutable");
-            SetHotkey(resources, ref HotKeyWhitelistProcess, new HandledEventHandler(HotKeyWhitelistProcess_Pressed), Keys.P, mnuWhitelistByProcess, "mnuWhitelistByProcess");
+            // Ignore legacy imported hotkey preferences and remove shortcut hints.
+            ActiveConfig.Controller.EnableGlobalHotkeys = false;
+            mnuWhitelistByWindow.ShortcutKeyDisplayString = string.Empty;
+            mnuWhitelistByExecutable.ShortcutKeyDisplayString = string.Empty;
+            mnuWhitelistByProcess.ShortcutKeyDisplayString = string.Empty;
         }
-
         private void mnuElevate_Click(object sender, EventArgs e)
         {
             try

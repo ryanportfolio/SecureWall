@@ -189,12 +189,6 @@
   <data name="chkLockHostsFile.Text" xml:space="preserve">
     <value>Забрани редакция на hosts файла</value>
   </data>
-  <data name="chkEnableHotkeys.Text" xml:space="preserve">
-    <value>Включи глобални клавишни съкращения</value>
-  </data>
-  <data name="chkAutoUpdateCheck.Text" xml:space="preserve">
-    <value>Автоматично проверявай за ъпдейти</value>
-  </data>
   <data name="chkAskForExceptionDetails.Text" xml:space="preserve">
     <value>Информация за допълнителни изключения</value>
   </data>

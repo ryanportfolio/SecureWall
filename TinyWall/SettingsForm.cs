@@ -152,8 +152,6 @@ namespace pylorak.TinyWall
             try
             {
                 // General page
-                chkAutoUpdateCheck.Enabled = SecureWallProduct.UpdateFeedEnabled;
-                chkAutoUpdateCheck.Checked = SecureWallProduct.UpdateFeedEnabled && TmpConfig.Service.AutoUpdateCheck;
                 chkEnableDiagnosticLogging.Checked = TmpConfig.Service.EnableDiagnosticLogging;
                 btnUpdate.Enabled = SecureWallProduct.UpdateFeedEnabled;
                 btnUpdate.Visible = SecureWallProduct.UpdateFeedEnabled;
@@ -162,7 +160,6 @@ namespace pylorak.TinyWall
                 label10.Visible = false;
                 lblAboutHomepageLink.Text = "TinyWall upstream source (GPLv3)";
                 chkAskForExceptionDetails.Checked = TmpConfig.Controller.AskForExceptionDetails;
-                chkEnableHotkeys.Checked = TmpConfig.Controller.EnableGlobalHotkeys;
                 comboLanguages.SelectedIndex = 0;
                 for (int i = 0; i < comboLanguages.Items.Count; ++i)
                 {
@@ -379,8 +376,9 @@ namespace pylorak.TinyWall
 
             // Save settings
             TmpConfig.Controller.AskForExceptionDetails = chkAskForExceptionDetails.Checked;
-            TmpConfig.Controller.EnableGlobalHotkeys = chkEnableHotkeys.Checked;
-            TmpConfig.Service.AutoUpdateCheck = chkAutoUpdateCheck.Checked;
+            TmpConfig.Controller.EnableGlobalHotkeys = false;
+            // Retain the legacy import field, but never enable an unavailable update feed.
+            TmpConfig.Service.AutoUpdateCheck = false;
             TmpConfig.Service.EnableDiagnosticLogging = chkEnableDiagnosticLogging.Checked;
             TmpConfig.Controller.SettingsTabIndex = tabControl1.SelectedIndex;
             TmpConfig.Service.LockHostsFile = chkLockHostsFile.Checked;
@@ -637,10 +635,8 @@ namespace pylorak.TinyWall
 //          DataCollection.StopProfile(ProfileLevel.Global, DataCollection.CurrentId);
 #endif
 
-#if !DEBUG
-            // TODO: Make submissions work
+            // No submission service exists in SecureWall, including debug builds.
             btnSubmitAssoc.Visible = false;
-#endif
 //            loadingDone.Value = true;
         }
 
