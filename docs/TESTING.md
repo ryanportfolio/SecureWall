@@ -1,5 +1,7 @@
 # SecureWall testing
 
+For an owner-chosen diagnostic trial on a physical PC, see [LIVE-TESTING.md](LIVE-TESTING.md). This path records normal-use evidence and explicitly accepts remaining unverified cases; it does not replace the full release matrix below.
+
 ## Automated and non-enforcing checks
 
 Run the pure test harness, native .NET Framework build, debug protocol self-test, and authenticated named-pipe integration self-test using `.claude/reference/commands.md`. The debug `/promptpreview` switch is the only UI check permitted without firewall-activation approval; it starts neither the service nor WFP.

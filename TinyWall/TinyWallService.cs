@@ -20,6 +20,8 @@ namespace pylorak.TinyWall
 {
     public sealed class TinyWallServer : IDisposable
     {
+        private readonly ServiceRuntimeDiagnostics Diagnostics;
+        private bool DiagnosticSettingLoaded;
         private enum FilterWeights : ulong
         {
             Blocklist = 9000000,
@@ -357,6 +359,11 @@ namespace pylorak.TinyWall
 
         private void InstallFirewallRules()
         {
+            Diagnostics.Run(RuntimeEvent.policy_enforce, InstallFirewallRulesCore);
+        }
+
+        private void InstallFirewallRulesCore()
+        {
             using var timer = new HierarchicalStopwatch("InstallFirewallRules()");
             ResetPromptCandidates(revokeTokens: false);
             PathMapper.Instance.RebuildCache();
@@ -422,6 +429,12 @@ namespace pylorak.TinyWall
         }
 
         private void EnsureRestrictiveBaseline()
+        {
+            if (!BaselineInstalled)
+                Diagnostics.Run(RuntimeEvent.baseline_register, RegisterRestrictiveBaseline);
+        }
+
+        private void RegisterRestrictiveBaseline()
         {
             if (BaselineInstalled)
                 return;
@@ -1116,7 +1129,7 @@ namespace pylorak.TinyWall
 
         private static string ConfigRecoveryPath => ConfigSavePath + ".recovery";
 
-        private static void RestoreInterruptedPolicy()
+        private void RestoreInterruptedPolicy()
         {
             bool recoveryExists;
             try
@@ -1126,9 +1139,12 @@ namespace pylorak.TinyWall
             }
             catch (FileNotFoundException) { recoveryExists = false; }
             catch (DirectoryNotFoundException) { recoveryExists = false; }
+            if (!recoveryExists)
+                Diagnostics.Emit(RuntimeEvent.policy_recovery, RuntimeResult.absent);
             PolicyRecoveryJournal.Recover(recoveryExists,
-                () => ServerConfiguration.Load(ConfigRecoveryPath).Save(ConfigSavePath),
-                () => File.Delete(ConfigRecoveryPath));
+                () => Diagnostics.Run(RuntimeEvent.policy_recovery,
+                    () => ServerConfiguration.Load(ConfigRecoveryPath).Save(ConfigSavePath)),
+                () => Diagnostics.Run(RuntimeEvent.policy_recovery_clear, () => File.Delete(ConfigRecoveryPath)));
         }
 
         private static ServerConfiguration LoadServerConfig()
@@ -1175,6 +1191,13 @@ namespace pylorak.TinyWall
             RestoreInterruptedPolicy();
             LoadDatabase();
             ServerConfiguration candidate = LoadServerConfig();
+            if (!DiagnosticSettingLoaded)
+            {
+                // The recovered on-disk setting is trusted. Later candidates take effect only
+                // after a complete successful policy commit, including recovery cleanup.
+                Diagnostics.SetEnabled(candidate.EnableDiagnosticLogging);
+                DiagnosticSettingLoaded = true;
+            }
             if (candidate.StartupMode < FirewallMode.Normal || candidate.StartupMode > FirewallMode.AllowOutgoing)
                 candidate.StartupMode = FirewallMode.Normal;
             PruneExpiredRules(candidate, restarting: true);
@@ -1360,6 +1383,7 @@ namespace pylorak.TinyWall
 
         internal void TimerCallback(Object state)
         {
+            Diagnostics.SetAuditAvailable(LogWatcher.AuditEnrichmentAvailable);
             Q.Add(new TwRequest(TwMessageSimple.CreateRequest(MessageType.MINUTE_TIMER)));
         }
 
@@ -1442,23 +1466,23 @@ namespace pylorak.TinyWall
             ApplyingMode = mode;
             try
             {
-                PolicyChangeTransaction.Apply(
-                    () => candidate.Save(ConfigSavePath),
+                Diagnostics.CommitConfiguration(candidate.EnableDiagnosticLogging, () => PolicyChangeTransaction.Apply(
+                    () => Diagnostics.Run(RuntimeEvent.policy_persist, () => candidate.Save(ConfigSavePath)),
                     () =>
                     {
                         LogWatcher.LearningEnabled = mode == FirewallMode.Learning;
                         ReapplySettings();
                         InstallFirewallRules();
                     },
-                    () =>
+                    () => Diagnostics.Run(RuntimeEvent.policy_rollback, () =>
                     {
                         previous.Save(ConfigSavePath);
                         ApplyingConfiguration = previous;
                         ApplyingMode = VisibleState.Mode;
                         LogWatcher.LearningEnabled = previousLearning;
                         ReapplySettings();
-                    },
-                    () =>
+                    }),
+                    () => Diagnostics.Run(RuntimeEvent.policy_publish, () =>
                     {
                         ActiveConfig.Service = candidate;
                         lock (BlockedPromptQueue.SyncRoot)
@@ -1467,10 +1491,10 @@ namespace pylorak.TinyWall
                             VisibleState.Mode = mode;
                         }
                         GlobalInstances.ServerChangeset = Guid.NewGuid();
-                    },
+                    }),
                     FailClosed,
-                    () => previous.Save(ConfigRecoveryPath),
-                    () => File.Delete(ConfigRecoveryPath));
+                    () => Diagnostics.Run(RuntimeEvent.policy_journal, () => previous.Save(ConfigRecoveryPath)),
+                    () => Diagnostics.Run(RuntimeEvent.policy_recovery_clear, () => File.Delete(ConfigRecoveryPath))));
             }
             finally
             {
@@ -1488,6 +1512,11 @@ namespace pylorak.TinyWall
 
         private void FailClosed()
         {
+            Diagnostics.Run(RuntimeEvent.fail_closed, FailClosedCore);
+        }
+
+        private void FailClosedCore()
+        {
             RuntimeStopping = true;
             ResetPromptCandidates(stop: true);
             RunService = false;
@@ -1497,7 +1526,11 @@ namespace pylorak.TinyWall
                 // a failed native unsubscribe cannot delay the checked native session close.
                 RuntimeSessionRevocation.Close(WfpEngine.NativePtr,
                     FwpmEngineSafeHandle.NativeMethods.FwpmEngineClose0,
-                    error => Environment.FailFast("SecureWall cannot confirm withdrawal of runtime permissions.", error),
+                    error =>
+                    {
+                        Diagnostics.Emit(RuntimeEvent.fail_closed, RuntimeResult.failure, error.HResult);
+                        Environment.FailFast("SecureWall cannot confirm withdrawal of runtime permissions.", error);
+                    },
                     DisposeRuntimeSubscription);
                 RuntimeSessionRevoked = true;
                 RuntimeEventSubscription = null;
@@ -1623,12 +1656,14 @@ namespace pylorak.TinyWall
                     {
                         var args = (TwMessagePromptAction)req;
                         PromptActionResult result = BlockedPromptQueue.Dismiss(args.Token);
+                        Diagnostics.Emit(RuntimeEvent.prompt_ignore, RuntimeJournal.PromptResult(result.Status));
                         return args.CreateResponse(result.Status);
                     }
                 case MessageType.ALLOW_PROMPT:
                     {
                         var args = (TwMessagePromptAction)req;
                         PromptActionResult result = BlockedPromptQueue.Allow(args.Token, ApplyPromptAllow);
+                        Diagnostics.Emit(RuntimeEvent.prompt_allow, RuntimeJournal.PromptResult(result.Status));
                         return args.CreateResponse(result.Status);
                     }
                 case MessageType.IS_LOCKED:
@@ -1832,11 +1867,11 @@ namespace pylorak.TinyWall
                 case MessageType.REENUMERATE_ADDRESSES:
                     {
                         var args = (TwMessageSimple)req;
-                        EnvironmentalPolicyReload.Run(() =>
+                        Diagnostics.Run(RuntimeEvent.network_reload, () => EnvironmentalPolicyReload.Run(() =>
                         {
                             if (ReenumerateAdresses())  // returns true if anything changed
                                 InstallFirewallRules();
-                        }, FailClosed);
+                        }, FailClosed));
                         return args.CreateResponse();
                     }
                 case MessageType.DISPLAY_POWER_EVENT:
@@ -1844,11 +1879,11 @@ namespace pylorak.TinyWall
                         var args = (TwMessageDisplayPowerEvent)req;
                         if (args.PowerOn != DisplayCurrentlyOn)
                         {
-                            EnvironmentalPolicyReload.Run(() =>
+                            Diagnostics.Run(RuntimeEvent.display_reload, () => EnvironmentalPolicyReload.Run(() =>
                             {
                                 DisplayCurrentlyOn = args.PowerOn;
                                 InstallFirewallRules();
-                            }, FailClosed);
+                            }, FailClosed));
                         }
                         return args.CreateResponse(args.PowerOn);
                     }
@@ -1936,8 +1971,9 @@ namespace pylorak.TinyWall
                 try { wfp.UnregisterProvider(SECUREWALL_PROVIDER_KEY); } catch { }
         }
 
-        public TinyWallServer()
+        internal TinyWallServer(ServiceRuntimeDiagnostics diagnostics)
         {
+            Diagnostics = diagnostics;
             CorrelatedDrops = new CorrelatedDropBatch(BlockedPromptQueue.SyncRoot, SystemClock.Instance);
             // Put back audit policy left behind by an unclean exit before any new
             // lease can journal over it. Registry only; MpsSvc is not needed.
@@ -2041,6 +2077,8 @@ namespace pylorak.TinyWall
             InitFirewall();
             WinDefFirewall = new WindowsFirewall();
             service.FinishStateChange();
+            Diagnostics.SetAuditAvailable(LogWatcher.AuditEnrichmentAvailable);
+            Diagnostics.Emit(RuntimeEvent.service_ready, RuntimeResult.success);
 #if !DEBUG
             // Basic software health checks
             TinyWallDoctor.EnsureHealth(Utils.LOG_ID_SERVICE);
@@ -2172,6 +2210,8 @@ namespace pylorak.TinyWall
                     eventType = EventLogEvent.ALLOWED;
                 else
                     return;
+
+                Diagnostics.ObserveDecision(eventType == EventLogEvent.ALLOWED);
 
                 var entry = new FirewallLogEntry
                 {
@@ -2311,6 +2351,7 @@ namespace pylorak.TinyWall
             VisibleState.HasPassword = PasswordLock.HasPassword;
             VisibleState.Locked = PasswordLock.Locked;
             bool available = LogWatcher.AuditEnrichmentAvailable;
+            Diagnostics.SetAuditAvailable(available);
             long candidates = CandidateOverflows.Total + CorrelatedDrops.Suppressed.Total;
             long prompts = PromptOverflows.Total;
             if (VisibleState.AttributionAvailable == available &&
@@ -2403,6 +2444,9 @@ namespace pylorak.TinyWall
         {
             if (((int)reqMsg.Type > 2047) && PasswordLock.Locked)
             {
+                if (reqMsg.Type == MessageType.ALLOW_PROMPT || reqMsg.Type == MessageType.DISMISS_PROMPT)
+                    Diagnostics.Emit(reqMsg.Type == MessageType.ALLOW_PROMPT ? RuntimeEvent.prompt_allow : RuntimeEvent.prompt_ignore,
+                        RuntimeResult.locked);
                 // Notify that we need to be unlocked first
                 return TwMessageLocked.Instance;
             }
@@ -2508,6 +2552,7 @@ namespace pylorak.TinyWall
         internal const string SERVICE_DISPLAY_NAME = "SecureWall Service";
 
         private TinyWallServer? Server;
+        private ServiceRuntimeDiagnostics? RuntimeDiagnostics;
         private Thread? FirewallWorkerThread;
         private volatile bool StopRequested;
 #if !DEBUG
@@ -2528,15 +2573,27 @@ namespace pylorak.TinyWall
 
         private void FirewallWorkerMethod()
         {
+            using var diagnostics = new ServiceRuntimeDiagnostics();
+            RuntimeDiagnostics = diagnostics;
+            diagnostics.Emit(RuntimeEvent.service_start, RuntimeResult.attempt);
             try
             {
-                using (Server = new TinyWallServer())
+                using (Server = new TinyWallServer(diagnostics))
                 {
                     Server.Run(this);
                 }
+                diagnostics.Emit(RuntimeEvent.service_shutdown, RuntimeResult.success);
+            }
+            catch (Exception exception)
+            {
+                diagnostics.Emit(RuntimeEvent.service_failure, RuntimeResult.failure, exception.HResult);
+                throw;
             }
             finally
             {
+                // Server disposal/revocation has already completed or failed. No policy lock
+                // is held here; a stuck diagnostic disk gets at most 250 ms before exit.
+                diagnostics.FinishShutdown();
 #if !DEBUG
                 Thread.MemoryBarrier();
                 if (!StopRequested && !IsComputerShuttingDown)    // Normal stop completion belongs to StopServer.
@@ -2561,6 +2618,7 @@ namespace pylorak.TinyWall
 
         private void StopServer()
         {
+            RuntimeDiagnostics?.Emit(RuntimeEvent.service_stop_requested, RuntimeResult.attempt);
             StopRequested = true;
             Thread.MemoryBarrier();
             var clock = Stopwatch.StartNew();
@@ -2582,6 +2640,7 @@ namespace pylorak.TinyWall
         // Executed on computer shutdown.
         protected override void OnShutdown()
         {
+            RuntimeDiagnostics?.Emit(RuntimeEvent.service_stop_requested, RuntimeResult.attempt);
 #if !DEBUG
             IsComputerShuttingDown = true;
 #endif
