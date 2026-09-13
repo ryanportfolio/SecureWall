@@ -104,7 +104,6 @@
       <ComponentRef Id='MainExecutable' />
       <ComponentRef Id='MainExecutableConfig' />
       <ComponentRef Id='ProgramMenuDir' />
-      <ComponentRef Id='RemoveAppDataDir' />
       <ComponentRef Id='RegistryKeys' />
       <ComponentRef Id='License' />
       <ComponentRef Id='Attributions' />
@@ -187,6 +186,14 @@
       <!-- Program Files -->
       <Directory Id="$(var.PlatformProgramFilesFolder)" Name="ProgramFiles">
         <Directory Id="INSTALLDIR" Name="SecureWall">
+          <Directory Id="DataDefaultsDir" Name="data-defaults">
+            <Component Id="Database" Guid="*" Win64="$(var.Win64)">
+              <File Id="DatabaseJson" Source="Sources\CommonAppData\SecureWall\profiles.json" Vital="yes" KeyPath="yes" />
+            </Component>
+            <Component Id="hosts" Guid="*" Win64="$(var.Win64)">
+              <File Id="HostsBCK" Source="Sources\CommonAppData\SecureWall\hosts.bck" Vital="yes" KeyPath="yes" />
+            </Component>
+          </Directory>
           <Component Id="MainExecutable" Guid="*" Win64="$(var.Win64)">
             <File Id="SecureWallEXE" Source="Sources\ProgramFiles\SecureWall\SecureWall.exe" Vital="yes" KeyPath="yes" Checksum="yes" Assembly=".net" AssemblyApplication="SecureWallEXE" />
           </Component>
@@ -327,23 +334,8 @@
         </Directory>
       </Directory>
       
-      <!-- ProgramData -->
-      <Directory Id="CommonAppDataFolder" Name="CommonAppData">
-        <Directory Id="AppDataDir" Name="SecureWall">
-          <Component Id="Database" Guid="*" Win64="$(var.Win64)">
-            <File Id="DatabaseJson" Source="Sources\CommonAppData\SecureWall\profiles.json" Vital="yes" KeyPath="yes" />
-          </Component>
-          <Component Id="hosts" Guid="*" Win64="$(var.Win64)">
-            <File Id="HostsBCK" Source="Sources\CommonAppData\SecureWall\hosts.bck" Vital="yes" KeyPath="yes" />
-          </Component>
-          <Component Id="RemoveAppDataDir" Guid="{A7D391C9-D9B2-4BA6-903E-075F20F2734E}" Win64="$(var.Win64)" Transitive="yes">
-            <RemoveFile Id="AppDataDirFiles" On='install' Name='*' />
-            <RemoveFolder Id="AppDataDirFolder" On='install' />
-            <Condition><![CDATA[NOT OLDER_UPGRADEABLE_FOUND]]></Condition>
-          </Component>
-        </Directory>
-      </Directory>
-
+      <!-- Machine data is created and seeded only by the SYSTEM /install guard.
+           MSI must never follow or clean an unchecked pre-existing ProgramData tree. -->
       <!-- Start Menu -->
       <Directory Id="ProgramMenuFolder" Name="Programs">
         <Directory Id="ProgramMenuDir" Name="$(var.ProductName)">

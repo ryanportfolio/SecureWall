@@ -31,6 +31,21 @@ unless the user explicitly asks in the current session.
 
 - Checkouts under long paths (worktrees below `AppData\Local\Temp\claude\...`) exceed MAX_PATH for MSBuild and the test harness; map the tree to a drive letter first (`subst W: "<path>"`) and build from there.
 - Never `git clean` this tree; delete `bin/` and `obj/` by path instead.
-- The recovery baseline is no longer deny-only: eight DHCP/DNS permits sit at `DefaultBlock - 1`. Any new baseline rule must stay below `DefaultBlock` or it will outrank runtime blocks.
+- Superseded on 2026-09-12: the baseline is strict external deny at `DefaultBlock - 2`, with no DHCP/DNS recovery permits. Service loss can prevent address renewal and name resolution; retain local-console recovery.
 - `AuditPolicyLease` marks a subcategory journaled only after the registry write succeeds; do not reorder the write and the `AuditSetSystemPolicy` call.
 - The Allow existence recheck applies only to Win32-form paths; `System` and unmapped NT-form subjects skip it on purpose.
+
+## 2026-09-12: pre-switch fixes
+
+- MSI defaults are Program Files payload in `data-defaults`; do not reintroduce MSI ProgramData creation, copying or deletion before the shared guard. SYSTEM seeds only absent defaults after validating the full tree. Reject unsafe existing trees without changing them.
+- A controller may start while a protected temporary policy file disappears during replacement. Revalidate its parent before tolerating absence; root, ACL and reparse errors must still reject access.
+- A persistent write can replace the file and then throw during the installed-file flush. Compensate on attempted writes, retain recovery evidence on failure, and withdraw runtime grants when recovery fails.
+- Content flushing and process-failure recovery do not prove power-loss ordering of journal rename/delete or physical-media durability. Do not describe these as verified crash-safe filesystem commits.
+- Existing corrupt or unreadable configuration must fail closed; only confirmed absence selects defaults. Hosts restoration failure must remain visible and prevent successful teardown; absent original backup alone is valid.
+- Windows_Update must retain its exact `wuauserv` service rule without an executable-wide `svchost.exe` web allow. Actual update functionality, strict boot DNS/DHCP blocking and all failure paths remain VM checks.
+
+## 2026-09-12: controller repair and user logs
+
+Controller recovery must not call SYSTEM-only `/install`. Only the installing plus LocalSystem path creates registration and configures health; other callers validate the existing protected image, LocalSystem account, dedicated service type and pending-deletion state before start. Nonadmin elevation uses the system directory's sc.exe, then observes Running through SCM. Missing registration requires MSI recovery (full removal and fresh install).
+
+User controller logs use LocalApplicationData/SecureWall/logs. Actual privileged/noninteractive/impersonating context and service/installer roles force guarded machine logs, with no user fallback. Do not use the log label alone as a privilege decision. Legacy writable ProgramData trees are intentionally rejected; preserve them as evidence and require reviewed local-console recovery. MSI stderr diagnostics do not guarantee a specific installer dialog.

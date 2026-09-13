@@ -160,12 +160,7 @@ namespace pylorak.TinyWall
 
         public static void SerializeToFile<T>(T obj, string filepath) where T : ISerializable<T>
         {
-            using var fileUpdater = new AtomicFileUpdater(filepath);
-            using (var stream = new FileStream(fileUpdater.TemporaryFilePath, FileMode.Create, FileAccess.Write, FileShare.None))
-            {
-                Serialize(stream, obj);
-            }
-            fileUpdater.Commit();
+            AtomicFileWriter.Write(filepath, stream => Serialize(stream, obj));
         }
 
         public static T DeserializeFromEncryptedFile<T>(string filepath, string key, string iv, T defInst) where T : ISerializable<T>
@@ -195,20 +190,7 @@ namespace pylorak.TinyWall
 
         public static void SerializeToEncryptedFile<T>(T obj, string filePath, string key, string iv) where T : ISerializable<T>
         {
-            // Construct encryptor
-            using var symmetricKey = new AesCryptoServiceProvider();
-            symmetricKey.Mode = CipherMode.CBC;
-            symmetricKey.Key = Encoding.ASCII.GetBytes(key);
-            symmetricKey.IV = Encoding.ASCII.GetBytes(iv);
-
-            // Encrypt
-            using var fileUpdater = new AtomicFileUpdater(filePath);
-            using (var fs = new FileStream(fileUpdater.TemporaryFilePath, FileMode.Create, FileAccess.Write, FileShare.None))
-            {
-                using var cryptoStream = new CryptoStream(fs, symmetricKey.CreateEncryptor(), CryptoStreamMode.Write);
-                Serialize(cryptoStream, obj);
-            }
-            fileUpdater.Commit();
+            AtomicFileWriter.WriteEncrypted(filePath, stream => Serialize(stream, obj), key, iv);
         }
 
         [Obsolete("XML serializer kept around for importing pre-3.0 configs.")]

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 
 namespace pylorak.Utilities
@@ -9,13 +9,13 @@ namespace pylorak.Utilities
         {
             // File.Replace needs the target and temporary files to be on the same volume.
             // To ensure this, we create our temporary file in the same folder as our target.
-            TargetFilePath = targetFile;
-            TemporaryFilePath = RandomFileInSameDir(targetFile);
+            TargetFilePath = Path.GetFullPath(targetFile);
+            TemporaryFilePath = RandomFileInSameDir(TargetFilePath);
         }
 
         private static string RandomFileInSameDir(string file)
         {
-            string targetDir = Path.GetDirectoryName(file);
+            string targetDir = Path.GetDirectoryName(file) ?? throw new ArgumentException("Target path has no directory.", nameof(file));
             return Path.Combine(targetDir, Path.GetRandomFileName());
         }
 
@@ -24,24 +24,18 @@ namespace pylorak.Utilities
 
         public void Commit()
         {
-            string backup = RandomFileInSameDir(TargetFilePath);
-            try
-            {
-                if (File.Exists(TargetFilePath))
-                    File.Replace(TemporaryFilePath, TargetFilePath, backup, true);
-                else
-                    File.Move(TemporaryFilePath, TargetFilePath);
-            }
-            finally
-            {
-                try
-                {
-                    File.Delete(backup);
-                }
-                catch { }
-            }
+            if (replacementOwnsTemporary)
+                throw new InvalidOperationException("A replacement was already attempted; retain its recovery evidence.");
+
+            // Finalize and close all payload writers before Commit.
+            using (var temporary = new FileStream(TemporaryFilePath, FileMode.Open, FileAccess.Write, FileShare.None))
+                temporary.Flush(true);
+
+            replacementOwnsTemporary = true;
+            AtomicFileReplacement.Install(TemporaryFilePath, TargetFilePath);
         }
 
+        private bool replacementOwnsTemporary;
         protected override void Dispose(bool disposing)
         {
             if (IsDisposed)
@@ -51,7 +45,8 @@ namespace pylorak.Utilities
             {
                 try
                 {
-                    File.Delete(TemporaryFilePath);
+                    if (!replacementOwnsTemporary)
+                        File.Delete(TemporaryFilePath);
                 }
                 catch { }
             }

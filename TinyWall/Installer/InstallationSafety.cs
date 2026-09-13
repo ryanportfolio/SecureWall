@@ -30,6 +30,8 @@ namespace pylorak.TinyWall.Installer
             }
         }
 
+        internal static void RequireProtectedMachineData() => MachineDataGuard.Require(false, true);
+
         internal static void RequireSystemMaintenance()
         {
             using var identity = WindowsIdentity.GetCurrent();

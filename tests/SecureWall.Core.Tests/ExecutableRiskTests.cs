@@ -12,6 +12,12 @@ namespace SecureWall.Core.Tests
         {
             get
             {
+                yield return ("executable mutation detects file content and security rights", FileMutationRights);
+                yield return ("executable mutation detects parent replacement rights", ParentMutationRights);
+                yield return ("executable mutation detects an untrusted file owner", UntrustedOwner);
+                yield return ("executable mutation excludes trusted administrative grants", TrustedAdministrativeRights);
+                yield return ("executable mutation respects inherit-only applicability conservatively", InheritOnlyRights);
+                yield return ("executable mutation warns when inspection is unavailable", UnknownMutationRisk);
                 yield return ("executable risk raises nothing for a trusted old system-owned file", NoFlagsForTrustedOldSystemFile);
                 yield return ("executable risk flags every non-trusted signature status as unsigned", NonTrustedSignatureIsUnsigned);
                 yield return ("executable risk flags a user-writable location alone", UserWritableAlone);
@@ -28,6 +34,67 @@ namespace SecureWall.Core.Tests
                 yield return ("prompt allow policy allows an unmapped NT path without a file check", AllowPolicyAllowsNtFormPathWithoutCheck);
                 yield return ("prompt allow policy still refuses a missing Win32 path", AllowPolicyStillRefusesMissingWin32Path);
             }
+        }
+
+        private const string SystemOwner = "S-1-5-18";
+        private const string OrdinaryUser = "S-1-5-21-1-2-3-1001";
+
+        private static void FileMutationRights()
+        {
+            // WRITE_DATA, APPEND_DATA, WRITE_EA, WRITE_ATTRIBUTES, DELETE,
+            // WRITE_DAC, WRITE_OWNER, GENERIC_WRITE and GENERIC_ALL.
+            foreach (uint right in new uint[] { 2, 4, 16, 256, 0x10000, 0x40000, 0x80000, 0x40000000, 0x10000000 })
+                AssertEx.True(ExecutableMutationPolicy.HasRisk(SystemOwner,
+                    new[] { new ExecutableAccessEntry(OrdinaryUser, right, true) }, false), right.ToString("X"));
+            AssertEx.False(ExecutableMutationPolicy.HasRisk(SystemOwner,
+                new[] { new ExecutableAccessEntry(OrdinaryUser, 0x120089, true) }, false), "read and execute are safe");
+        }
+
+        private static void ParentMutationRights()
+        {
+            foreach (uint right in new uint[] { 2, 0x40, 0x40000, 0x80000 })
+                AssertEx.True(ExecutableMutationPolicy.HasRisk(SystemOwner,
+                    new[] { new ExecutableAccessEntry(OrdinaryUser, right, true) }, true));
+            AssertEx.False(ExecutableMutationPolicy.HasRisk(SystemOwner,
+                new[] { new ExecutableAccessEntry(OrdinaryUser, 0x40, true) }, false), "DELETE_CHILD is directory-specific");
+        }
+
+        private static void UntrustedOwner()
+        {
+            AssertEx.True(ExecutableMutationPolicy.HasRisk(OrdinaryUser, Array.Empty<ExecutableAccessEntry>(), false));
+            AssertEx.True(ExecutableMutationPolicy.HasRisk(OrdinaryUser, Array.Empty<ExecutableAccessEntry>(), true));
+        }
+
+        private static void TrustedAdministrativeRights()
+        {
+            foreach (string sid in new[] { SystemOwner, "S-1-5-32-544",
+                "S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464" })
+            {
+                foreach (bool directory in new[] { false, true })
+                    AssertEx.False(ExecutableMutationPolicy.HasRisk(sid,
+                        new[] { new ExecutableAccessEntry(sid, 0x101F01FF, true) }, directory));
+            }
+        }
+
+        private static void InheritOnlyRights()
+        {
+            AssertEx.False(ExecutableMutationPolicy.HasRisk(SystemOwner,
+                new[] { new ExecutableAccessEntry(OrdinaryUser, 2, true, true) }, true),
+                "inherit-only grants do not apply to the parent; inspect the actual file separately");
+            AssertEx.True(ExecutableMutationPolicy.HasRisk(SystemOwner, new[] {
+                new ExecutableAccessEntry(OrdinaryUser, 2, false, true),
+                new ExecutableAccessEntry(OrdinaryUser, 2, true) }, true), "inherit-only deny cannot hide parent write");
+            AssertEx.True(ExecutableMutationPolicy.HasRisk(SystemOwner, new[] {
+                new ExecutableAccessEntry(OrdinaryUser, 2, false),
+                new ExecutableAccessEntry(OrdinaryUser, 2, true) }, false), "rough deny unions cannot establish safety");
+        }
+
+        private static void UnknownMutationRisk()
+        {
+            AssertEx.True(ExecutableMutationPolicy.HasRisk(SystemOwner, Array.Empty<ExecutableAccessEntry>(), false, false));
+            AssertEx.True(ExecutableMutationPolicy.HasRisk(SystemOwner, null, false));
+            AssertEx.True(ExecutableMutationPolicy.HasRisk(null, Array.Empty<ExecutableAccessEntry>(), false));
+            AssertEx.False(ExecutableMutationPolicy.HasRisk(SystemOwner, Array.Empty<ExecutableAccessEntry>(), false));
         }
 
         private static void NoFlagsForTrustedOldSystemFile()

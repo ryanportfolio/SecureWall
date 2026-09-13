@@ -16,46 +16,68 @@ namespace pylorak.TinyWall
         private static readonly Guid ConnectionLoggingAuditSubcategory =
             new Guid("{0CCE9226-69AE-11D9-BED3-505054503030}");
 
-        private readonly EventLogWatcher _logWatcher;
+        private readonly AuditWatcherLifetime _lifetime = new AuditWatcherLifetime();
+        private object _lifecycle => _lifetime.SyncRoot;
+        private readonly AuditSubscriptionHealth _health = new AuditSubscriptionHealth();
+        private readonly CoalescedDiagnostic _subscriptionErrors = new CoalescedDiagnostic();
+        private readonly CoalescedDiagnostic _recordErrors = new CoalescedDiagnostic();
+        private volatile EventLogWatcher? _logWatcher;
         private AuditPolicyLease? _failureAuditLease;
         private AuditPolicyLease? _learningAuditLease;
-        private bool _learningEnabled;
+        private volatile bool _learningEnabled;
+        private volatile bool _failureLeaseOwned;
 
         internal delegate void NewLogEntryDelegate(FirewallLogWatcher sender, FirewallLogEntry entry);
         internal event NewLogEntryDelegate? NewLogEntry;
-
-        internal delegate void BlockedConnectionDelegate(
-            FirewallLogWatcher sender,
-            BlockedConnectionAuditEvent blockedConnection);
+        internal delegate void BlockedConnectionDelegate(FirewallLogWatcher sender, BlockedConnectionAuditEvent blockedConnection);
         internal event BlockedConnectionDelegate? BlockedConnection;
 
         internal FirewallLogWatcher()
         {
-            var query = new EventLogQuery(
-                "Security",
-                PathType.LogName,
-                "*[System[(EventID=5154 or EventID=5155 or EventID=5156 or EventID=5157 or EventID=5158 or EventID=5159)]]");
-            _logWatcher = new EventLogWatcher(query) { Enabled = false };
-            _logWatcher.EventRecordWritten += LogWatcherEventRecordWritten;
-
             try
             {
-                _logWatcher.Enabled = true;
-                try
-                {
-                    _failureAuditLease = AcquireAuditLease(AuditPolicyFlags.Failure);
-                }
-                catch (Exception exception)
-                {
-                    Utils.Log("Cannot enable filtering-platform failure auditing; service attribution will be degraded.", Utils.LOG_ID_SERVICE);
-                    Utils.LogException(exception, Utils.LOG_ID_SERVICE);
-                }
+                _failureAuditLease = AcquireAuditLease(AuditPolicyFlags.Failure);
+                _failureLeaseOwned = true;
             }
             catch (Exception exception)
             {
-                _logWatcher.EventRecordWritten -= LogWatcherEventRecordWritten;
-                _logWatcher.Dispose();
-                throw new InvalidOperationException("Cannot start the Windows Security event watcher.", exception);
+                Utils.Log("Cannot enable filtering-platform failure auditing; service attribution is unavailable.", Utils.LOG_ID_SERVICE);
+                Utils.LogException(exception, Utils.LOG_ID_SERVICE);
+            }
+            StartSubscription();
+        }
+
+        private void StartSubscription()
+        {
+            if (_health.Stopped) return;
+            try
+            {
+                var query = new EventLogQuery("Security", PathType.LogName,
+                    "*[System[(EventID=5154 or EventID=5155 or EventID=5156 or EventID=5157 or EventID=5158 or EventID=5159)]]");
+                var watcher = new EventLogWatcher(query);
+                if (!_lifetime.Attach(watcher)) { watcher.Dispose(); return; }
+                _logWatcher = watcher;
+                watcher.EventRecordWritten += LogWatcherEventRecordWritten;
+                // Set before enabling: a synchronous failure callback must win.
+                _health.Starting();
+                watcher.Enabled = true;
+            }
+            catch (Exception exception)
+            {
+                ReportSubscriptionFailure(_logWatcher, exception);
+            }
+        }
+
+        private void ReportSubscriptionFailure(object? sender, Exception exception)
+        {
+            if (sender != null && !_lifetime.Fail(sender)) return;
+            _health.Failed();
+            _subscriptionErrors.Record();
+            if (_subscriptionErrors.TryReport(DateTimeOffset.UtcNow, out long count))
+            {
+                Utils.Log("Windows Security event subscription failed (" + count +
+                    " failures since the previous report). Service attribution is unavailable; firewall enforcement is unchanged. Restart the service to restore attribution after correcting event access.", Utils.LOG_ID_SERVICE);
+                Utils.LogException(exception, Utils.LOG_ID_SERVICE);
             }
         }
 
@@ -64,67 +86,50 @@ namespace pylorak.TinyWall
             get => _learningEnabled;
             set
             {
-                if (value == _learningEnabled)
-                    return;
-
-                if (value)
+                lock (_lifecycle)
                 {
-                    _learningAuditLease = AcquireAuditLease(AuditPolicyFlags.Success);
-                    _learningEnabled = true;
-                }
-                else
-                {
-                    _learningEnabled = false;
-                    DisposeAuditLease(ref _learningAuditLease);
+                    if (_health.Stopped) throw new ObjectDisposedException(nameof(FirewallLogWatcher));
+                    if (value == _learningEnabled) return;
+                    if (value)
+                    {
+                        _learningAuditLease = AcquireAuditLease(AuditPolicyFlags.Success);
+                        _learningEnabled = true;
+                    }
+                    else
+                    {
+                        _learningEnabled = false;
+                        DisposeAuditLease(ref _learningAuditLease);
+                    }
                 }
             }
         }
 
-        internal bool AuditEnrichmentAvailable => _failureAuditLease != null;
+        internal bool AuditEnrichmentAvailable => _health.Available(_failureLeaseOwned);
 
         protected override void Dispose(bool disposing)
         {
-            if (IsDisposed)
-                return;
-
-            if (disposing)
+            EventLogWatcher? watcher = null;
+            _lifetime.Stop(() =>
             {
-                try
-                {
-                    _logWatcher.Enabled = false;
-                    _logWatcher.EventRecordWritten -= LogWatcherEventRecordWritten;
-                    _logWatcher.Dispose();
-                }
-                catch (Exception exception)
-                {
-                    Utils.Log("Cannot stop the Windows Security event watcher cleanly.", Utils.LOG_ID_SERVICE);
-                    Utils.LogException(exception, Utils.LOG_ID_SERVICE);
-                }
-            }
-
-            _learningEnabled = false;
-            // LIFO: the inner (learning) lease restores the outer lease's live value, so the outer must dispose last.
-            // Each dispose has its own guard so a throw from one lease never skips the other.
-            try
+                _health.Stop();
+                _learningEnabled = false;
+                _failureLeaseOwned = false;
+                watcher = _logWatcher;
+                _logWatcher = null;
+                if (watcher != null) watcher.EventRecordWritten -= LogWatcherEventRecordWritten;
+            }, () =>
             {
-                DisposeAuditLease(ref _learningAuditLease);
-            }
-            catch (Exception exception)
-            {
-                Utils.Log("Cannot restore the previous filtering-platform audit policy (learning lease).", Utils.LOG_ID_SERVICE);
-                Utils.LogException(exception, Utils.LOG_ID_SERVICE);
-            }
-            try
-            {
-                DisposeAuditLease(ref _failureAuditLease);
-            }
-            catch (Exception exception)
-            {
-                Utils.Log("Cannot restore the previous filtering-platform audit policy (failure lease).", Utils.LOG_ID_SERVICE);
-                Utils.LogException(exception, Utils.LOG_ID_SERVICE);
-            }
-
-            base.Dispose(disposing);
+                // EventLogWatcher.Dispose waits for callbacks. A callback may be waiting
+                // for LearningNewExceptions while a policy transition takes _lifecycle.
+                // The lifetime seam releases that lock before entering this drain.
+                try { watcher?.Dispose(); }
+                catch (Exception exception) { Utils.LogException(exception, Utils.LOG_ID_SERVICE); }
+                try { DisposeAuditLease(ref _learningAuditLease); }
+                catch (Exception exception) { Utils.LogException(exception, Utils.LOG_ID_SERVICE); }
+                try { DisposeAuditLease(ref _failureAuditLease); }
+                catch (Exception exception) { Utils.LogException(exception, Utils.LOG_ID_SERVICE); }
+                base.Dispose(disposing);
+            });
         }
 
         private void LogWatcherEventRecordWritten(object? sender, EventRecordWrittenEventArgs eventArgs)
@@ -132,37 +137,39 @@ namespace pylorak.TinyWall
             EventRecord? record = eventArgs.EventRecord;
             try
             {
-                if (eventArgs.EventException != null || record == null)
+                if (!_lifetime.Accept(sender)) return;
+                if (eventArgs.EventException != null)
+                {
+                    ReportSubscriptionFailure(sender, eventArgs.EventException);
                     return;
-
+                }
+                if (record == null || !_health.SubscriptionAvailable) return;
                 IReadOnlyDictionary<string, string> fields = ReadNamedFields(record);
                 DateTimeOffset timestamp = record.TimeCreated.HasValue
-                    ? new DateTimeOffset(record.TimeCreated.Value)
-                    : DateTimeOffset.UtcNow;
-
+                    ? new DateTimeOffset(record.TimeCreated.Value) : DateTimeOffset.UtcNow;
                 if (record.Id == 5157 &&
                     SecurityEvent5157Parser.TryParse(fields, timestamp.ToUniversalTime(), out BlockedConnectionAuditEvent parsed))
                 {
                     BlockedConnectionAuditEvent normalized = Normalize(parsed);
-                    BlockedConnection?.Invoke(this, normalized);
-                    if (_learningEnabled)
-                        NewLogEntry?.Invoke(this, ToFirewallLogEntry(normalized));
+                    if (_lifetime.Accept(sender) && AuditEnrichmentAvailable) BlockedConnection?.Invoke(this, normalized);
+                    if (_lifetime.Accept(sender) && _learningEnabled) NewLogEntry?.Invoke(this, ToFirewallLogEntry(normalized));
                     return;
                 }
-
-                if (_learningEnabled && TryParseLearningEntry(record.Id, fields, timestamp, out FirewallLogEntry entry))
+                if (_lifetime.Accept(sender) && _learningEnabled && TryParseLearningEntry(record.Id, fields, timestamp, out FirewallLogEntry entry))
                     NewLogEntry?.Invoke(this, entry);
             }
             catch (Exception exception)
             {
-                Utils.LogException(exception, Utils.LOG_ID_SERVICE);
+                if (!_lifetime.Accept(sender)) return;
+                _recordErrors.Record();
+                if (_recordErrors.TryReport(DateTimeOffset.UtcNow, out long count))
+                {
+                    Utils.Log("Could not process " + count + " Security event records since the previous report.", Utils.LOG_ID_SERVICE);
+                    Utils.LogException(exception, Utils.LOG_ID_SERVICE);
+                }
             }
-            finally
-            {
-                record?.Dispose();
-            }
+            finally { record?.Dispose(); }
         }
-
         private static IReadOnlyDictionary<string, string> ReadNamedFields(EventRecord record)
         {
             XDocument document = XDocument.Parse(record.ToXml(), LoadOptions.None);

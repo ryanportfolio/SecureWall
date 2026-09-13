@@ -14,6 +14,11 @@
       Link="Prompting\%(Filename)%(Extension)" />
     <Compile Include="..\..\TinyWall\AuditPolicyLease.cs" Link="AuditPolicyLease.cs" />
     <Compile Include="..\..\TinyWall\AtomicFileWriter.cs" Link="AtomicFileWriter.cs" />
+    <Compile Include="..\..\pylorak.Utilities\AtomicFileReplacement.cs" Link="AtomicFileReplacement.cs" />
+    <Compile Include="..\..\pylorak.Utilities\AtomicFileUpdater.cs" Link="AtomicFileUpdater.cs" />
+    <Compile Include="..\..\TinyWall\HostsFileManager.cs" Link="HostsFileManager.cs" />
+    <Compile Include="..\..\pylorak.Utilities\FileLocker.cs" Link="FileLocker.cs" />
+    <Compile Include="..\..\pylorak.Utilities\Disposable.cs" Link="Disposable.cs" />
   </ItemGroup>
 
   <!--

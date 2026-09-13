@@ -18,7 +18,13 @@ The installer copies the complete runtime, installs and starts the LocalSystem s
 
 Alpha installers are unsigned. Windows may show an unknown-publisher warning. Verify the MSI against the release's `SHA256SUMS.txt` before running it. Real WFP, reboot, and audit-policy behavior remains unverified until the matrices in [docs/TESTING.md](docs/TESTING.md) and [docs/HARDENING-VALIDATION.md](docs/HARDENING-VALIDATION.md) are complete.
 
-The hardening design keeps a persistent baseline that denies everything except DHCP and DNS, and loads all other permissions into the service's dynamic WFP session. Service loss therefore interrupts networking, apart from address leases and name resolution, until protection restarts or SecureWall is explicitly removed. Extracted bundles are not supported install locations; privileged registration requires a protected Program Files tree.
+The persistent and boot-time baseline denies all non-loopback traffic, including DNS and DHCP. It contains no recovery permits. All runtime policy, including saved allows, belongs to the service's dynamic WFP session. Service loss or startup failure withdraws runtime permissions and leaves strict external denial until the service successfully restores policy or explicit removal completes.
+
+Address renewal and name resolution can fail during this interval; recovery requires a local console. Extracted bundles are not supported install locations; privileged registration requires a protected Program Files tree.
+
+The MSI stores `profiles.json` and `hosts.bck` in `INSTALLDIR/data-defaults`. Its SYSTEM `/install` entry validates the machine-data tree before copying either absent default into `%ProgramData%\SecureWall`. Unsafe ownership, write permissions or reparse paths cause rejection without repairing or overwriting the existing tree. The default Windows Update profile retains the `wuauserv` service exception and removes the executable-wide `svchost.exe` web permission. Windows Update compatibility remains a VM test.
+
+SecureWall has no binary update feed. These source changes do not establish that it is safe to replace an existing firewall.
 
 ## Intended prompt behavior
 
@@ -48,3 +54,9 @@ SecureWall is based on TinyWall 3.5.1, pinned to upstream commit `1df71b146d01d7
 The firewall application and this combined work are licensed under GNU GPL version 3; see [LICENSE](LICENSE). Starter automation retained in `.claude/`, `.agents/`, and `.codex/` remains under its separately preserved terms in [LICENSES/STARTER-MIT.txt](LICENSES/STARTER-MIT.txt) and any per-skill notices.
 
 SecureWall is not TinyWall and is not endorsed by TinyWall's author.
+
+### Installation recovery and logs
+
+A clean TinyWall-only migration requires uninstalling TinyWall and rebooting before installing SecureWall. A previous SecureWall build may leave an unsafe `%ProgramData%\SecureWall` tree that this version must reject. Generic MSI failure can indicate that rejection. Stop, preserve the directory and installer diagnostics, and use trusted manual recovery from a local console. Do not change ACLs or blindly restore writable legacy configuration to bypass validation. See [legacy data and controller recovery](docs/SECURITY.md#legacy-data-and-controller-recovery) for the migration boundary and MSI diagnostic limit.
+
+The controller can request a start of an existing validated service. Missing services require MSI recovery through full removal and fresh installation; controller startup does not install a service. Ordinary interactive controller logs are in `%LocalAppData%\SecureWall\logs`; elevated controller and service/installer logs remain under guarded `%ProgramData%\SecureWall\logs`.

@@ -182,6 +182,21 @@ namespace pylorak.TinyWall.Prompting
             }
         }
 
+        // Shared only with the service's candidate publication/reset boundary.
+        internal object SyncRoot => _guard;
+        internal void Clear()
+        {
+            lock (_guard)
+            {
+                // Allow's policy callback can replace policy and clear this queue.
+                // Its captured entry must remain safe to remove when that callback returns.
+                foreach (Entry entry in _byToken.Values) entry.QueueNode = null;
+                _byToken.Clear();
+                _byIdentity.Clear();
+                _fifo.Clear();
+            }
+        }
+
         internal PromptActionResult Allow(Guid token) => Allow(token, _ => true);
 
         internal PromptActionResult Allow(

@@ -6,6 +6,16 @@ internal static class LifecycleHardeningTests
 {
     internal static IEnumerable<(string Name, Action Test)> Cases => new (string, Action)[]
     {
+        ("controller repair requires SYSTEM installation and authenticates existing service", ControllerRepair),
+        ("log routing isolates privileged destinations and guard failures", LogDestinations),
+        ("controller repair and log adapters preserve security wiring", ControllerAdapterWiring),
+        ("machine data rejects untrusted ownership and unrestricted DACL", MachineDataOwnership),
+        ("machine data rejects write delete and inheritable mutation grants", MachineDataPermissions),
+        ("machine data checks ancestors and rejects reparse paths", MachineDataAncestors),
+        ("machine data creation verifies raced existing tree without repair", MachineDataCreation),
+        ("machine data traversal tolerates vanished descendants under authenticated parents", MachineDataDisappearance),
+        ("machine data traversal propagates unsafe child and parent failures", MachineDataTraversalFailures),
+        ("machine data traversal fails for absent roots and unvalidated branches", MachineDataTraversalRoot),
         ("firewall recovery preserves every profile combination", ProfilesRoundTrip),
         ("firewall ownership rejects product substring and foreign grouping", ExactOwnership),
         ("firewall journal survives repeated acquisition and restart", RestartPreservesOriginal),
@@ -29,6 +39,220 @@ internal static class LifecycleHardeningTests
     private static void Check(bool condition)
     {
         if (!condition) throw new InvalidOperationException("Lifecycle assertion failed.");
+    }
+
+    private static void ControllerRepair()
+    {
+        foreach (bool installing in new[] { false, true })
+        foreach (bool system in new[] { false, true })
+        {
+            bool allowed = ControllerRepairPolicy.MayInstall(installing, system);
+            Check(allowed == (installing && system));
+            ControllerRepairPolicy.RequireExistingOrInstaller(true, allowed);
+            if (allowed) ControllerRepairPolicy.RequireExistingOrInstaller(false, allowed);
+            else Fails(() => ControllerRepairPolicy.RequireExistingOrInstaller(false, allowed));
+        }
+        const string executable = @"C:\Program Files\SecureWall\SecureWall.exe";
+        foreach (string suffix in new[] { "", " /service" })
+            ControllerRepairPolicy.RequireRegistration("\"" + executable + "\"" + suffix, executable, "LocalSystem", 0x10);
+        foreach (string account in new[] { "", "LocalService", @"NT AUTHORITY\NetworkService", @"domain\admin" })
+            Fails(() => ControllerRepairPolicy.RequireRegistration("\"" + executable + "\"", executable, account, 0x10));
+        foreach (int type in new[] { 0, 0x20, 0x110 })
+            Fails(() => ControllerRepairPolicy.RequireRegistration("\"" + executable + "\"", executable, "LocalSystem", type));
+        foreach (string image in new[] { executable, "\"C:\\Temp\\SecureWall.exe\"", "\"" + executable + "\" /install" })
+            Fails(() => ControllerRepairPolicy.RequireRegistration(image, executable, "LocalSystem", 0x10));
+    }
+
+    private static void LogDestinations()
+    {
+        for (int bits = 0; bits < 32; bits++)
+            Check(LogDestinationPolicy.RequiresMachineData((bits & 1) != 0, (bits & 2) != 0,
+                (bits & 4) == 0, (bits & 8) != 0, (bits & 16) != 0) == (bits != 0));
+        string fixture = Path.Combine(Path.GetTempPath(), "SecureWall-log-routing-" + Guid.NewGuid().ToString("N"));
+        string machine = Path.Combine(fixture, "machine");
+        string user = Path.Combine(fixture, "user");
+        Check(LogDestinationPolicy.DirectoryPath(true, () => machine, () => throw new Exception("User path evaluated")) == Path.Combine(machine, "logs"));
+        Check(LogDestinationPolicy.DirectoryPath(false, () => throw new Exception("Machine guard evaluated"), () => user) == Path.Combine(user, "SecureWall", "logs"));
+        var rejected = new UnauthorizedAccessException("Unsafe machine tree");
+        ThrowsSame(rejected, () => LogDestinationPolicy.DirectoryPath(true, () => throw rejected,
+            () => throw new Exception("Privileged fallback to user data")));
+    }
+
+    private static void ControllerAdapterWiring()
+    {
+        DirectoryInfo? root = new DirectoryInfo(AppContext.BaseDirectory);
+        while (root != null && !File.Exists(Path.Combine(root.FullName, "TinyWall", "TinyWallDoctor.cs"))) root = root.Parent;
+        Check(root != null);
+        string Read(string file) => File.ReadAllText(Path.Combine(root!.FullName, "TinyWall", file));
+        string doctor = Read("TinyWallDoctor.cs");
+        int begin = doctor.IndexOf("internal static bool EnsureServiceInstalledAndRunning", StringComparison.Ordinal);
+        string repair = doctor.Substring(begin, doctor.IndexOf("internal static int Uninstall()", begin, StringComparison.Ordinal) - begin);
+        Check(!repair.Contains("\"/install\""));
+        Check(repair.Contains("if (installing) InstallationSafety.RequireSystemMaintenance();"));
+        Check(repair.Contains("if (mayInstall)"));
+        Check(repair.Contains("ValidateRegisteredServiceImage(true);"));
+        Check(repair.IndexOf("RequireExistingOrInstaller", StringComparison.Ordinal) < repair.IndexOf("Utils.StartProcess", StringComparison.Ordinal));
+        Check(repair.IndexOf("RequireServiceNotPendingDeletion();", StringComparison.Ordinal) < repair.IndexOf("Utils.StartProcess", StringComparison.Ordinal));
+        Check(repair.Contains("Environment.SpecialFolder.System), \"sc.exe\""));
+        Check(repair.Contains("\"start \" + TinyWallService.SERVICE_NAME, true, true"));
+        Check(repair.Contains("sc.WaitForStatus(ServiceControllerStatus.Running, ServiceLifecyclePolicy.StartupTimeout)"));
+        Check(doctor.Contains("service.GetValue(\"ObjectName\")") && doctor.Contains("service.GetValue(\"Type\")"));
+        string utils = Read("Utils.cs");
+        Check(utils.Contains("WindowsIdentity.GetCurrent(true)"));
+        Check(utils.Contains("Installer.MachineDataGuard.Require(); return Installer.MachineDataGuard.PathName;"));
+        Check(utils.Contains("Environment.SpecialFolder.LocalApplicationData"));
+        Check(utils.Contains("fi.Length > 512 * 1024"));
+        Check(utils.Contains("!Environment.UserInteractive || identity.IsSystem") && utils.Contains("process.SessionId == 0"));
+        string program = Read("Program.cs");
+        Check(program.Contains("Installer.InstallationSafety.RequireSystemMaintenance();"));
+        Check(program.Contains("if (!maintenance) Utils.ShowControllerFailure(diagnostic);"));
+    }
+
+    private static void MachineDataOwnership()
+    {
+        foreach (string owner in new[] { "S-1-5-18", "S-1-5-32-544", "S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464" })
+            MachineDataPolicy.Require(owner, false, false, false, Array.Empty<MachineDataPolicy.Grant>());
+        Fails(() => MachineDataPolicy.Require("S-1-5-21-1-2-3-1001", false, false, false, Array.Empty<MachineDataPolicy.Grant>()));
+        Fails(() => MachineDataPolicy.Require("S-1-5-18", false, true, false, Array.Empty<MachineDataPolicy.Grant>()));
+    }
+
+    private static void MachineDataPermissions()
+    {
+        foreach (uint right in new uint[] { 2, 4, 16, 256, 64, 0x10000, 0x40000, 0x80000, 0x10000000, 0x40000000 })
+        {
+            foreach (bool inheritOnly in new[] { false, true })
+                Fails(() => MachineDataPolicy.Require("S-1-5-18", false, false, false,
+                    new[] { new MachineDataPolicy.Grant("S-1-5-32-545", right, true, inheritOnly) }));
+            MachineDataPolicy.Require("S-1-5-18", false, false, false,
+                new[] { new MachineDataPolicy.Grant("S-1-5-32-544", right) });
+        }
+        MachineDataPolicy.Require("S-1-5-18", false, false, false,
+            new[] { new MachineDataPolicy.Grant("S-1-5-32-545", 0x1200a9), new MachineDataPolicy.Grant("S-1-1-0", 0x1f01ff, false) });
+    }
+
+    private static void MachineDataAncestors()
+    {
+        foreach (bool ancestor in new[] { false, true })
+            Fails(() => MachineDataPolicy.Require("S-1-5-18", true, false, ancestor, Array.Empty<MachineDataPolicy.Grant>()));
+        // ProgramData may grant creation of siblings, but never deletion of our child.
+        MachineDataPolicy.Require("S-1-5-18", false, false, true,
+            new[] { new MachineDataPolicy.Grant("S-1-5-32-545", 2 | 4) });
+        Fails(() => MachineDataPolicy.Require("S-1-5-18", false, false, true,
+            new[] { new MachineDataPolicy.Grant("S-1-5-32-545", 64) }));
+        int mutations = 0;
+        Fails(() => MachineDataPolicy.Prepare(() => throw new InvalidOperationException(), () => false,
+            true, () => mutations++, () => mutations++));
+        Check(mutations == 0);
+    }
+
+    private static void MachineDataCreation()
+    {
+        var steps = new List<string>();
+        MachineDataPolicy.Prepare(() => steps.Add("ancestors"), () => false, true,
+            () => steps.Add("create protected"), () => steps.Add("verify tree"));
+        Check(steps.SequenceEqual(new[] { "ancestors", "create protected", "verify tree" }));
+        steps.Clear();
+        Fails(() => MachineDataPolicy.Prepare(() => { }, () => true, true,
+            () => steps.Add("repair"), () => throw new InvalidOperationException("Unsafe existing tree")));
+        Check(steps.Count == 0);
+        Fails(() => MachineDataPolicy.Prepare(() => { }, () => false, false,
+            () => steps.Add("create"), () => steps.Add("verify")));
+        Check(steps.Count == 0);
+        Fails(() => MachineDataPolicy.Prepare(() => { }, () => false, true,
+            () => steps.Add("attempt create"), () => throw new InvalidOperationException("Attacker won creation race")));
+        Check(steps.SequenceEqual(new[] { "attempt create" }));
+    }
+
+    private static void MachineDataDisappearance()
+    {
+        foreach (bool atEnumeration in new[] { false, true })
+        foreach (Exception missing in new Exception[] { new FileNotFoundException(), new DirectoryNotFoundException() })
+        {
+            var inspected = new List<string>();
+            var enumerated = new List<string>();
+            MachineDataPolicy.CheckTree("root", path =>
+            {
+                inspected.Add(path);
+                if (path == "temporary" && !atEnumeration) throw missing;
+                MachineDataPolicy.Require("S-1-5-18", false, false, false, Array.Empty<MachineDataPolicy.Grant>());
+                return path != "stable";
+            }, path =>
+            {
+                // Every enumeration must follow successful authentication.
+                Check(inspected.Last() == path);
+                enumerated.Add(path);
+                if (path == "temporary") throw missing;
+                return path == "root" ? new[] { "branch" } : new[] { "temporary", "stable" };
+            });
+            Check(inspected.SequenceEqual(new[] { "root", "branch", "temporary", "branch", "stable", "root" }));
+            Check(enumerated.SequenceEqual(atEnumeration ? new[] { "root", "branch", "temporary" } : new[] { "root", "branch" }));
+        }
+    }
+
+    private static void ThrowsSame(Exception expected, Action action)
+    {
+        try { action(); }
+        catch (Exception actual) when (ReferenceEquals(actual, expected)) { return; }
+        throw new Exception("Expected original traversal failure.");
+    }
+
+    private static void MachineDataTraversalFailures()
+    {
+        foreach (bool atEnumeration in new[] { false, true })
+        foreach (Exception failure in new Exception[] { new UnauthorizedAccessException(),
+            new System.Security.SecurityException(), new IOException("Other IO failure"), new InvalidOperationException() })
+        {
+            ThrowsSame(failure, () => MachineDataPolicy.CheckTree("root", path =>
+            {
+                if (path == "child" && !atEnumeration) throw failure;
+                return true;
+            }, path => path == "root" ? new[] { "child" } : throw failure));
+        }
+        foreach (int unsafeKind in new[] { 0, 1, 2, 3 })
+        {
+            Fails(() => MachineDataPolicy.CheckTree("root", path =>
+            {
+                if (path == "child")
+                    MachineDataPolicy.Require(unsafeKind == 0 ? "untrusted" : "S-1-5-18",
+                        unsafeKind == 1, unsafeKind == 2, false,
+                        unsafeKind == 3 ? new[] { new MachineDataPolicy.Grant("S-1-5-32-545", 2) } : Array.Empty<MachineDataPolicy.Grant>());
+                return true;
+            }, path => path == "root" ? new[] { "child" } : throw new Exception("Unsafe branch enumerated.")));
+        }
+        foreach (Exception parentFailure in new Exception[] { new FileNotFoundException(),
+            new DirectoryNotFoundException(), new UnauthorizedAccessException() })
+        {
+            int parentChecks = 0;
+            ThrowsSame(parentFailure, () => MachineDataPolicy.CheckTree("root", path =>
+            {
+                if (path == "child") throw new FileNotFoundException();
+                if (path == "branch" && ++parentChecks == 2) throw parentFailure;
+                return true;
+            }, path => path == "root" ? new[] { "branch" } : new[] { "child" }));
+        }
+    }
+
+    private static void MachineDataTraversalRoot()
+    {
+        foreach (Exception missing in new Exception[] { new FileNotFoundException(), new DirectoryNotFoundException() })
+        {
+            ThrowsSame(missing, () => MachineDataPolicy.CheckTree("root", _ => throw missing,
+                _ => throw new Exception("Unvalidated root enumerated.")));
+            ThrowsSame(missing, () => MachineDataPolicy.CheckTree("root", _ => true, _ => throw missing));
+            int inspections = 0;
+            ThrowsSame(missing, () => MachineDataPolicy.CheckTree("root", _ => ++inspections == 1 ? true : throw missing,
+                _ => Array.Empty<string>()));
+        }
+        Fails(() => MachineDataPolicy.CheckTree("root", _ => false,
+            _ => throw new Exception("File root enumerated.")));
+        int branchEnumerations = 0;
+        MachineDataPolicy.CheckTree("root", path => path == "root" ? true : throw new DirectoryNotFoundException(),
+            path =>
+            {
+                if (path != "root") branchEnumerations++;
+                return new[] { "missing branch" };
+            });
+        Check(branchEnumerations == 0);
     }
 
     private static void Fails(Action action)

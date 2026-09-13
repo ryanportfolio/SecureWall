@@ -1294,17 +1294,6 @@
             "LocalNetworkOnly": false,
             "AllowedRemoteTcpConnectPorts": "*"
           }
-        },
-        {
-          "Subject": {
-            "SubjectType": 2,
-            "ExecutablePath": "{folder:sys32}\\svchost.exe"
-          },
-          "Policy": {
-            "PolicyType": 3,
-            "LocalNetworkOnly": false,
-            "AllowedRemoteTcpConnectPorts": "443,80"
-          }
         }
       ],
       "Flags": {

@@ -62,6 +62,9 @@ namespace pylorak.TinyWall
         public bool Locked = false;
         public UpdateDescriptor? Update = null;
         public FirewallMode Mode = FirewallMode.Unknown;
+        public bool AttributionAvailable = false;
+        public long DroppedPromptCandidates = 0;
+        public long DroppedPrompts = 0;
         public List<MessageType> ClientNotifs = new();
 
         public JsonTypeInfo<ServerState> GetJsonTypeInfo()
