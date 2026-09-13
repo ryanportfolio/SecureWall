@@ -52,6 +52,11 @@ namespace pylorak.TinyWall
         private readonly PromptableFilterSet PromptableFilterIds = new();
         private readonly PromptQueue BlockedPromptQueue = new(SystemClock.Instance);
         private readonly DropCandidateBuffer DropCandidates = new(SystemClock.Instance);
+        private readonly CorrelatedDropBatch CorrelatedDrops;
+        private readonly CoalescedDiagnostic CandidateOverflows = new();
+        private readonly CoalescedDiagnostic PromptOverflows = new();
+        private readonly CoalescedDiagnostic ServiceSnapshotErrors = new();
+        private readonly CoalescedDiagnostic UnavailableVolumeRules = new();
         private readonly ServiceExecutableCatalog ServiceExecutables = new();
 
         // Context for auto rule inheritance
@@ -277,13 +282,6 @@ namespace pylorak.TinyWall
                 }   // if (ChildInheritance ...
             }
 
-            // Convert all paths to kernel-format
-            foreach (var r in rules)
-            {
-                if (r.Application is not null)
-                    r.Application = PathMapper.Instance.ConvertPathIgnoreErrors(r.Application, PathFormat.NativeNt);
-            }
-
             bool displayBlockActive = PolicyConfiguration.ActiveProfile.DisplayOffBlock && !DisplayCurrentlyOn;
             if (displayBlockActive)
             {
@@ -302,6 +300,20 @@ namespace pylorak.TinyWall
 
         private List<ulong> InstallRules(List<RuleDef> rules, List<RuleDef> rawSocketExceptions, bool useTransaction)
         {
+            // Ordinary, raw-socket and incremental child rules share this boundary.
+            List<RuleDef> Normalize(List<RuleDef> source) => EnforcementPolicy.NormalizeRules(source,
+                rule => rule.Application, (rule, path) => rule.Application = path,
+                path => PathMapper.Instance.ConvertPath(path.AsSpan(), PathFormat.NativeNt), path =>
+                {
+                    UnavailableVolumeRules.Record();
+                    if (UnavailableVolumeRules.TryReport(DateTimeOffset.UtcNow, out long count))
+                        Utils.Log("Skipped " + count + " rules with unavailable volumes since the previous report. " +
+                            "Saved rules are retained and retried on reload. Example: " + path.Substring(0, Math.Min(path.Length, 256)),
+                            Utils.LOG_ID_SERVICE);
+                });
+            rules = Normalize(rules);
+            rawSocketExceptions = Normalize(rawSocketExceptions);
+
             var promptableFilterIds = new List<ulong>();
             Transaction? trx = useTransaction ? WfpEngine.BeginTransaction() : null;
             var addedKeys = useTransaction ? new List<Guid>() : PendingRuntimeFilterKeys;
@@ -346,6 +358,7 @@ namespace pylorak.TinyWall
         private void InstallFirewallRules()
         {
             using var timer = new HierarchicalStopwatch("InstallFirewallRules()");
+            ResetPromptCandidates(revokeTokens: false);
             PathMapper.Instance.RebuildCache();
             lock (InheritanceGuard)
             {
@@ -376,8 +389,12 @@ namespace pylorak.TinyWall
                     committed = true;
                     RuntimeFilterKeys.Clear();
                     RuntimeFilterKeys.AddRange(candidateKeys);
-                    PromptableFilterIds.Replace(PolicyMode == FirewallMode.Normal
-                        ? newPromptableFilterIds : Array.Empty<ulong>());
+                    lock (BlockedPromptQueue.SyncRoot)
+                    {
+                        ResetPromptCandidates();
+                        PromptableFilterIds.Replace(PolicyMode == FirewallMode.Normal
+                            ? newPromptableFilterIds : Array.Empty<ulong>());
+                    }
                     LastRuleReloadTime = DateTime.Now;
                 }
                 finally
@@ -457,33 +474,6 @@ namespace pylorak.TinyWall
                 }, true);
             }
 
-            // DHCP and DNS survive without the dynamic session. Weight sits above the
-            // recovery deny and below every runtime filter, so these are inert while the
-            // service runs (default block, BlockAll and user blocks all outrank them).
-            foreach (RecoveryPermitRule rule in EnforcementPolicy.RecoveryPermitRules())
-            {
-                LayerKeyEnum layer = rule.Inbound
-                    ? (rule.IsIPv6 ? LayerKeyEnum.FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6 : LayerKeyEnum.FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4)
-                    : (rule.IsIPv6 ? LayerKeyEnum.FWPM_LAYER_ALE_AUTH_CONNECT_V6 : LayerKeyEnum.FWPM_LAYER_ALE_AUTH_CONNECT_V4);
-                using var filter = new Filter(rule.Name, string.Empty,
-                    SECUREWALL_PROVIDER_KEY, FilterActions.FWP_ACTION_PERMIT,
-                    EnforcementPolicy.RecoveryPermitWeight((ulong)FilterWeights.DefaultBlock));
-                filter.LayerKey = GetLayerKey(layer);
-                filter.SublayerKey = GetSublayerKey(layer);
-                filter.Conditions.Add(new ProtocolFilterCondition(rule.IpProtocol));
-                if (rule.LocalPort.HasValue)
-                    filter.Conditions.Add(new PortFilterCondition(rule.LocalPort.Value, RemoteOrLocal.Local));
-                if (rule.RemotePort.HasValue)
-                    filter.Conditions.Add(new PortFilterCondition(rule.RemotePort.Value, RemoteOrLocal.Remote));
-                WfpFilterPairRegistration.Register(lifetime =>
-                {
-                    filter.FilterKey = Guid.NewGuid();
-                    filter.Flags = lifetime == WfpFilterLifetime.Persistent
-                        ? FilterFlags.FWPM_FILTER_FLAG_PERSISTENT : FilterFlags.FWPM_FILTER_FLAG_BOOTTIME;
-                    baseline.RegisterFilter(filter);
-                    return filter.FilterId;
-                }, true);
-            }
             transaction.Commit();
             BaselineInstalled = true;
         }
@@ -1143,13 +1133,13 @@ namespace pylorak.TinyWall
 
         private static ServerConfiguration LoadServerConfig()
         {
-            try
-            {
-                return ServerConfiguration.Load(ConfigSavePath);
-            }
-            catch { }
+            return EnforcementPolicy.LoadConfiguration(
+                () => File.GetAttributes(ConfigSavePath),
+                () => ServerConfiguration.Load(ConfigSavePath), CreateDefaultServerConfig);
+        }
 
-            // Load from file failed, prepare default config instead
+        private static ServerConfiguration CreateDefaultServerConfig()
+        {
             var ret = new ServerConfiguration { ActiveProfileName = Resources.Messages.Default };
 
             // Allow recommended exceptions
@@ -1359,7 +1349,7 @@ namespace pylorak.TinyWall
                 FileLocker.Lock(DatabaseClasses.AppDatabase.DBPath, FileAccess.Read, FileShare.Read);
             }
             NotifyController(MessageType.DATABASE_UPDATED);
-            Q.Add(new TwRequest(TwMessageSimple.CreateRequest(MessageType.REINIT)));
+            InitFirewall();
         }
 
         private void NotifyController(MessageType msg)
@@ -1471,7 +1461,11 @@ namespace pylorak.TinyWall
                     () =>
                     {
                         ActiveConfig.Service = candidate;
-                        VisibleState.Mode = mode;
+                        lock (BlockedPromptQueue.SyncRoot)
+                        {
+                            ResetPromptCandidates();
+                            VisibleState.Mode = mode;
+                        }
                         GlobalInstances.ServerChangeset = Guid.NewGuid();
                     },
                     FailClosed,
@@ -1495,6 +1489,7 @@ namespace pylorak.TinyWall
         private void FailClosed()
         {
             RuntimeStopping = true;
+            ResetPromptCandidates(stop: true);
             RunService = false;
             if (!RuntimeSessionRevoked)
             {
@@ -1621,7 +1616,8 @@ namespace pylorak.TinyWall
                             .GetPending()
                             .Select(PromptWireDto.FromPrompt)
                             .ToArray();
-                        return args.CreateResponse(prompts);
+                        RefreshAttributionState();
+                        return args.CreateResponse(prompts, Utils.DeepClone(VisibleState));
                     }
                 case MessageType.DISMISS_PROMPT:
                     {
@@ -1716,6 +1712,7 @@ namespace pylorak.TinyWall
                 case MessageType.GET_SETTINGS:
                     {
                         var args = (TwMessageGetSettings)req;
+                        RefreshAttributionState();
 
                         // If our changeset is different from the client's, send new settings
                         if (args.Changeset != GlobalInstances.ServerChangeset)
@@ -1742,7 +1739,7 @@ namespace pylorak.TinyWall
                 case MessageType.RELOAD_WFP_FILTERS:
                     {
                         var args = (TwMessageSimple)req;
-                        InstallFirewallRules();
+                        EnvironmentalPolicyReload.Run(InstallFirewallRules, FailClosed);
                         return args.CreateResponse();
                     }
                 case MessageType.UNLOCK:
@@ -1809,10 +1806,7 @@ namespace pylorak.TinyWall
                             WfpEngine.CollectNetEvents = true;
 
                         // Check for inactivity and lock if necessary
-                        if (ControllerActivity.Expired)
-                        {
-                            Q.Add(new TwRequest(TwMessageSimple.CreateRequest(MessageType.LOCK)));
-                        }
+                        ControllerActivity.LockIfExpired(() => PasswordLock.Locked = true);
 
                         // Periodically reload all rules.
                         // This is needed to clear out temprary rules added due to child-process rule inheritance.
@@ -1823,7 +1817,7 @@ namespace pylorak.TinyWall
 
                         if (rule_reload_needed)
                         {
-                            InstallFirewallRules();
+                            EnvironmentalPolicyReload.Run(InstallFirewallRules, FailClosed);
                         }
 
                         // Check for updates once every 2 days
@@ -1838,8 +1832,11 @@ namespace pylorak.TinyWall
                 case MessageType.REENUMERATE_ADDRESSES:
                     {
                         var args = (TwMessageSimple)req;
-                        if (ReenumerateAdresses())  // returns true if anything changed
-                            InstallFirewallRules();
+                        EnvironmentalPolicyReload.Run(() =>
+                        {
+                            if (ReenumerateAdresses())  // returns true if anything changed
+                                InstallFirewallRules();
+                        }, FailClosed);
                         return args.CreateResponse();
                     }
                 case MessageType.DISPLAY_POWER_EVENT:
@@ -1847,8 +1844,11 @@ namespace pylorak.TinyWall
                         var args = (TwMessageDisplayPowerEvent)req;
                         if (args.PowerOn != DisplayCurrentlyOn)
                         {
-                            DisplayCurrentlyOn = args.PowerOn;
-                            InstallFirewallRules();
+                            EnvironmentalPolicyReload.Run(() =>
+                            {
+                                DisplayCurrentlyOn = args.PowerOn;
+                                InstallFirewallRules();
+                            }, FailClosed);
                         }
                         return args.CreateResponse(args.PowerOn);
                     }
@@ -1866,51 +1866,50 @@ namespace pylorak.TinyWall
             // Use direct P/Invoke to GetAdaptersAddresses instead of
             // NetworkInterface.GetAllNetworkInterfaces() to avoid native memory leak
             // in iphlpapi!GetPerAdapterInfo -> DNSAPI!Dns_AllocZero (~15KB per call).
-            if (!NetworkAdapterEnumerator.EnumerateActiveAdapters(
-                out var unicastList, out var newGatewayAddresses, out var newDnsAddresses))
+            return EnvironmentalPolicyReload.EnumerationChanged(NetworkAdapterEnumerator.EnumerateActiveAdapters(
+                out var unicastList, out var newGatewayAddresses, out var newDnsAddresses), () =>
             {
-                return false;
-            }
 
-            foreach (var entry in unicastList)
-            {
-                if (entry.IsLoopback || entry.IsLinkLocal)
-                    continue;
+                foreach (var entry in unicastList)
+                {
+                    if (entry.IsLoopback || entry.IsLinkLocal)
+                        continue;
 
-                newLocalSubnetAddreses.Add(entry.Subnet);
-            }
+                    newLocalSubnetAddreses.Add(entry.Subnet);
+                }
 
-            newLocalSubnetAddreses.Add(new IpAddrMask(IPAddress.Parse("255.255.255.255")));
-            newLocalSubnetAddreses.Add(IpAddrMask.LinkLocal);
-            newLocalSubnetAddreses.Add(IpAddrMask.IPv6LinkLocal);
-            newLocalSubnetAddreses.Add(IpAddrMask.LinkLocalMulticast);
-            newLocalSubnetAddreses.Add(IpAddrMask.AdminScopedMulticast);
-            newLocalSubnetAddreses.Add(IpAddrMask.IPv6LinkLocalMulticast);
+                newLocalSubnetAddreses.Add(new IpAddrMask(IPAddress.Parse("255.255.255.255")));
+                newLocalSubnetAddreses.Add(IpAddrMask.LinkLocal);
+                newLocalSubnetAddreses.Add(IpAddrMask.IPv6LinkLocal);
+                newLocalSubnetAddreses.Add(IpAddrMask.LinkLocalMulticast);
+                newLocalSubnetAddreses.Add(IpAddrMask.AdminScopedMulticast);
+                newLocalSubnetAddreses.Add(IpAddrMask.IPv6LinkLocalMulticast);
 
-            bool ipConfigurationChanged =
-                !LocalSubnetAddreses.SetEquals(newLocalSubnetAddreses) ||
-                !GatewayAddresses.SetEquals(newGatewayAddresses) ||
-                !DnsAddresses.SetEquals(newDnsAddresses);
+                bool ipConfigurationChanged =
+                    !LocalSubnetAddreses.SetEquals(newLocalSubnetAddreses) ||
+                    !GatewayAddresses.SetEquals(newGatewayAddresses) ||
+                    !DnsAddresses.SetEquals(newDnsAddresses);
 
-            if (ipConfigurationChanged)
-            {
-                LocalSubnetAddreses = newLocalSubnetAddreses;
-                GatewayAddresses = newGatewayAddresses;
-                DnsAddresses = newDnsAddresses;
+                if (ipConfigurationChanged)
+                {
+                    LocalSubnetAddreses = newLocalSubnetAddreses;
+                    GatewayAddresses = newGatewayAddresses;
+                    DnsAddresses = newDnsAddresses;
 
-                LocalSubnetFilterConditions.Clear();
-                GatewayFilterConditions.Clear();
-                DnsFilterConditions.Clear();
+                    LocalSubnetFilterConditions.Clear();
+                    GatewayFilterConditions.Clear();
+                    DnsFilterConditions.Clear();
 
-                foreach (var addr in LocalSubnetAddreses)
-                    LocalSubnetFilterConditions.Add(new IpFilterCondition(addr.Address, (byte)addr.PrefixLen, RemoteOrLocal.Remote));
-                foreach (var addr in GatewayAddresses)
-                    GatewayFilterConditions.Add(new IpFilterCondition(addr.Address, (byte)addr.PrefixLen, RemoteOrLocal.Remote));
-                foreach (var addr in DnsAddresses)
-                    DnsFilterConditions.Add(new IpFilterCondition(addr.Address, (byte)addr.PrefixLen, RemoteOrLocal.Remote));
-            }
+                    foreach (var addr in LocalSubnetAddreses)
+                        LocalSubnetFilterConditions.Add(new IpFilterCondition(addr.Address, (byte)addr.PrefixLen, RemoteOrLocal.Remote));
+                    foreach (var addr in GatewayAddresses)
+                        GatewayFilterConditions.Add(new IpFilterCondition(addr.Address, (byte)addr.PrefixLen, RemoteOrLocal.Remote));
+                    foreach (var addr in DnsAddresses)
+                        DnsFilterConditions.Add(new IpFilterCondition(addr.Address, (byte)addr.PrefixLen, RemoteOrLocal.Remote));
+                }
 
-            return ipConfigurationChanged;
+                return ipConfigurationChanged;
+            });
         }
 
         internal static void DeleteWfpObjects(Engine wfp, bool removeLayersAndProvider)
@@ -1939,6 +1938,7 @@ namespace pylorak.TinyWall
 
         public TinyWallServer()
         {
+            CorrelatedDrops = new CorrelatedDropBatch(BlockedPromptQueue.SyncRoot, SystemClock.Instance);
             // Put back audit policy left behind by an unclean exit before any new
             // lease can journal over it. Registry only; MpsSvc is not needed.
             try
@@ -2230,7 +2230,12 @@ namespace pylorak.TinyWall
                         entry.RemoteIp!,
                         entry.RemotePort,
                         (byte)data.ipProtocol.Value);
-                    DropCandidates.TryAdd(candidate);
+                    CorrelatedDrops.TryAccept(() =>
+                    {
+                        if (!RuntimeStopping && VisibleState.Mode == FirewallMode.Normal &&
+                            PromptableFilterIds.Contains(candidate.FilterRuntimeId) && !DropCandidates.TryAdd(candidate))
+                            CandidateOverflows.Record();
+                    });
                 }
             }
             catch (Exception exception)
@@ -2243,36 +2248,87 @@ namespace pylorak.TinyWall
             FirewallLogWatcher sender,
             BlockedConnectionAuditEvent auditEvent)
         {
-            if (!DropCandidates.TryMatch(auditEvent, out DropCandidate? candidate) || candidate == null)
-                return;
-
-            IEnumerable<string> serviceNames = Array.Empty<string>();
-            try
+            // Event callback does no SCM work and never waits for a batch to finish.
+            CorrelatedDrops.TryAccept(() =>
             {
-                var servicePids = new ServicePidMap();
-                serviceNames = servicePids.GetServicesInPid(auditEvent.ProcessId);
-            }
-            catch (Exception exception)
-            {
-                Utils.LogException(exception, Utils.LOG_ID_SERVICE);
-            }
+                if (RuntimeStopping || VisibleState.Mode != FirewallMode.Normal || !sender.AuditEnrichmentAvailable) return;
+                if (DropCandidates.TryMatch(auditEvent, out DropCandidate? candidate) && candidate != null &&
+                    PromptableFilterIds.Contains(candidate.FilterRuntimeId))
+                    CorrelatedDrops.TryAdd(candidate, auditEvent);
+            });
+        }
 
-            FinalizeDropCandidate(candidate, auditEvent, serviceNames);
+        private void ResetPromptCandidates(bool stop = false, bool revokeTokens = true)
+        {
+            PromptCandidateLifecycle.Reset(BlockedPromptQueue, CorrelatedDrops, DropCandidates, stop, revokeTokens);
         }
 
         private void PromptCandidateTimerCallback(object? state)
         {
-            foreach (DropCandidate candidate in DropCandidates.DrainReady())
-                FinalizeDropCandidate(candidate, null, Array.Empty<string>());
+            CorrelatedDrops.Process(() => new ServicePidMap(requireStableIdentity: true),
+                exception =>
+                {
+                    ServiceSnapshotErrors.Record();
+                    if (ServiceSnapshotErrors.TryReport(DateTimeOffset.UtcNow, out long count))
+                    {
+                        Utils.Log("Service process attribution failed for " + count + " batches since the previous report.", Utils.LOG_ID_SERVICE);
+                        Utils.LogException(exception, Utils.LOG_ID_SERVICE);
+                    }
+                },
+                (candidate, audit, snapshot, unavailable) => PrepareDropCandidate(candidate, audit,
+                    unavailable ? Array.Empty<string>() : (IEnumerable<string>)snapshot.GetServicesInPid(audit.ProcessId),
+                    unavailable || snapshot.IsUncertain(audit.ProcessId)));
+            IReadOnlyList<DropCandidate> ready;
+            long generation;
+            lock (BlockedPromptQueue.SyncRoot)
+            {
+                generation = CorrelatedDrops.Generation;
+                ready = DropCandidates.DrainReady();
+            }
+            foreach (DropCandidate candidate in ready)
+            {
+                Action publish = PrepareDropCandidate(candidate, null, Array.Empty<string>());
+                CorrelatedDrops.Publish(generation, publish);
+            }
+            ReportOverflow(CandidateOverflows, "drop candidate");
+            ReportOverflow(CorrelatedDrops.Suppressed, "correlated drop (capacity or deadline)");
+            if (CorrelatedDrops.Contention.TryReport(DateTimeOffset.UtcNow, out long contention))
+                Utils.Log("Prompt admission skipped " + contention + " callbacks during queue lock contention. " +
+                    "Connections remain blocked.", Utils.LOG_ID_SERVICE);
+            ReportOverflow(PromptOverflows, "prompt");
         }
 
-        private void FinalizeDropCandidate(
+        private static void ReportOverflow(CoalescedDiagnostic diagnostic, string queue)
+        {
+            if (diagnostic.TryReport(DateTimeOffset.UtcNow, out long count))
+                Utils.Log("SecureWall " + queue + " queue suppressed " + count +
+                    " connections since the previous report. Connections remain blocked.", Utils.LOG_ID_SERVICE);
+        }
+
+        // Called on the service command thread; callback counters use their own synchronization.
+        private void RefreshAttributionState()
+        {
+            VisibleState.HasPassword = PasswordLock.HasPassword;
+            VisibleState.Locked = PasswordLock.Locked;
+            bool available = LogWatcher.AuditEnrichmentAvailable;
+            long candidates = CandidateOverflows.Total + CorrelatedDrops.Suppressed.Total;
+            long prompts = PromptOverflows.Total;
+            if (VisibleState.AttributionAvailable == available &&
+                VisibleState.DroppedPromptCandidates == candidates && VisibleState.DroppedPrompts == prompts) return;
+            VisibleState.AttributionAvailable = available;
+            VisibleState.DroppedPromptCandidates = candidates;
+            VisibleState.DroppedPrompts = prompts;
+        }
+
+        private Action PrepareDropCandidate(
             DropCandidate candidate,
             BlockedConnectionAuditEvent? auditEvent,
-            IEnumerable<string> serviceNames)
+            IEnumerable<string> serviceNames,
+            bool snapshotUncertain = false)
         {
-            if (VisibleState.Mode != FirewallMode.Normal)
-                return;
+            if (RuntimeStopping || VisibleState.Mode != FirewallMode.Normal ||
+                !PromptableFilterIds.Contains(candidate.FilterRuntimeId))
+                return () => { };
 
             try
             {
@@ -2283,16 +2339,21 @@ namespace pylorak.TinyWall
                     candidate,
                     auditEvent,
                     serviceNames,
-                    executableIsRegisteredService || !catalogAvailable);
-                BlockedPromptQueue.Enqueue(
-                    identity,
-                    candidate.RemoteAddress,
-                    candidate.RemotePort,
-                    candidate.Protocol);
+                    executableIsRegisteredService || !catalogAvailable,
+                    snapshotUncertain);
+                return () =>
+                {
+                    if (RuntimeStopping || VisibleState.Mode != FirewallMode.Normal ||
+                        !PromptableFilterIds.Contains(candidate.FilterRuntimeId)) return;
+                    PromptEnqueueResult result = BlockedPromptQueue.Enqueue(identity,
+                        candidate.RemoteAddress, candidate.RemotePort, candidate.Protocol);
+                    if (result.Status == PromptEnqueueStatus.CapacityReached) PromptOverflows.Record();
+                };
             }
             catch (Exception exception)
             {
                 Utils.LogException(exception, Utils.LOG_ID_SERVICE);
+                return () => { };
             }
         }
 
@@ -2389,6 +2450,7 @@ namespace pylorak.TinyWall
             using var timer = new HierarchicalStopwatch("TinyWallService.Dispose()");
             // Withdraw permits before any cleanup operation that may throw or wait for another thread.
             RuntimeStopping = true;
+            ResetPromptCandidates(stop: true);
             DisposeRuntimeSubscription();
             WfpEngine.Dispose();
             PromptableFilterIds.Replace(Array.Empty<ulong>());

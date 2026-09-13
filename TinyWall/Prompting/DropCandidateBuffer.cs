@@ -28,6 +28,8 @@ namespace pylorak.TinyWall.Prompting
             _enrichmentDelay = enrichmentDelay;
         }
 
+        internal void Clear() { lock (_guard) _entries.Clear(); }
+
         internal bool TryAdd(DropCandidate candidate)
         {
             if (candidate == null)

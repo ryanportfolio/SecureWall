@@ -17,9 +17,91 @@ internal static class ControllerHardeningTests
         ("AI reading pause cannot extend token validity", ReadingCannotExtendToken),
         ("AI endpoints require HTTPS and reject credentials query and fragment", AiRejectsUnsafeUrls),
         ("AI default payload identifies all disclosed fields without path or destination", AiPayloadDisclosure),
+        ("audit lease ownership cannot mask subscription loss or disposal", AuditHealth),
+        ("concurrent overflow counters retain counts and bound reports", DiagnosticCounts),
+        ("attribution and overload notifications share a bounded budget", DiagnosticNotifications),
+        ("admission contention is coalesced locally without overflow notifications", ContentionDiagnostics),
     };
 
     private static readonly DateTimeOffset Start = new(2026, 9, 5, 12, 0, 0, TimeSpan.Zero);
+
+    private static void AuditHealth()
+    {
+        var health = new AuditSubscriptionHealth();
+        Check(!health.Available(true));
+        health.Starting();
+        Check(health.SubscriptionAvailable && !health.Available(false) && health.Available(true));
+        health.Failed();
+        Check(!health.Available(true));
+        health.Starting();
+        Check(health.Available(true));
+        health.Stop();
+        Parallel.For(0, 1000, _ => { health.Starting(); health.Failed(); });
+        health.Starting();
+        Check(health.Stopped && !health.SubscriptionAvailable && !health.Available(true));
+    }
+
+    private static void DiagnosticCounts()
+    {
+        var diagnostic = new CoalescedDiagnostic();
+        Parallel.For(0, 10000, _ => diagnostic.Record());
+        Check(diagnostic.Total == 10000);
+        Check(diagnostic.TryReport(Start, out long count) && count == 10000);
+        Parallel.For(0, 10000, _ => diagnostic.Record());
+        for (int i = 0; i < 60; ++i)
+            Check(!diagnostic.TryReport(Start.AddSeconds(i), out _));
+        Check(diagnostic.TryReport(Start.AddMinutes(1), out count) && count == 10000);
+        Check(!diagnostic.TryReport(Start.AddMinutes(2), out _) && diagnostic.Total == 20000);
+    }
+
+    private static void DiagnosticNotifications()
+    {
+        var gate = new AttributionNotificationGate();
+        Check(gate.Update(true, 0, 0, Start) == null);
+        Check(gate.Update(false, 0, 0, Start) == AttributionStatusText.Unavailable);
+        for (int i = 1; i < 60; ++i)
+            Check(gate.Update(i % 2 == 0, i, i, Start.AddSeconds(i)) == null);
+        Check(gate.Update(false, 60, 60, Start.AddMinutes(1)) == AttributionStatusText.Unavailable);
+        Check(gate.Update(false, 60, 60, Start.AddMinutes(2)) == AttributionStatusText.Overflow);
+        Check(gate.Update(false, 60, 60, Start.AddMinutes(3)) == null);
+        Check(AttributionStatusText.Unavailable.Contains("Firewall enforcement is unchanged"));
+        Check(AttributionStatusText.Overflow.Contains("remain blocked"));
+    }
+
+    private static void ContentionDiagnostics()
+    {
+        object guard = new();
+        var batch = new CorrelatedDropBatch(guard, new DiagnosticClock(), 1);
+        var gate = new AttributionNotificationGate();
+        lock (guard)
+        {
+            bool accepted = false;
+            var callback = new Thread(() =>
+            {
+                for (int i = 0; i < 100; ++i) accepted |= batch.TryAccept(() => { });
+            }) { IsBackground = true };
+            callback.Start();
+            Check(callback.Join(3000) && !accepted);
+        }
+        Check(batch.Contention.Total == 100 && batch.Suppressed.Total == 0);
+        Check(batch.Contention.TryReport(Start, out long count) && count == 100);
+        batch.Contention.Record();
+        Check(!batch.Contention.TryReport(Start.AddSeconds(59), out _));
+        Check(batch.Contention.TryReport(Start.AddMinutes(1), out count) && count == 1);
+        Check(gate.Update(true, batch.Suppressed.Total, 0, Start) == null);
+        var candidate = new DropCandidate(Start, 42, @"C:\app.exe", null,
+            "192.0.2.1", 1234, "203.0.113.1", 443, 6);
+        var audit = new BlockedConnectionAuditEvent(Start, 77, candidate.ApplicationPath,
+            ConnectionDirection.Outbound, candidate.LocalAddress, 1234, candidate.RemoteAddress, 443, 6, 42, null);
+        Check(batch.TryAdd(candidate, audit) && !batch.TryAdd(candidate, audit));
+        Check(batch.Suppressed.Total == 1 && batch.Contention.Total == 101);
+        Check(gate.Update(true, batch.Suppressed.Total, 0, Start) == AttributionStatusText.Overflow);
+    }
+
+    private sealed class DiagnosticClock : IClock
+    {
+        public DateTimeOffset UtcNow => Start;
+    }
 
     private static void PipeServerIdentityMustMatch()
     {

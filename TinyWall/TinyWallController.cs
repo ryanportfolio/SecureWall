@@ -306,6 +306,7 @@ namespace pylorak.TinyWall
         private readonly CmdLineArgs StartupOpts;
         private PromptDisplayCoordinator? PromptCoordinator;
         private int PromptPollInFlight;
+        private readonly AttributionNotificationGate AttributionNotifications = new();
         private bool ControllerDisposing;
 
         private bool m_Locked;
@@ -454,14 +455,26 @@ namespace pylorak.TinyWall
 
             try
             {
-                PromptWireDto[] prompts = await Task.Run(() =>
+                TwMessage response = await Task.Run(() =>
                 {
                     TwRequest request = GlobalInstances.Controller.BeginReadPendingPrompts();
-                    return Controller.EndReadPendingPrompts(request.Response);
+                    return request.Response;
                 });
 
                 if (!ControllerDisposing)
+                {
+                    PromptWireDto[] prompts = Controller.EndReadPendingPrompts(response);
                     PromptCoordinator?.Reconcile(prompts);
+                    if (response is TwMessageReadPendingPrompts poll && poll.State != null)
+                    {
+                        FirewallState.AttributionAvailable = poll.State.AttributionAvailable;
+                        FirewallState.DroppedPromptCandidates = poll.State.DroppedPromptCandidates;
+                        FirewallState.DroppedPrompts = poll.State.DroppedPrompts;
+                        string? diagnostic = AttributionNotifications.Update(poll.State.AttributionAvailable,
+                            poll.State.DroppedPromptCandidates, poll.State.DroppedPrompts, DateTimeOffset.UtcNow);
+                        if (diagnostic != null) ShowBalloonTip(diagnostic, ToolTipIcon.Warning, 10000);
+                    }
+                }
             }
             catch (Exception exception)
             {

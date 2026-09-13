@@ -1,5 +1,7 @@
-﻿using System;
+using System;
 using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace pylorak.TinyWall
 {
@@ -8,7 +10,10 @@ namespace pylorak.TinyWall
     /// temporary file in the target's own directory, so it inherits that directory's ACL and
     /// never touches a shared temp folder, then swaps in over the target. Readers see either
     /// the old file or the new one, never a partially written one. The temporary file is
-    /// removed whether the write succeeds or fails.
+    /// retained when a failed replacement needs recovery evidence. Content is flushed before replacement
+    /// and the installed file is flushed afterward. A post-swap failure can leave the new
+    /// content installed. This does not promise power-loss durability on every filesystem
+    /// or storage device; callers must retain recovery state when a write fails.
     /// </summary>
     internal static class AtomicFileWriter
     {
@@ -23,6 +28,7 @@ namespace pylorak.TinyWall
             string targetDir = Path.GetDirectoryName(fullTarget) ?? throw new ArgumentException("Target path has no directory.", nameof(targetPath));
             string tempPath = Path.Combine(targetDir, Path.GetRandomFileName());
 
+            bool handedToReplacement = false;
             try
             {
                 using (var stream = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
@@ -31,13 +37,30 @@ namespace pylorak.TinyWall
                     stream.Flush(true);
                 }
 
-                Replace(tempPath, fullTarget);
+                handedToReplacement = true;
+                pylorak.Utilities.AtomicFileReplacement.Install(tempPath, fullTarget);
             }
             finally
             {
-                try { File.Delete(tempPath); }
+                try { if (!handedToReplacement) File.Delete(tempPath); }
                 catch { }
             }
+        }
+
+        public static void WriteEncrypted(string targetPath, Action<Stream> writeContent, string key, string iv)
+        {
+            if (writeContent is null)
+                throw new ArgumentNullException(nameof(writeContent));
+            using var algorithm = Aes.Create();
+            algorithm.Mode = CipherMode.CBC;
+            algorithm.Key = Encoding.ASCII.GetBytes(key);
+            algorithm.IV = Encoding.ASCII.GetBytes(iv);
+            Write(targetPath, stream =>
+            {
+                // Disposal emits final padding before Write flushes the underlying file.
+                using var crypto = new CryptoStream(stream, algorithm.CreateEncryptor(), CryptoStreamMode.Write, leaveOpen: true);
+                writeContent(crypto);
+            });
         }
 
         public static void WriteFrom(string targetPath, Stream source)
@@ -57,34 +80,5 @@ namespace pylorak.TinyWall
             });
         }
 
-        private static void Replace(string tempPath, string targetPath)
-        {
-            if (!File.Exists(targetPath))
-            {
-                File.Move(tempPath, targetPath);
-                return;
-            }
-
-            // File.Replace needs delete access to the target, which the read-only
-            // attribute denies. Clear it for the swap and put it back on whichever
-            // file ends up at the target path.
-            var attributes = File.GetAttributes(targetPath);
-            bool readOnly = (attributes & FileAttributes.ReadOnly) != 0;
-            if (readOnly)
-                File.SetAttributes(targetPath, attributes & ~FileAttributes.ReadOnly);
-
-            try
-            {
-                File.Replace(tempPath, targetPath, null, true);
-            }
-            finally
-            {
-                if (readOnly)
-                {
-                    try { File.SetAttributes(targetPath, File.GetAttributes(targetPath) | FileAttributes.ReadOnly); }
-                    catch { }
-                }
-            }
-        }
     }
 }

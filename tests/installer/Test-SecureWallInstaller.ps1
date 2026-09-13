@@ -135,6 +135,76 @@ $prepareSources = Read-RepoFile 'MsiSetup\PrepareSources.ps1'
 Assert-True ($prepareSources -match "'SecureWall\.exe'") 'staging requires SecureWall.exe'
 Assert-True ($prepareSources -match 'ProgramFiles\\SecureWall') 'staging targets SecureWall payload directory'
 
+# Defaults are MSI payload under Program Files. Only the guarded SYSTEM entry
+# may seed machine data; static source checks do not replace hostile-path VM tests.
+$defaultsDir = $wix.SelectSingleNode('//w:Directory[@Id="INSTALLDIR"]/w:Directory[@Id="DataDefaultsDir"]', $ns)
+Assert-True ($null -ne $defaultsDir -and $defaultsDir.Name -eq 'data-defaults') 'defaults install beneath protected INSTALLDIR/data-defaults'
+Assert-True ($null -eq $wix.SelectSingleNode('//w:Directory[@Id="CommonAppDataFolder"] | //w:DirectoryRef[@Id="CommonAppDataFolder"]', $ns)) 'MSI has no ProgramData destination tree'
+Assert-True ($product -notmatch '\[CommonAppDataFolder\]|\[CommonAppData\]|Name=["'']ProgramData["'']') 'MSI has no alternate ProgramData destination'
+Assert-True ($null -eq $wix.SelectSingleNode('//w:RemoveFile | //w:CopyFile | //w:MoveFile | //w:Directory[@Id="INSTALLDIR"]//w:CreateFolder | //w:Directory[@Id="INSTALLDIR"]//w:RemoveFolder', $ns)) 'MSI has no data copy/removal or early payload-directory creation operations'
+foreach ($default in @(@{ Id = 'DatabaseJson'; Name = 'profiles.json' }, @{ Id = 'HostsBCK'; Name = 'hosts.bck' })) {
+    $file = $wix.SelectSingleNode("//w:Directory[@Id='DataDefaultsDir']/w:Component/w:File[@Id='$($default.Id)']", $ns)
+    Assert-True ($null -ne $file -and $file.Source -eq "Sources\CommonAppData\SecureWall\$($default.Name)" -and $file.Vital -eq 'yes') "protected default payload: $($default.Name)"
+    Assert-True (Test-Path -LiteralPath (Join-Path $repoRoot "MsiSetup\Sources\CommonAppData\SecureWall\$($default.Name)") -PathType Leaf) "default source exists: $($default.Name)"
+    if ($null -ne $file) {
+        Assert-True ($null -ne $wix.SelectSingleNode("//w:Feature/w:ComponentRef[@Id='$($file.ParentNode.Id)']", $ns)) "default is selected by MSI feature: $($default.Name)"
+    }
+}
+$machineData = Read-RepoFile 'TinyWall\Installer\MachineDataGuard.cs'
+$machinePolicy = Read-RepoFile 'TinyWall\Prompting\MachineDataPolicy.cs'
+$utils = Read-RepoFile 'TinyWall\Utils.cs'
+Assert-True ($installAction.Impersonate -eq 'no') 'default seeding install action runs as SYSTEM'
+Assert-True ($safety -match '(?s)void RequireSystemMaintenance\(\).*?if \(!identity.IsSystem\).*?throw new UnauthorizedAccessException.*?RequireProtectedInstallation\(\);') 'SYSTEM maintenance validates protected default source tree before seeding'
+Assert-True ($program -match '(?s)static int Main\(string\[\] args\).*?RequireSystemMaintenance\(\);\s*Installer.MachineDataGuard.InstallDefaults\(\);.*?else\s*Installer.MachineDataGuard.Require\(\);.*?HierarchicalStopwatch.Enable') 'release entry validates or seeds machine data before timing and logging access'
+$mainStart = $program.IndexOf('static int Main(string[] args)')
+$guardStart = $program.IndexOf('Installer.InstallationSafety.RequireSystemMaintenance();', $mainStart)
+$beforeGuard = if ($guardStart -gt $mainStart) { $program.Substring($mainStart, $guardStart - $mainStart) } else { $program }
+Assert-True ($beforeGuard -notmatch 'Utils\.(AppDataPath|LogException)|File\.(Write|Copy|Move|Delete|Create)|Directory\.Create|HierarchicalStopwatch\.') 'entry has no machine-data IO before guard'
+$guardCatchStart = $program.IndexOf('catch (Exception exception)', $guardStart)
+$guardCatchEnd = $program.IndexOf('#endif', $guardCatchStart)
+$guardCatch = if ($guardCatchStart -ge 0 -and $guardCatchEnd -gt $guardCatchStart) { $program.Substring($guardCatchStart, $guardCatchEnd - $guardCatchStart) } else { '' }
+Assert-True ($guardCatch -match 'Console\.Error\.WriteLine\(diagnostic\)' -and $guardCatch -match 'return -1;' -and $guardCatch -match 'MachineDataRecoveryMessage') 'guard rejection explains recovery on stderr and returns failure'
+Assert-True ($guardCatch -notmatch 'Utils\.(AppDataPath|Log|LogException)\b|File\.(Write|Copy|Move|Delete|Create)|Directory\.Create') 'guard rejection performs no file logging or machine-data writes'
+Assert-True ($guardCatch -match 'if \(!maintenance\) Utils.ShowControllerFailure\(diagnostic\);' -and @('/install', '/uninstall', '/msi-cleanup', '/msi-rollback-install', '/service').Where({ -not $guardCatch.Contains('"' + $_ + '"') }).Count -eq 0) 'guard failure dialog excludes every maintenance and service entry mode'
+Assert-True ($utils -match '(?s)SpecialFolder.CommonApplicationData.*?MachineDataGuard.Require\(\);\s*return dir;') 'production AppDataPath access enters shared guard'
+Assert-True ($machineData -match '(?s)void InstallDefaults\(\)\s*\{\s*Require\(true, true\);.*?"data-defaults".*?new\[\] \{ "profiles.json", "hosts.bck" \}.*?Require\(\);.*?if \(!File.Exists\(target\)\) File.Copy\(Path.Combine\(source, name\), target, false\);.*?Require\(false, true\);') 'seeding validates full tree first, copies exactly two absent defaults without overwrite, then revalidates'
+Assert-True ($machineData -match 'identity.IsSystem' -and $machineData -match 'Directory.CreateDirectory\(path, acl\)' -and $machineData -match 'O:SYG:SYD:P') 'missing data directory is created with protected ACL by SYSTEM'
+Assert-True ($machineData -match 'MachineDataPolicy.CheckTree' -and $machineData -match 'ReparsePoint' -and $machineData -match 'raw.Owner' -and $machineData -match 'raw.DiscretionaryAcl') 'machine-data guard recursively checks reparse state, ownership and DACL'
+Assert-True ($machinePolicy -match '(?s)verifyAncestors\(\);.*?if \(!exists\(\)\).*?if \(!allowCreation\).*?createProtected\(\);.*?verifyTree\(\);') 'ancestors precede creation and existing trees are validated without repair'
+
+# Parse the declared staging lists without executing staging or requiring build artifacts.
+$requiredMatch = [regex]::Match($prepareSources, '(?s)\$requiredFiles\s*=\s*@\((.*?)\)')
+$requiredRuntime = @([regex]::Matches($requiredMatch.Groups[1].Value, "'([^']+)'" ) | ForEach-Object { $_.Groups[1].Value })
+Assert-True ($requiredRuntime.Count -ge 11 -and $requiredRuntime -contains 'System.IO.Pipelines.dll') 'staging declares complete known runtime including pipelines'
+foreach ($runtimeName in $requiredRuntime) {
+    Assert-True ($null -ne $wix.SelectSingleNode("//w:File[@Source='Sources\ProgramFiles\SecureWall\$runtimeName']", $ns)) "MSI declares staged runtime: $runtimeName"
+}
+$cultureMatch = [regex]::Match($prepareSources, '(?s)\$cultures\s*=\s*@\((.*?)\)')
+$cultures = @([regex]::Matches($cultureMatch.Groups[1].Value, "'([^']+)'" ) | ForEach-Object { $_.Groups[1].Value })
+Assert-True ($cultures.Count -eq 17) 'staging declares all 17 localization satellites'
+foreach ($culture in $cultures) {
+    Assert-True ($null -ne $wix.SelectSingleNode("//w:File[@Source='Sources\ProgramFiles\SecureWall\$culture\SecureWall.resources.dll']", $ns)) "MSI declares staged satellite: $culture"
+}
+
+$sourceUpdate = (Read-RepoFile 'TinyWall\Database\SpecialApplications\Special Windows Update.json') | ConvertFrom-Json
+$packagedDatabase = (Read-RepoFile 'MsiSetup\Sources\CommonAppData\SecureWall\profiles.json') | ConvertFrom-Json
+$packagedUpdate = @($packagedDatabase.KnownApplications | Where-Object { $_.Name -eq 'Windows_Update' })
+Assert-True ($sourceUpdate.Name -eq 'Windows_Update' -and $packagedUpdate.Count -eq 1) 'source and payload each identify Windows_Update'
+foreach ($entry in @(@{ Name = 'source'; Rules = @($sourceUpdate.Components) }, @{ Name = 'payload'; Rules = @($packagedUpdate | ForEach-Object { $_.Components }) })) {
+    # Any executable subject in this service-only profile is a regression, even
+    # if an allow changes policy type or uses different ports in the future.
+    $executableRules = @($entry.Rules | Where-Object { $_.Subject.SubjectType -eq 2 })
+    Assert-True ($executableRules.Count -eq 0) "$($entry.Name) Windows_Update has no executable-wide rule"
+    $serviceRules = @($entry.Rules | Where-Object {
+        $_.Subject.SubjectType -eq 3 -and $_.Subject.ServiceName -eq 'wuauserv' -and
+        $_.Subject.ExecutablePath -eq '{folder:sys32}\svchost.exe' -and
+        $_.Policy.PolicyType -eq 3 -and $_.Policy.LocalNetworkOnly -eq $false -and
+        $_.Policy.AllowedRemoteTcpConnectPorts -eq '*' -and
+        -not $_.Policy.AllowedLocalTcpListenerPorts -and -not $_.Policy.AllowedLocalUdpListenerPorts
+    })
+    Assert-True ($serviceRules.Count -eq 1) "$($entry.Name) Windows_Update retains intended wuauserv outbound TCP service rule"
+}
+
 $productConstants = Read-RepoFile 'TinyWall\SecureWallProduct.cs'
 Assert-True ($productConstants -match 'internal const string Name = "SecureWall"') 'runtime product name is SecureWall'
 Assert-True ($productConstants -match 'ControllerPipeName = "SecureWallController"') 'named pipe identity is SecureWall'

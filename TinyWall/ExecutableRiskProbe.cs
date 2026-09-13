@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Security.AccessControl;
-using System.Security.Principal;
 using pylorak.TinyWall.Prompting;
 
 namespace pylorak.TinyWall
@@ -19,35 +18,11 @@ namespace pylorak.TinyWall
     //   An expired certificate whose signature carries no timestamp reads Invalid.
     // - Timestamps: the last-write time comes from the file system and any process with
     //   write access can rewrite it (SetFileTime), so "recently modified" can be hidden.
-    // - Writability: the DACL check uses the current token's user and groups, minus the
-    //   Administrators group, so an elevated controller does not report every
-    //   admin-writable folder. Path heuristics (profile, temp, Public, removable drives)
-    //   are OR-ed in. Access granted through groups absent from the token, or via
-    //   junctions, is missed.
+    // - Writability: inspect both file and parent ownership/DACL mutation rights.
+    //   Trusted administrators, SYSTEM and TrustedInstaller are excluded regardless
+    //   of elevation. This conservative warning is not a Windows AccessCheck.
     internal static class ExecutableRiskProbe
     {
-        private static readonly string[] AlwaysWritableSidPrefixes =
-        {
-            "S-1-1-0",      // Everyone
-            "S-1-5-11",     // Authenticated Users
-            "S-1-5-32-545", // Users
-            "S-1-5-4",      // Interactive
-        };
-
-        private const string AdministratorsSid = "S-1-5-32-544";
-        private const string CreatorOwnerSid = "S-1-3-0";
-
-        // Only the bits that let a caller replace or remove a file. The composite
-        // Modify/FullControl values are not listed: they include read bits, so masking with
-        // them would match every read-only ACE. Unmapped GENERIC_WRITE and GENERIC_ALL
-        // appear on inherit-only entries (CREATOR OWNER, Administrators) and count too.
-        private const FileSystemRights WriteRights =
-            FileSystemRights.WriteData | FileSystemRights.CreateFiles | FileSystemRights.AppendData |
-            FileSystemRights.CreateDirectories | FileSystemRights.Delete |
-            FileSystemRights.DeleteSubdirectoriesAndFiles | GenericWriteRights;
-
-        private const FileSystemRights GenericWriteRights = (FileSystemRights)unchecked((int)0x50000000); // GENERIC_WRITE | GENERIC_ALL
-
         // Returns null when there is no file to assess (no path reported, or the file is
         // missing), so the popup shows no warnings rather than three false ones.
         internal static ExecutableRiskFlags? Assess(string? executablePath)
@@ -58,12 +33,13 @@ namespace pylorak.TinyWall
             string path = executablePath!.Trim();
             try
             {
-                if (!File.Exists(path))
-                    return null;
+                File.GetAttributes(path);
             }
+            catch (FileNotFoundException) { return null; }
+            catch (DirectoryNotFoundException) { return null; }
             catch (Exception)
             {
-                return null;
+                // Unreadable is not missing. Continue so failed inspection warns.
             }
 
             ExecutableSignatureStatus signature = SignatureStatus(path);
@@ -243,19 +219,18 @@ namespace pylorak.TinyWall
 
         internal static bool UserCanWriteLocation(string path)
         {
-            string? directory;
             try
             {
-                directory = Path.GetDirectoryName(Path.GetFullPath(path));
+                string fullPath = Path.GetFullPath(path);
+                string? directory = Path.GetDirectoryName(fullPath);
+                if (string.IsNullOrEmpty(directory)) return true;
+                return IsHeuristicallyUserWritable(directory!) ||
+                    DaclGrantsWrite(fullPath, false) || DaclGrantsWrite(directory!, true);
             }
             catch (Exception)
             {
-                return false;
+                return ExecutableMutationPolicy.HasRisk(null, null, false, false);
             }
-            if (string.IsNullOrEmpty(directory))
-                return false;
-
-            return IsHeuristicallyUserWritable(directory!) || DaclGrantsWrite(directory!);
         }
 
         private static bool IsHeuristicallyUserWritable(string directory)
@@ -316,81 +291,35 @@ namespace pylorak.TinyWall
             }
         }
 
-        // Accumulates every matching ACE the way the kernel does: the write bits granted
-        // by Allow entries minus the write bits taken away by Deny entries. A single Deny
-        // for one right (say Delete) no longer hides an Allow for another (WriteData).
-        private static bool DaclGrantsWrite(string directory)
+        private static bool DaclGrantsWrite(string path, bool directory)
         {
             try
             {
-                HashSet<string> sids = CurrentUserSids(out SecurityIdentifier? user);
-                DirectorySecurity security = Directory.GetAccessControl(
-                    directory,
-                    AccessControlSections.Access | AccessControlSections.Owner);
-
-                // CREATOR OWNER entries are inherited by files the user creates here, so
-                // they count when the user owns the directory.
-                if (user != null && security.GetOwner(typeof(SecurityIdentifier)) is SecurityIdentifier owner && owner.Equals(user))
-                    sids.Add(CreatorOwnerSid);
-
-                AuthorizationRuleCollection rules = security.GetAccessRules(true, true, typeof(SecurityIdentifier));
-                FileSystemRights allowed = 0;
-                FileSystemRights denied = 0;
-                foreach (AuthorizationRule rule in rules)
+                FileSystemSecurity security = directory
+                    ? (FileSystemSecurity)Directory.GetAccessControl(path, AccessControlSections.Access | AccessControlSections.Owner)
+                    : File.GetAccessControl(path, AccessControlSections.Access | AccessControlSections.Owner);
+                var descriptor = new RawSecurityDescriptor(security.GetSecurityDescriptorBinaryForm(), 0);
+                // A null DACL permits everyone; an empty DACL does not.
+                if (descriptor.DiscretionaryAcl == null)
+                    return ExecutableMutationPolicy.HasRisk(null, null, directory, false);
+                var entries = new List<ExecutableAccessEntry>();
+                foreach (GenericAce ace in descriptor.DiscretionaryAcl)
                 {
-                    if (rule is not FileSystemAccessRule access)
-                        continue;
-                    FileSystemRights writeBits = access.FileSystemRights & WriteRights;
-                    if (writeBits == 0)
-                        continue;
-                    if (!sids.Contains(access.IdentityReference.Value))
-                        continue;
-                    // Rules that apply only to subfolders/files still let the user replace
-                    // the executable, so inheritance-only entries count too.
-                    if (access.AccessControlType == AccessControlType.Deny)
-                        denied |= writeBits;
-                    else
-                        allowed |= writeBits;
+                    // Object/callback ACEs need richer evaluation. Do not silently
+                    // drop unsupported entries and call the executable safe.
+                    if (!(ace is CommonAce common) || common.IsCallback ||
+                        (common.AceQualifier != AceQualifier.AccessAllowed && common.AceQualifier != AceQualifier.AccessDenied))
+                        return ExecutableMutationPolicy.HasRisk(null, null, directory, false);
+                    entries.Add(new ExecutableAccessEntry(common.SecurityIdentifier.Value,
+                        unchecked((uint)common.AccessMask), common.AceQualifier == AceQualifier.AccessAllowed,
+                        (common.AceFlags & AceFlags.InheritOnly) != 0));
                 }
-                return (allowed & ~denied) != 0;
+                return ExecutableMutationPolicy.HasRisk(descriptor.Owner?.Value, entries, directory);
             }
             catch (Exception)
             {
-                return false;
+                return ExecutableMutationPolicy.HasRisk(null, null, directory, false);
             }
-        }
-
-        private static HashSet<string> CurrentUserSids(out SecurityIdentifier? user)
-        {
-            user = null;
-            var sids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (string sid in AlwaysWritableSidPrefixes)
-                sids.Add(sid);
-            try
-            {
-                using WindowsIdentity identity = WindowsIdentity.GetCurrent();
-                if (identity.User != null)
-                {
-                    user = identity.User;
-                    sids.Add(identity.User.Value);
-                }
-                if (identity.Groups != null)
-                {
-                    foreach (IdentityReference group in identity.Groups)
-                    {
-                        // The elevated controller token lists Administrators as enabled;
-                        // the user's ordinary token has it deny-only. Exclude it so an
-                        // elevated run does not flag every admin-writable folder.
-                        if (!string.Equals(group.Value, AdministratorsSid, StringComparison.Ordinal))
-                            sids.Add(group.Value);
-                    }
-                }
-            }
-            catch (Exception)
-            {
-                // Token unreadable: the well-known SIDs above still apply.
-            }
-            return sids;
         }
 
         private static DateTimeOffset? LastWriteUtc(string path)

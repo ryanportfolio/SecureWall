@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Collections.Generic;
 using System.Threading;
 using System.Runtime.InteropServices;
@@ -29,6 +30,68 @@ namespace pylorak.TinyWall.Prompting
 
     internal static class EnforcementPolicy
     {
+        internal static T LoadConfiguration<T>(Action probe, Func<T> load, Func<T> defaults)
+        {
+            // File.Exists hides access and I/O errors. Only a missing path is first run.
+            try { probe(); }
+            catch (FileNotFoundException) { return defaults(); }
+            catch (DirectoryNotFoundException) { return defaults(); }
+            // A deletion race or corrupt content after a successful probe is a failed load.
+            return load();
+        }
+
+        internal static string? NormalizeApplicationPath(string? path, Func<string, string> toNative)
+        {
+            if (string.IsNullOrEmpty(path) || string.Equals(path, "System", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(path, "Registry", StringComparison.OrdinalIgnoreCase))
+                return path;
+            return toNative(path);
+        }
+
+        internal static List<T> NormalizeRules<T>(IEnumerable<T> rules, Func<T, string?> application,
+            Action<T, string?> setApplication, Func<string, string> toNative, Action<string> unavailable)
+        {
+            var resolved = new List<T>();
+            foreach (T rule in rules)
+            {
+                string? path = application(rule);
+                string? normalized;
+                try { normalized = NormalizeApplicationPath(path, toNative); }
+                catch (DriveNotFoundException) when (IsVolumeSubject(path))
+                {
+                    // Do not replace an unresolved subject with null (a wildcard), and do
+                    // not remove it from saved policy. A later reload retries the mapping.
+                    unavailable(path!);
+                    continue;
+                }
+                setApplication(rule, normalized);
+                resolved.Add(rule);
+            }
+            return resolved;
+        }
+
+        private static bool IsVolumeSubject(string? path)
+        {
+            if (string.IsNullOrEmpty(path)) return false;
+            string value = path!;
+            if (value.StartsWith(@"\\?\", StringComparison.Ordinal) ||
+                value.StartsWith(@"\\.\", StringComparison.Ordinal) ||
+                value.StartsWith(@"\??\", StringComparison.Ordinal)) value = value.Substring(4);
+            int rootLength;
+            if (value.Length >= 3 && ((value[0] >= 'A' && value[0] <= 'Z') ||
+                (value[0] >= 'a' && value[0] <= 'z')) && value[1] == ':' && value[2] == '\\')
+                rootLength = 3;
+            else if (value.Length >= 45 && value.StartsWith("Volume{", StringComparison.OrdinalIgnoreCase) &&
+                value[43] == '}' && value[44] == '\\' && Guid.TryParseExact(value.Substring(7, 36), "D", out _))
+                rootLength = 45;
+            else return false;
+            // PathMapper classifies even malformed Volume{...} input as a missing
+            // drive. Only a syntactically valid volume subject may become dormant.
+            for (int i = rootLength; i < value.Length; ++i)
+                if (value[i] < 32 || "<>\"|:*?".IndexOf(value[i]) >= 0) return false;
+            return value.Length > rootLength;
+        }
+
         internal static bool IsExpired(DateTime created, int minutes, DateTime now) =>
             minutes > 0 && now.ToUniversalTime().Ticks - created.ToUniversalTime().Ticks >=
                 (long)minutes * TimeSpan.TicksPerMinute;
@@ -50,11 +113,7 @@ namespace pylorak.TinyWall.Prompting
         }
 
         internal static bool OptionalPermitEnabled(bool blockAll, bool configured) => !blockAll && configured;
-        // Recovery baseline ordering inside the SecureWall sublayer:
-        //   runtime default block (defaultBlock) > recovery permit (defaultBlock - 1) > recovery deny (defaultBlock - 2).
-        // Runtime filters always outrank the baseline, so BlockAll and explicit user blocks
-        // still cover DHCP and DNS while the service runs. The permits only matter when the
-        // dynamic session is gone (service stopped, crashed, or the boot window).
+        // Deny-only baseline remains below runtime default block for prompt authority.
         internal static ulong RecoveryBlockWeight(ulong runtimeDefaultBlockWeight)
         {
             if (runtimeDefaultBlockWeight < 2)
@@ -62,28 +121,7 @@ namespace pylorak.TinyWall.Prompting
             return runtimeDefaultBlockWeight - 2;
         }
 
-        internal static ulong RecoveryPermitWeight(ulong runtimeDefaultBlockWeight)
-        {
-            if (runtimeDefaultBlockWeight < 2)
-                throw new ArgumentOutOfRangeException(nameof(runtimeDefaultBlockWeight));
-            return runtimeDefaultBlockWeight - 1;
-        }
 
-        private const byte ProtocolTcp = 6;
-        private const byte ProtocolUdp = 17;
-
-        // Minimum a machine needs to obtain a lease and resolve names without the service.
-        internal static IReadOnlyList<RecoveryPermitRule> RecoveryPermitRules() => new[]
-        {
-            new RecoveryPermitRule("SecureWall recovery permit DHCPv4 request", false, false, ProtocolUdp, 68, 67),
-            new RecoveryPermitRule("SecureWall recovery permit DHCPv6 request", true, false, ProtocolUdp, 546, 547),
-            new RecoveryPermitRule("SecureWall recovery permit DNS UDP v4", false, false, ProtocolUdp, null, 53),
-            new RecoveryPermitRule("SecureWall recovery permit DNS UDP v6", true, false, ProtocolUdp, null, 53),
-            new RecoveryPermitRule("SecureWall recovery permit DNS TCP v4", false, false, ProtocolTcp, null, 53),
-            new RecoveryPermitRule("SecureWall recovery permit DNS TCP v6", true, false, ProtocolTcp, null, 53),
-            new RecoveryPermitRule("SecureWall recovery permit DHCPv4 reply", false, true, ProtocolUdp, 68, 67),
-            new RecoveryPermitRule("SecureWall recovery permit DHCPv6 reply", true, true, ProtocolUdp, 546, 547),
-        };
     }
 
     // Used by the minute tick before optional housekeeping. Revocation is mandatory even
@@ -97,6 +135,25 @@ namespace pylorak.TinyWall.Prompting
                 T candidate = clone();
                 if (prune(candidate)) apply(candidate);
             }
+            catch
+            {
+                failClosed();
+                throw;
+            }
+        }
+    }
+
+    internal static class EnvironmentalPolicyReload
+    {
+        internal static bool EnumerationChanged(bool succeeded, Func<bool> readChanges)
+        {
+            if (!succeeded) throw new InvalidOperationException("Active network adapter enumeration failed.");
+            return readChanges();
+        }
+
+        internal static void Run(Action reload, Action failClosed)
+        {
+            try { reload(); }
             catch
             {
                 failClosed();
@@ -149,21 +206,22 @@ namespace pylorak.TinyWall.Prompting
         internal static void Apply(Action persist, Action enforce, Action restore,
             Action publish, Action failClosed, Action? prepareRecovery = null, Action? completeRecovery = null)
         {
-            // The durable old-policy snapshot must exist before overwriting the active configuration.
+            // The old-policy snapshot must be saved before overwriting the active configuration.
+            // Preparation may be retried after uncertain completion: always save the captured
+            // prior policy, never the candidate or a fresh read of the active configuration.
             prepareRecovery?.Invoke();
-            bool persisted = false;
             try
             {
                 persist();
-                persisted = true;
                 enforce();
             }
             catch (Exception applyError)
             {
                 try
                 {
-                    if (persisted)
-                        restore();
+                    // A write can replace the active file and then throw while flushing it.
+                    // Invocation, not successful return, is the compensation boundary.
+                    restore();
                     completeRecovery?.Invoke();
                 }
                 catch (Exception restoreError)
@@ -174,11 +232,20 @@ namespace pylorak.TinyWall.Prompting
                 throw;
             }
             try { completeRecovery?.Invoke(); }
-            catch
+            catch (Exception completionError)
             {
-                // Enforcement succeeded but recovery bookkeeping is uncertain. Keep the old snapshot
-                // for startup recovery and withdraw grants before returning failure.
+                // WFP already committed. Withdraw grants before attempting more storage work.
+                // Completion may have removed the snapshot before throwing. Re-establish the
+                // prior snapshot, then restore; attempt both even when storage keeps failing.
+                // Do not retry deletion on this path or ever overwrite the snapshot with a candidate.
                 failClosed();
+                var errors = new List<Exception> { completionError };
+                try { prepareRecovery?.Invoke(); }
+                catch (Exception prepareError) { errors.Add(prepareError); }
+                try { restore(); }
+                catch (Exception restoreError) { errors.Add(restoreError); }
+                if (errors.Count > 1)
+                    throw new AggregateException("Policy completion and recovery failed; runtime permissions were withdrawn.", errors);
                 throw;
             }
             publish();
@@ -192,6 +259,9 @@ namespace pylorak.TinyWall.Prompting
             if (!exists)
                 return;
             // Never clear the marker or proceed to normal config loading unless restoration succeeds.
+            // File-content flushes and ordinary deletion do not prove power-loss ordering of
+            // directory entries. A lost deletion can replay an older policy; this is process-failure
+            // recovery, not a crash-tested filesystem commit protocol.
             restore();
             clear();
         }
@@ -214,6 +284,11 @@ namespace pylorak.TinyWall.Prompting
         {
             if (userInitiated)
                 Interlocked.Exchange(ref lastActivityUtcTicks, clock.UtcNow.UtcDateTime.Ticks);
+        }
+
+        internal void LockIfExpired(Action lockNow)
+        {
+            if (Expired) lockNow();
         }
 
         internal bool Expired => clock.UtcNow.UtcDateTime.Ticks - Interlocked.Read(ref lastActivityUtcTicks) > timeout.Ticks;

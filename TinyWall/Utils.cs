@@ -1,4 +1,4 @@
-﻿using Microsoft.Samples.TaskDialog;
+using Microsoft.Samples.TaskDialog;
 using Microsoft.Win32;
 using pylorak.Windows;
 using System;
@@ -660,26 +660,15 @@ namespace pylorak.TinyWall
             {
                 lock (logLocker)
                 {
-                    // First, remove deprecated log files if any is found
-                    // TODO: This can probably be removed in the future
-                    string[] old_logs = new string[] {
-                        Path.Combine(Utils.AppDataPath, "errorlog"),
-                        Path.Combine(Utils.AppDataPath, "service.log"),
-                        Path.Combine(Utils.AppDataPath, "client.log"),
-                    };
-
-                    foreach (string file in old_logs)
-                    {
-                        try
-                        {
-                            if (File.Exists(file))
-                                File.Delete(file);
-                        }
-                        catch { }
-                    }
-
-                    // Name of the current log file
-                    string logdir = Path.Combine(Utils.AppDataPath, "logs");
+                    using var identity = WindowsIdentity.GetCurrent();
+                    using var impersonated = WindowsIdentity.GetCurrent(true);
+                    bool machine = Prompting.LogDestinationPolicy.RequiresMachineData(identity.IsSystem,
+                        new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator),
+                        Environment.UserInteractive, impersonated != null,
+                        logname == LOG_ID_SERVICE || logname == LOG_ID_INSTALLER);
+                    string logdir = Prompting.LogDestinationPolicy.DirectoryPath(machine,
+                        () => { Installer.MachineDataGuard.Require(); return Installer.MachineDataGuard.PathName; },
+                        () => Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
                     string logfile = Path.Combine(logdir, $"{logname}.log");
 
                     if (!Directory.Exists(logdir))
@@ -725,6 +714,18 @@ namespace pylorak.TinyWall
             _ = SafeNativeMethods.DnsFlushResolverCache();
         }
 
+        internal static string MachineDataRecoveryMessage =>
+            "SecureWall could not validate its protected data directory: " + Installer.MachineDataGuard.PathName +
+            ". Stop and use trusted manual recovery from a local console. Retain the directory and installer diagnostics as evidence. Do not change its permissions or restore writable legacy configuration to make it pass validation.";
+
+        internal static void ShowControllerFailure(string message)
+        {
+            using var identity = WindowsIdentity.GetCurrent();
+            if (!Environment.UserInteractive || identity.IsSystem) return;
+            using var process = Process.GetCurrentProcess();
+            if (process.SessionId == 0) return;
+            MessageBox.Show(message, "SecureWall", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
         internal static string AppDataPath
         {
             get
@@ -733,8 +734,7 @@ namespace pylorak.TinyWall
                 return Path.GetDirectoryName(Utils.ExecutablePath);
 #else
                 string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), SecureWallProduct.AppDataFolderName);
-                if (!Directory.Exists(dir))
-                    Directory.CreateDirectory(dir);
+                Installer.MachineDataGuard.Require();
                 return dir;
 #endif
             }

@@ -274,19 +274,21 @@ namespace pylorak.TinyWall
     internal record TwMessageReadPendingPrompts : TwMessage
     {
         public PromptWireDto[] Prompts { get; }
+        public ServerState? State { get; }
 
         [JsonConstructor]
-        public TwMessageReadPendingPrompts(PromptWireDto[] prompts) :
+        public TwMessageReadPendingPrompts(PromptWireDto[] prompts, ServerState? state = null) :
             base(MessageType.READ_PENDING_PROMPTS)
         {
             Prompts = prompts ?? Array.Empty<PromptWireDto>();
+            State = state;
         }
 
         internal static TwMessageReadPendingPrompts CreateRequest() =>
             new TwMessageReadPendingPrompts(Array.Empty<PromptWireDto>());
 
-        internal TwMessageReadPendingPrompts CreateResponse(PromptWireDto[] prompts) =>
-            new TwMessageReadPendingPrompts(prompts);
+        internal TwMessageReadPendingPrompts CreateResponse(PromptWireDto[] prompts, ServerState? state = null) =>
+            new TwMessageReadPendingPrompts(prompts, state);
     }
 
     internal record TwMessagePromptAction : TwMessage

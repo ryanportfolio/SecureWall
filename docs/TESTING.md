@@ -14,13 +14,22 @@ Source checks must confirm:
 - GPL and upstream provenance files exist;
 - runtime service, pipe, task, data directory, installer, executable, and WFP provider identities are SecureWall;
 - upstream binary updates are disabled.
-- the staged MSI payload includes every runtime assembly emitted by a clean Release build, including `System.IO.Pipelines.dll`.
+- the MSI declarations cover staging's runtime and localization lists, including `System.IO.Pipelines.dll`; after tooling is available, compare actual packaged files against every assembly emitted by a clean Release build.
+- both defaults target `INSTALLDIR/data-defaults`; only guarded SYSTEM setup seeds absent machine-data files after full-tree validation, and MSI has no ProgramData writes/deletes.
+- source and packaged Windows_Update entries retain the exact `wuauserv` outbound TCP service rule and contain no executable-wide allow.
+- persistent and boot-time filters contain only external denial, including DNS/DHCP; no recovery permits survive service loss.
 - every filter registration failure propagates and rolls back instead of being swallowed;
 - Network Activity shows observed allows and blocks, exact TCP states, and local-only listener wording, with one-second refresh.
 
 Build all three MSI packages and `tests\SecureWall.NetworkProbe`, then run `tools\vm\Prepare-SecureWallVmBundle.ps1` to create an ignored, hash-manifested VM bundle. Its guarded runner verifies the selected MSI hash and baseline connectivity, installs that MSI silently, checks the WFP provider, drives separate Allow and Ignore probes, captures 5157/WFP/audit evidence, uninstalls through MSI, and compares service, provider, task, audit policy, firewall rules, notification flags and hosts state. This guided path does not execute every failure case below.
 
 The additional pre-switch fault, reboot, identity and MSI matrix is in [HARDENING-VALIDATION.md](HARDENING-VALIDATION.md). It is a required release gate; source tests and package ICE validation cannot substitute for it.
+
+## Installer source evidence
+
+Run `tests/installer/Test-SecureWallInstaller.ps1` without an artifacts argument for non-enforcing source checks. This checks XML declarations, guarded seeding order and JSON defaults without building or installing. An artifacts argument requires separately built packages and does not prove live behavior.
+
+For the September 12 R5 round, WiX binaries were unavailable after searches of PATH, standard locations and checkout tool directories. No package build, ICE validation or package-content pass is claimed; those checks remain pending tooling. Shared application/core builds belong to a separate executor and are not R5 evidence. Windows PowerShell syntax and JSON/XML parsing are recorded separately under `.tmp/long-horizon/pre-switch-fixes`.
 
 ## Manual local-console VM matrix
 
@@ -44,7 +53,7 @@ Do not run this matrix on the development host. Use an expendable Windows VM wit
 | Registered service executable without 5157/PID enrichment | Warning shown; Allow disabled |
 | Password lock enabled | Ignore works; Allow returns locked and creates no exception |
 | Controller exits/restarts | Service keeps enforcing; pending tokens expire; no grant on shutdown |
-| Service restarts/reboot | Default deny returns early; saved allows persist; audit flags are correct |
+| Service restarts/reboot | Strict external deny, including DNS/DHCP, covers the baseline-only interval; saved allows return only after successful startup; audit flags are correct |
 | Audit category initially success-only/failure-only/both/none | SecureWall adds required flags and restores exact original flags on stop |
 | Config save or WFP reload fault injection | Allow reports failure and no new permission survives; recoverable failure preserves the pending token; failed recovery withdraws runtime grants |
 | Queue/candidate overflow | New entries are dropped fail-closed; memory stays bounded |

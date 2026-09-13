@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.Serialization;
@@ -235,20 +235,7 @@ namespace pylorak.TinyWall
             return SourceGenerationContext.Default.ServerConfiguration;
         }
 
-        internal static string AppDataPath
-        {
-            get
-            {
-#if DEBUG
-                return Path.GetDirectoryName(System.Reflection.Assembly.GetEntryAssembly().Location);
-#else
-                string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), SecureWallProduct.AppDataFolderName);
-                if (!Directory.Exists(dir))
-                    Directory.CreateDirectory(dir);
-                return dir;
-#endif
-            }
-        }
+        internal static string AppDataPath => Utils.AppDataPath;
 
         public ServerConfiguration() { }
 

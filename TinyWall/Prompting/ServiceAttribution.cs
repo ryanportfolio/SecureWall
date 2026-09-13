@@ -11,7 +11,8 @@ namespace pylorak.TinyWall.Prompting
             DropCandidate candidate,
             BlockedConnectionAuditEvent? auditEvent,
             IEnumerable<string> serviceNames,
-            bool executableIsRegisteredService = false)
+            bool executableIsRegisteredService = false,
+            bool snapshotUncertain = false)
         {
             if (candidate == null)
                 throw new ArgumentNullException(nameof(candidate));
@@ -23,6 +24,11 @@ namespace pylorak.TinyWall.Prompting
             string? packageSid = candidate.PackageSid ?? auditEvent?.PackageSid;
             if (!string.IsNullOrWhiteSpace(packageSid))
                 return PromptIdentity.ForPackage(packageSid!, candidate.ApplicationPath);
+
+            // Uncertainty dominates even a single stable name in a transitioning PID.
+            // A cached negative executable catalog cannot override missing SCM evidence.
+            if (snapshotUncertain)
+                return PromptIdentity.ForUnattributedServiceHost(candidate.ApplicationPath);
 
             string[] services = serviceNames
                 .Where(name => !string.IsNullOrWhiteSpace(name))

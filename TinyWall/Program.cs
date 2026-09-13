@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading;
 using System.IO;
 using System.Net;
@@ -283,6 +283,33 @@ namespace pylorak.TinyWall
         [STAThread]
         static int Main(string[] args)
         {
+#if !DEBUG
+            // Before timing probes, logging, service construction, or policy IO.
+            // MSI payload lives in Program Files until this guarded SYSTEM action.
+            try
+            {
+                if (Utils.StringArrayContains(args, "/install"))
+                {
+                    Installer.InstallationSafety.RequireSystemMaintenance();
+                    Installer.MachineDataGuard.InstallDefaults();
+                }
+                else
+                    Installer.MachineDataGuard.Require();
+            }
+            catch (Exception exception)
+            {
+                // Do not write diagnostics through an untrusted data path.
+                string diagnostic = Utils.MachineDataRecoveryMessage + Environment.NewLine + exception;
+                Console.Error.WriteLine(diagnostic);
+                bool maintenance = Utils.StringArrayContains(args, "/install") ||
+                    Utils.StringArrayContains(args, "/uninstall") ||
+                    Utils.StringArrayContains(args, "/msi-cleanup") ||
+                    Utils.StringArrayContains(args, "/msi-rollback-install") ||
+                    Utils.StringArrayContains(args, "/service");
+                if (!maintenance) Utils.ShowControllerFailure(diagnostic);
+                return -1;
+            }
+#endif
             HierarchicalStopwatch.Enable = File.Exists(Path.Combine(Utils.AppDataPath, "enable-timings"));
             HierarchicalStopwatch.LogFileBase = Path.Combine(Utils.AppDataPath, @"logs\timings");
 

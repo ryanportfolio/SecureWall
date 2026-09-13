@@ -69,6 +69,9 @@ internal static class Program
             .Concat(NetEventParsingTests.Cases)
             .Concat(AtomicFileWriterTests.Cases)
             .Concat(AuditPolicyLeaseTests.Cases)
+            .Concat(HostsRestorationTests.Cases)
+            .Concat(HostsAdapterTests.Cases)
+            .Concat(PromptTransactionIntegrationTests.Cases)
             .Concat(ExecutableRiskTests.Cases).ToArray();
         var failed = 0;
 
