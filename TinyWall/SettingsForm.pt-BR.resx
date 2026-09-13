@@ -192,12 +192,6 @@
   <data name="chkLockHostsFile.Text" xml:space="preserve">
     <value>Impedir a modificação do arquivo de servidores (hosts)</value>
   </data>
-  <data name="chkEnableHotkeys.Text" xml:space="preserve">
-    <value>Habilitar teclas de atalho globais</value>
-  </data>
-  <data name="chkAutoUpdateCheck.Text" xml:space="preserve">
-    <value>Procurar atualização automaticamente</value>
-  </data>
   <data name="chkAskForExceptionDetails.Text" xml:space="preserve">
     <value>Informar sobre detalhes de exceções</value>
   </data>

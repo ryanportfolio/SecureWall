@@ -65,8 +65,6 @@
             this.chkDisplayOffBlock = new System.Windows.Forms.CheckBox();
             this.chkLockHostsFile = new System.Windows.Forms.CheckBox();
             this.comboLanguages = new System.Windows.Forms.ComboBox();
-            this.chkEnableHotkeys = new System.Windows.Forms.CheckBox();
-            this.chkAutoUpdateCheck = new System.Windows.Forms.CheckBox();
             this.chkAskForExceptionDetails = new System.Windows.Forms.CheckBox();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
             this.label9 = new System.Windows.Forms.Label();
@@ -313,9 +311,7 @@
             this.tableLayoutPanel1.Controls.Add(this.chkDisplayOffBlock, 3, 0);
             this.tableLayoutPanel1.Controls.Add(this.chkLockHostsFile, 3, 1);
             this.tableLayoutPanel1.Controls.Add(this.comboLanguages, 1, 0);
-            this.tableLayoutPanel1.Controls.Add(this.chkEnableHotkeys, 0, 4);
-            this.tableLayoutPanel1.Controls.Add(this.chkAutoUpdateCheck, 0, 2);
-            this.tableLayoutPanel1.Controls.Add(this.chkAskForExceptionDetails, 0, 3);
+            this.tableLayoutPanel1.Controls.Add(this.chkAskForExceptionDetails, 0, 2);
             this.tableLayoutPanel1.Name = "tableLayoutPanel1";
             // 
             // comboUiTheme
@@ -375,20 +371,6 @@
             this.comboLanguages.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboLanguages.FormattingEnabled = true;
             this.comboLanguages.Name = "comboLanguages";
-            // 
-            // chkEnableHotkeys
-            // 
-            resources.ApplyResources(this.chkEnableHotkeys, "chkEnableHotkeys");
-            this.tableLayoutPanel1.SetColumnSpan(this.chkEnableHotkeys, 2);
-            this.chkEnableHotkeys.Name = "chkEnableHotkeys";
-            this.chkEnableHotkeys.UseVisualStyleBackColor = true;
-            // 
-            // chkAutoUpdateCheck
-            // 
-            resources.ApplyResources(this.chkAutoUpdateCheck, "chkAutoUpdateCheck");
-            this.tableLayoutPanel1.SetColumnSpan(this.chkAutoUpdateCheck, 2);
-            this.chkAutoUpdateCheck.Name = "chkAutoUpdateCheck";
-            this.chkAutoUpdateCheck.UseVisualStyleBackColor = true;
             // 
             // chkAskForExceptionDetails
             // 
@@ -649,7 +631,6 @@
         private System.Windows.Forms.CheckBox chkBlockMalwarePorts;
         private System.Windows.Forms.Button btnAppAutoDetect;
         private System.Windows.Forms.ImageList IconList;
-        private System.Windows.Forms.CheckBox chkAutoUpdateCheck;
         private System.Windows.Forms.GroupBox groupBox2;
         private System.Windows.Forms.LinkLabel lblAboutHomepageLink;
         private System.Windows.Forms.Label label6;
@@ -666,7 +647,6 @@
         private System.Windows.Forms.CheckBox chkEnableBlocklists;
         private System.Windows.Forms.ComboBox comboLanguages;
         private System.Windows.Forms.Label label11;
-        private System.Windows.Forms.CheckBox chkEnableHotkeys;
         private System.Windows.Forms.LinkLabel lblLinkAttributions;
         private System.Windows.Forms.ColumnHeader columnType;
         private System.Windows.Forms.CheckBox chkDisplayOffBlock;

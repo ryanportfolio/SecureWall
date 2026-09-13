@@ -189,12 +189,6 @@
   <data name="chkLockHostsFile.Text" xml:space="preserve">
     <value>Предотвращение изменение файлов хоста</value>
   </data>
-  <data name="chkEnableHotkeys.Text" xml:space="preserve">
-    <value>Включить глобальные горячие клавиши</value>
-  </data>
-  <data name="chkAutoUpdateCheck.Text" xml:space="preserve">
-    <value>Автоматически проверять обновления</value>
-  </data>
   <data name="chkAskForExceptionDetails.Text" xml:space="preserve">
     <value>Подробная информация об исключениях</value>
   </data>

@@ -195,12 +195,6 @@
   <data name="chkLockHostsFile.Text" xml:space="preserve">
     <value>Заборонити зміни файлу hosts</value>
   </data>
-  <data name="chkEnableHotkeys.Text" xml:space="preserve">
-    <value>Увімкнути глобальні гарячі клавіші</value>
-  </data>
-  <data name="chkAutoUpdateCheck.Text" xml:space="preserve">
-    <value>Автоматично перевіряти оновлення</value>
-  </data>
   <data name="chkAskForExceptionDetails.Text" xml:space="preserve">
     <value>Запитувати деталі винятку</value>
   </data>

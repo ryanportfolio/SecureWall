@@ -77,9 +77,9 @@ namespace pylorak.TinyWall
         [DataMember(EmitDefaultValue = false)]
         public Dictionary<string, int> SettingsFormAppListColumnWidths = new();
 
-        // Hotkeys
+        // Legacy import field; SecureWall does not register global hotkeys.
         [DataMember(EmitDefaultValue = false)]
-        public bool EnableGlobalHotkeys = true;
+        public bool EnableGlobalHotkeys = false;
 
         // Optional AI "what is this?" assistant. Off by default. Runs only when the user
         // clicks the prompt's help button, from the controller (never the service).

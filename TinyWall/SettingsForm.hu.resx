@@ -198,12 +198,6 @@
   <data name="chkLockHostsFile.Text" xml:space="preserve">
     <value>Host-fájl módosításának tiltása</value>
   </data>
-  <data name="chkEnableHotkeys.Text" xml:space="preserve">
-    <value>Gyorsbillentyűk használata</value>
-  </data>
-  <data name="chkAutoUpdateCheck.Text" xml:space="preserve">
-    <value>Frissítések automatikus keresése</value>
-  </data>
   <data name="chkAskForExceptionDetails.Text" xml:space="preserve">
     <value>Kérje be a kivétel részleteit</value>
   </data>

@@ -63,33 +63,58 @@ function Write-DiagnosticJson {
     [IO.File]::WriteAllText($Path, $json, $encoding)
 }
 
+function Get-DiagnosticEvents {
+    param([int]$Schema = 2)
+    $events = @('service_start', 'service_ready', 'service_failure', 'service_stop_requested', 'service_shutdown',
+        'baseline_register', 'policy_journal', 'policy_persist', 'policy_enforce', 'policy_rollback', 'policy_publish',
+        'policy_recovery', 'policy_recovery_clear', 'fail_closed', 'heartbeat', 'diagnostics_enabled', 'diagnostics_disabled',
+        'prompt_allow', 'prompt_ignore', 'network_reload', 'display_reload')
+    if ($Schema -eq 2) {
+        $events += @('hosts_backup', 'hosts_update', 'hosts_install', 'hosts_restore', 'hosts_restore_verify',
+            'hosts_protection', 'dns_flush', 'port_blocklist_state', 'hosts_blocklist_state', 'port_blocklist_rules',
+            'configuration_load', 'database_load', 'wfp_subscribe', 'wfp_unsubscribe',
+            'windows_firewall_start', 'windows_firewall_stop', 'rule_expiry',
+            'audit_lease_start', 'audit_lease_stop', 'audit_subscribe', 'audit_unsubscribe', 'audit_health',
+            'audit_record_error', 'audit_recovery', 'prompt_suppression', 'attribution_snapshot', 'unavailable_rule_paths')
+    }
+    return $events
+}
+
+function Get-SafeServiceRegistration {
+    param($Service)
+    # Fixed booleans only; registration is not proof of the running process token.
+    return @{ local_system_account_expected = ([string]$Service.StartName -ieq 'LocalSystem');
+        dedicated_win32_own_process = ([string]$Service.ServiceType -ieq 'Own Process') }
+}
+
 function ConvertTo-SafeJournalRecord {
     param([string]$Line)
     if ([Text.Encoding]::UTF8.GetByteCount($Line) -gt 2048) { throw 'RecordTooLarge' }
     $r = ConvertFrom-Json -InputObject $Line -ErrorAction Stop
     $fields = @('schema', 'run_id', 'process_id', 'sequence', 'utc', 'uptime_ms', 'event', 'result', 'hresult',
         'dropped_records', 'write_failures', 'observed_allow', 'observed_drop', 'audit_available')
+    if ($null -eq $r -or $null -eq $r.PSObject.Properties['schema']) { throw 'InvalidSchema' }
+    if ($r.schema -eq 2) { $fields += 'observed_port_blocklist_drop' }
     # Discard entire records with unknown fields, rather than accidentally preserving future sensitive fields.
     if ($null -eq $r -or @($r.PSObject.Properties).Count -ne $fields.Count) { throw 'InvalidSchema' }
     foreach ($field in $fields) { if ($null -eq $r.PSObject.Properties[$field]) { throw 'InvalidSchema' } }
     $safe = [ordered]@{}
-    foreach ($field in @('schema', 'process_id', 'sequence', 'uptime_ms', 'hresult', 'dropped_records', 'write_failures', 'observed_allow', 'observed_drop', 'audit_available')) {
+    foreach ($field in @($fields | Where-Object { $_ -notin @('run_id', 'utc', 'event', 'result') })) {
         $v = $r.$field
         if ($v -isnot [int] -and $v -isnot [long]) { throw 'InvalidNumber' }
         if ($field -notin @('hresult', 'audit_available') -and $v -lt 0) { throw 'InvalidNumber' }
         $safe[$field] = $v
     }
-    if ($r.schema -ne 1 -or $r.sequence -lt 1 -or $r.process_id -lt 1 -or $r.process_id -gt [int]::MaxValue -or
+    if ($r.schema -notin @(1, 2) -or $r.sequence -lt 1 -or $r.process_id -lt 1 -or $r.process_id -gt [int]::MaxValue -or
         $r.hresult -lt [int]::MinValue -or $r.hresult -gt [int]::MaxValue -or $r.audit_available -notin @(-1, 0, 1)) { throw 'InvalidNumber' }
     if ($r.run_id -isnot [string] -or $r.run_id -notmatch '^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$') { throw 'InvalidRun' }
     if ($r.utc -isnot [string] -or $r.utc -notmatch '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,7})?Z$') { throw 'InvalidTime' }
     $date = [DateTime]::Parse($r.utc, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind)
-    $events = @('service_start', 'service_ready', 'service_failure', 'service_stop_requested', 'service_shutdown',
-        'baseline_register', 'policy_journal', 'policy_persist', 'policy_enforce', 'policy_rollback', 'policy_publish',
-        'policy_recovery', 'policy_recovery_clear', 'fail_closed', 'heartbeat', 'diagnostics_enabled', 'diagnostics_disabled',
-        'prompt_allow', 'prompt_ignore', 'network_reload', 'display_reload')
+    $events = @(Get-DiagnosticEvents -Schema $r.schema)
+    $results = @('attempt', 'success', 'failure', 'observed', 'absent', 'unknown_token', 'expired', 'not_allowable', 'locked')
+    if ($r.schema -eq 2) { $results += @('enabled', 'disabled', 'present', 'fallback', 'skipped') }
     if ($r.event -isnot [string] -or $r.event -cnotin $events -or $r.result -isnot [string] -or
-        $r.result -cnotin @('attempt', 'success', 'failure', 'observed', 'absent', 'unknown_token', 'expired', 'not_allowable', 'locked')) { throw 'InvalidEnum' }
+        $r.result -cnotin $results) { throw 'InvalidEnum' }
     $safe.run_id = $r.run_id.ToLowerInvariant()
     $safe.utc = $date.ToUniversalTime().ToString('o')
     $safe.event = $r.event
@@ -174,17 +199,49 @@ function Get-DiagnosticCoverage {
             shutdown_observed = @($ordered | Where-Object event -eq 'service_shutdown').Count -gt 0;
             dropped_records = ($ordered | Measure-Object dropped_records -Maximum).Maximum;
             write_failures = ($ordered | Measure-Object write_failures -Maximum).Maximum;
+            observed_allow = ($ordered | Measure-Object observed_allow -Maximum).Maximum;
+            observed_drop = ($ordered | Measure-Object observed_drop -Maximum).Maximum;
+            port_blocklist_counter_records = @($ordered | Where-Object schema -eq 2).Count;
+            observed_port_blocklist_drop = if (@($ordered | Where-Object schema -eq 2).Count) {
+                $ordered | Where-Object schema -eq 2 | Sort-Object observed_port_blocklist_drop -Descending |
+                    Select-Object -First 1 -ExpandProperty observed_port_blocklist_drop
+            } else { $null };
             last_enablement_marker = (@($ordered | Where-Object { $_.event -in @('diagnostics_enabled', 'diagnostics_disabled') } | Select-Object -Last 1 | ForEach-Object event) -join '') }
     }
     $paths = @()
-    foreach ($event in @('service_start', 'service_ready', 'service_failure', 'service_stop_requested', 'service_shutdown', 'baseline_register', 'policy_journal', 'policy_persist', 'policy_enforce', 'policy_publish', 'policy_rollback', 'policy_recovery', 'policy_recovery_clear', 'fail_closed', 'prompt_allow', 'prompt_ignore', 'network_reload', 'display_reload')) {
+    foreach ($event in @(Get-DiagnosticEvents)) {
         $seen = @($Records | Where-Object event -eq $event)
-        $paths += [pscustomobject]@{ path = $event; status = if ($seen.Count) { 'historical_observation' } else { 'unobserved' };
+        $completionEvents = @($event)
+        if ($event -eq 'service_start') { $completionEvents += @('service_ready', 'service_failure') }
+        if ($event -eq 'service_stop_requested') { $completionEvents += @('service_shutdown', 'service_failure') }
+        $matching = @($Records | Where-Object { $_.event -in $completionEvents })
+        # Match only within a run and in sequence order. No operation IDs exist, so this
+        # is a conservative count of attempts lacking a later terminal observation.
+        $pending = 0
+        foreach ($run in @($matching | Group-Object run_id)) {
+            $outstanding = 0
+            foreach ($record in @($run.Group | Sort-Object sequence)) {
+                if ($record.event -eq $event -and $record.result -eq 'attempt') { $outstanding++ }
+                elseif ($record.result -in @('success', 'failure', 'absent', 'present', 'enabled', 'disabled', 'fallback', 'skipped', 'observed', 'unknown_token', 'expired', 'not_allowable', 'locked') -and $outstanding -gt 0) { $outstanding-- }
+            }
+            $pending += $outstanding
+        }
+        $failures = @($seen | Where-Object result -eq 'failure').Count
+        $skipped = @($seen | Where-Object result -eq 'skipped').Count
+        $paths += [pscustomobject]@{ path = $event; status = if ($failures -or $pending -or $skipped) { 'incomplete' } elseif ($seen.Count) { 'historical_observation' } else { 'unobserved' };
             records = $seen.Count; reported_success = @($seen | Where-Object result -eq 'success').Count;
-            reported_failure = @($seen | Where-Object result -eq 'failure').Count }
+            reported_failure = $failures; reported_attempt = @($seen | Where-Object result -eq 'attempt').Count;
+            attempts_without_completion = $pending;
+            reported_enabled = @($seen | Where-Object result -eq 'enabled').Count;
+            reported_disabled = @($seen | Where-Object result -eq 'disabled').Count;
+            reported_absent = @($seen | Where-Object result -eq 'absent').Count;
+            reported_present = @($seen | Where-Object result -eq 'present').Count;
+            reported_fallback = @($seen | Where-Object result -eq 'fallback').Count;
+            reported_skipped = $skipped;
+            reported_observed = @($seen | Where-Object result -eq 'observed').Count }
     }
     return [pscustomobject]@{
-        interpretation = 'Historical software observations only. Missing shutdown, sequence gaps, rotation, disabled logging and collection failures leave observation gaps. Current logging enablement is unknown; configuration is never read.'
+        interpretation = 'Historical software observations only, never tests passed. Recorded failures, skipped verification and attempts without later completion are incomplete. Matching is per event and run in sequence order without operation IDs; service_ready/service_failure complete start attempts, and service_shutdown/service_failure complete stop requests. Missing shutdown, sequence gaps, rotation, disabled logging and collection failures leave observation gaps. Counters are per-run maxima, not packet totals across runs; schema 1 has no port-blocklist counter. Current logging enablement is unknown; configuration is never read.'
         journal_sources = $Sources; command_outcomes = $Commands; runs = $runs; paths = $paths
         audit = @{ available_records = @($Records | Where-Object audit_available -eq 1).Count; unavailable_records = @($Records | Where-Object audit_available -eq 0).Count; unknown_records = @($Records | Where-Object audit_available -eq -1).Count }
         unverified = @('packet_delivery_or_absence_of_escaped_packets', 'real_SYSTEM_identity_rejection', 'boot_gap', 'hostile_ACL_tests', 'deliberate_crash', 'installer_rollback', 'power_loss_durability')

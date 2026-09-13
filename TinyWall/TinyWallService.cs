@@ -22,6 +22,14 @@ namespace pylorak.TinyWall
     {
         private readonly ServiceRuntimeDiagnostics Diagnostics;
         private bool DiagnosticSettingLoaded;
+        private readonly DiagnosticFilterSet PortBlocklistFilterIds = new();
+        private List<ulong>? PendingPortBlocklistFilterIds;
+        private bool EffectiveHostsBlocklist;
+        private bool EffectivePortBlocklist;
+        private bool PortBlocklistDiagnosticsAvailable;
+        private int LastDiagnosticAuditState = -1;
+        private long LastDiagnosticRecordErrors;
+        private readonly CoalescedDiagnostic AuditRecordReports = new();
         private enum FilterWeights : ulong
         {
             Blocklist = 9000000,
@@ -309,9 +317,12 @@ namespace pylorak.TinyWall
                 {
                     UnavailableVolumeRules.Record();
                     if (UnavailableVolumeRules.TryReport(DateTimeOffset.UtcNow, out long count))
+                    {
+                        Diagnostics.Emit(RuntimeEvent.unavailable_rule_paths, RuntimeResult.observed);
                         Utils.Log("Skipped " + count + " rules with unavailable volumes since the previous report. " +
                             "Saved rules are retained and retried on reload. Example: " + path.Substring(0, Math.Min(path.Length, 256)),
                             Utils.LOG_ID_SERVICE);
+                    }
                 });
             rules = Normalize(rules);
             rawSocketExceptions = Normalize(rawSocketExceptions);
@@ -386,6 +397,8 @@ namespace pylorak.TinyWall
                         WfpEngine.UnregisterFilter(key);
                     var candidateKeys = new List<Guid>();
                     PendingRuntimeFilterKeys = candidateKeys;
+                    try { PendingPortBlocklistFilterIds = new List<ulong>(); }
+                    catch { PendingPortBlocklistFilterIds = null; } // Diagnostics cannot abort policy.
                     if (PolicyMode != FirewallMode.Disabled)
                     {
                         InstallPortScanProtection();
@@ -394,6 +407,14 @@ namespace pylorak.TinyWall
                     List<ulong> newPromptableFilterIds = InstallRules(rules, rawSocketExceptions, false);
                     trx.Commit();
                     committed = true;
+                    PortBlocklistDiagnosticsAvailable = PendingPortBlocklistFilterIds != null && PortBlocklistFilterIds.Replace(PendingPortBlocklistFilterIds);
+                    if (!PortBlocklistDiagnosticsAvailable) PortBlocklistFilterIds.Clear();
+                    EffectivePortBlocklist = PolicyConfiguration.Blocklists.EnableBlocklists &&
+                        PolicyConfiguration.Blocklists.EnablePortBlocklist &&
+                        PolicyMode != FirewallMode.BlockAll;
+                    Diagnostics.Emit(RuntimeEvent.port_blocklist_state, EffectivePortBlocklist ? RuntimeResult.enabled : RuntimeResult.disabled);
+                    Diagnostics.Emit(RuntimeEvent.port_blocklist_rules, PortBlocklistDiagnosticsAvailable
+                        ? (PortBlocklistFilterIds.Any ? RuntimeResult.present : RuntimeResult.absent) : RuntimeResult.failure);
                     RuntimeFilterKeys.Clear();
                     RuntimeFilterKeys.AddRange(candidateKeys);
                     lock (BlockedPromptQueue.SyncRoot)
@@ -407,6 +428,7 @@ namespace pylorak.TinyWall
                 finally
                 {
                     PendingRuntimeFilterKeys = null;
+                    PendingPortBlocklistFilterIds = null;
                     if (!committed)
                     {
                         UserSubjectExes = previousSubjects;
@@ -779,6 +801,19 @@ namespace pylorak.TinyWall
             IReadOnlyList<ulong> installedFilterIds = InstallWfpFilter(
                 f,
                 PromptFilterClassifier.IsRequiredProtection(r.Action == RuleAction.Block));
+            if (r.Action == RuleAction.Block && r.Weight == (ulong)FilterWeights.Blocklist)
+            {
+                try
+                {
+                    if (PendingPortBlocklistFilterIds != null)
+                    {
+                        if (installedFilterIds.Count > DiagnosticFilterSet.Capacity - PendingPortBlocklistFilterIds.Count)
+                            PendingPortBlocklistFilterIds = null;
+                        else PendingPortBlocklistFilterIds.AddRange(installedFilterIds);
+                    }
+                }
+                catch { PendingPortBlocklistFilterIds = null; } // No diagnostic allocation can reject a rule.
+            }
             if (PromptFilterClassifier.IsPromptable(
                 r.Action == RuleAction.Block,
                 r.Weight,
@@ -1147,11 +1182,15 @@ namespace pylorak.TinyWall
                 () => Diagnostics.Run(RuntimeEvent.policy_recovery_clear, () => File.Delete(ConfigRecoveryPath)));
         }
 
-        private static ServerConfiguration LoadServerConfig()
+        private ServerConfiguration LoadServerConfig()
         {
             return EnforcementPolicy.LoadConfiguration(
                 () => File.GetAttributes(ConfigSavePath),
-                () => ServerConfiguration.Load(ConfigSavePath), CreateDefaultServerConfig);
+                () => ServerConfiguration.Load(ConfigSavePath), () =>
+                {
+                    Diagnostics.Emit(RuntimeEvent.configuration_load, RuntimeResult.absent);
+                    return CreateDefaultServerConfig();
+                });
         }
 
         private static ServerConfiguration CreateDefaultServerConfig()
@@ -1190,7 +1229,8 @@ namespace pylorak.TinyWall
             EnsureRestrictiveBaseline();
             RestoreInterruptedPolicy();
             LoadDatabase();
-            ServerConfiguration candidate = LoadServerConfig();
+            ServerConfiguration candidate = null!;
+            Diagnostics.Run(RuntimeEvent.configuration_load, () => candidate = LoadServerConfig());
             if (!DiagnosticSettingLoaded)
             {
                 // The recovered on-disk setting is trusted. Later candidates take effect only
@@ -1226,19 +1266,37 @@ namespace pylorak.TinyWall
                 HostsFileManager.EnableHostsFile();
             else
                 HostsFileManager.DisableHostsFile();
+            EffectiveHostsBlocklist = PolicyConfiguration.Blocklists.EnableBlocklists && PolicyConfiguration.Blocklists.EnableHostsBlocklist;
+            Diagnostics.Emit(RuntimeEvent.hosts_blocklist_state, EffectiveHostsBlocklist ? RuntimeResult.enabled : RuntimeResult.disabled);
         }
 
-        private static void LoadDatabase()
+        private void ReportEffectiveDiagnosticState()
+        {
+            Diagnostics.Emit(RuntimeEvent.port_blocklist_state, EffectivePortBlocklist ? RuntimeResult.enabled : RuntimeResult.disabled);
+            Diagnostics.Emit(RuntimeEvent.port_blocklist_rules, PortBlocklistDiagnosticsAvailable
+                ? (PortBlocklistFilterIds.Any ? RuntimeResult.present : RuntimeResult.absent) : RuntimeResult.failure);
+            Diagnostics.Emit(RuntimeEvent.hosts_blocklist_state, EffectiveHostsBlocklist ? RuntimeResult.enabled : RuntimeResult.disabled);
+            Diagnostics.Emit(RuntimeEvent.hosts_protection, HostsFileManager.EnableProtection ? RuntimeResult.enabled : RuntimeResult.disabled);
+            bool available = LogWatcher.AuditEnrichmentAvailable;
+            Diagnostics.SetAuditAvailable(available);
+            if (Diagnostics.Enabled)
+                LastDiagnosticAuditState = available ? 1 : 0;
+            Diagnostics.Emit(RuntimeEvent.audit_health, available ? RuntimeResult.enabled : RuntimeResult.disabled,
+                available ? 0 : LogWatcher.SubscriptionHResult);
+        }
+
+        private void LoadDatabase()
         {
             using var timer = new HierarchicalStopwatch("LoadDatabase()");
 
             try
             {
-                GlobalInstances.AppDatabase = DatabaseClasses.AppDatabase.Load();
+                Diagnostics.Run(RuntimeEvent.database_load, () => GlobalInstances.AppDatabase = DatabaseClasses.AppDatabase.Load());
             }
             catch
             {
                 GlobalInstances.AppDatabase = new DatabaseClasses.AppDatabase();
+                Diagnostics.Emit(RuntimeEvent.database_load, RuntimeResult.fallback);
             }
         }
 
@@ -1495,6 +1553,7 @@ namespace pylorak.TinyWall
                     FailClosed,
                     () => Diagnostics.Run(RuntimeEvent.policy_journal, () => previous.Save(ConfigRecoveryPath)),
                     () => Diagnostics.Run(RuntimeEvent.policy_recovery_clear, () => File.Delete(ConfigRecoveryPath))));
+                ReportEffectiveDiagnosticState();
             }
             finally
             {
@@ -1507,7 +1566,7 @@ namespace pylorak.TinyWall
         {
             // Keep the callback delegate rooted until the engine is closed, including
             // when SafeHandle.Dispose silently consumes a failed native unsubscribe.
-            RuntimeEventSubscription?.Dispose();
+            Diagnostics.Run(RuntimeEvent.wfp_unsubscribe, () => RuntimeEventSubscription?.Dispose());
         }
 
         private void FailClosed()
@@ -1536,6 +1595,9 @@ namespace pylorak.TinyWall
                 RuntimeEventSubscription = null;
             }
             PromptableFilterIds.Replace(Array.Empty<ulong>());
+            PortBlocklistFilterIds.Clear();
+            PortBlocklistDiagnosticsAvailable = true;
+            EffectivePortBlocklist = false;
             VisibleState.Mode = FirewallMode.Unknown;
             GlobalInstances.ServerChangeset = Guid.NewGuid();
             PasswordLock.Locked = true;
@@ -1543,11 +1605,11 @@ namespace pylorak.TinyWall
 
         private void ExpireRules()
         {
-            ExpiringPolicyMaintenance.Run(
+            Diagnostics.Run(RuntimeEvent.rule_expiry, () => ExpiringPolicyMaintenance.Run(
                 () => Utils.DeepClone(ActiveConfig.Service),
                 candidate => PruneExpiredRules(candidate),
                 candidate => ApplyConfiguration(candidate, VisibleState.Mode),
-                FailClosed);
+                FailClosed));
         }
 
         private static bool HasExplicitBlockForSubject(ExceptionSubject subject)
@@ -1974,12 +2036,16 @@ namespace pylorak.TinyWall
         internal TinyWallServer(ServiceRuntimeDiagnostics diagnostics)
         {
             Diagnostics = diagnostics;
+            HostsFileManager.DiagnosticObserver = Diagnostics.Emit;
+            HostsFileManager.DiagnosticEnabled = () => Diagnostics.Enabled;
             CorrelatedDrops = new CorrelatedDropBatch(BlockedPromptQueue.SyncRoot, SystemClock.Instance);
             // Put back audit policy left behind by an unclean exit before any new
             // lease can journal over it. Registry only; MpsSvc is not needed.
             try
             {
-                AuditPolicyRestoreResult restored = FirewallLogWatcher.RestoreAuditPolicyFromJournal();
+                AuditPolicyRestoreResult restored = null!;
+                Diagnostics.Run(RuntimeEvent.audit_recovery, () => restored = FirewallLogWatcher.RestoreAuditPolicyFromJournal());
+                if (restored.Malformed.Count != 0) Diagnostics.Emit(RuntimeEvent.audit_recovery, RuntimeResult.failure);
                 foreach (string record in restored.Malformed)
                     Utils.Log("Skipped malformed audit policy recovery record " + record + "; it is kept in place for inspection.", Utils.LOG_ID_SERVICE);
             }
@@ -1988,7 +2054,7 @@ namespace pylorak.TinyWall
                 Utils.Log("Cannot restore the audit policy recorded by a previous run; the record is kept for the next start or uninstall.", Utils.LOG_ID_SERVICE);
                 Utils.LogException(exception, Utils.LOG_ID_SERVICE);
             }
-            LogWatcher = new FirewallLogWatcher();
+            LogWatcher = new FirewallLogWatcher(Diagnostics.Emit);
             Timer? minuteTimer = null;
             Timer? promptCandidateTimer = null;
             PipeServerEndpoint? serverPipe = null;
@@ -2046,7 +2112,7 @@ namespace pylorak.TinyWall
             WfpEngine.CollectNetEvents = true;
             using var NetEventCollection = new CallbackOnDispose(() => { try { WfpEngine.CollectNetEvents = false; } catch { } });
             WfpEngine.EventMatchAnyKeywords = InboundEventMatchKeyword.FWPM_NET_EVENT_KEYWORD_INBOUND_BCAST | InboundEventMatchKeyword.FWPM_NET_EVENT_KEYWORD_INBOUND_MCAST;
-            RuntimeEventSubscription = WfpEngine.SubscribeNetEvent(WfpNetEventCallback);
+            Diagnostics.Run(RuntimeEvent.wfp_subscribe, () => RuntimeEventSubscription = WfpEngine.SubscribeNetEvent(WfpNetEventCallback));
             using var WfpEvent = new CallbackOnDispose(DisposeRuntimeSubscription);
 
             ProcessStartWatcher.EventArrived += ProcessStartWatcher_EventArrived;
@@ -2072,10 +2138,10 @@ namespace pylorak.TinyWall
                 // This guard also covers initialization/compatibility-constructor failure.
                 // Confirm native revocation before potentially blocking COM restoration.
                 FailClosed();
-                WinDefFirewall?.Dispose();
+                Diagnostics.Run(RuntimeEvent.windows_firewall_stop, () => WinDefFirewall?.Dispose());
             });
             InitFirewall();
-            WinDefFirewall = new WindowsFirewall();
+            Diagnostics.Run(RuntimeEvent.windows_firewall_start, () => WinDefFirewall = new WindowsFirewall());
             service.FinishStateChange();
             Diagnostics.SetAuditAvailable(LogWatcher.AuditEnrichmentAvailable);
             Diagnostics.Emit(RuntimeEvent.service_ready, RuntimeResult.success);
@@ -2212,6 +2278,8 @@ namespace pylorak.TinyWall
                     return;
 
                 Diagnostics.ObserveDecision(eventType == EventLogEvent.ALLOWED);
+                if (Diagnostics.Enabled && eventType == EventLogEvent.BLOCKED && data.filterId.HasValue && PortBlocklistFilterIds.Contains(data.filterId.Value))
+                    Diagnostics.ObservePortBlocklistDrop();
 
                 var entry = new FirewallLogEntry
                 {
@@ -2311,6 +2379,7 @@ namespace pylorak.TinyWall
                     ServiceSnapshotErrors.Record();
                     if (ServiceSnapshotErrors.TryReport(DateTimeOffset.UtcNow, out long count))
                     {
+                        Diagnostics.Emit(RuntimeEvent.attribution_snapshot, RuntimeResult.failure, exception.HResult);
                         Utils.Log("Service process attribution failed for " + count + " batches since the previous report.", Utils.LOG_ID_SERVICE);
                         Utils.LogException(exception, Utils.LOG_ID_SERVICE);
                     }
@@ -2333,16 +2402,22 @@ namespace pylorak.TinyWall
             ReportOverflow(CandidateOverflows, "drop candidate");
             ReportOverflow(CorrelatedDrops.Suppressed, "correlated drop (capacity or deadline)");
             if (CorrelatedDrops.Contention.TryReport(DateTimeOffset.UtcNow, out long contention))
+            {
+                Diagnostics.Emit(RuntimeEvent.prompt_suppression, RuntimeResult.observed);
                 Utils.Log("Prompt admission skipped " + contention + " callbacks during queue lock contention. " +
                     "Connections remain blocked.", Utils.LOG_ID_SERVICE);
+            }
             ReportOverflow(PromptOverflows, "prompt");
         }
 
-        private static void ReportOverflow(CoalescedDiagnostic diagnostic, string queue)
+        private void ReportOverflow(CoalescedDiagnostic diagnostic, string queue)
         {
             if (diagnostic.TryReport(DateTimeOffset.UtcNow, out long count))
+            {
+                Diagnostics.Emit(RuntimeEvent.prompt_suppression, RuntimeResult.observed);
                 Utils.Log("SecureWall " + queue + " queue suppressed " + count +
                     " connections since the previous report. Connections remain blocked.", Utils.LOG_ID_SERVICE);
+            }
         }
 
         // Called on the service command thread; callback counters use their own synchronization.
@@ -2352,6 +2427,20 @@ namespace pylorak.TinyWall
             VisibleState.Locked = PasswordLock.Locked;
             bool available = LogWatcher.AuditEnrichmentAvailable;
             Diagnostics.SetAuditAvailable(available);
+            if (Diagnostics.Enabled && LastDiagnosticAuditState != (available ? 1 : 0))
+            {
+                LastDiagnosticAuditState = available ? 1 : 0;
+                Diagnostics.Emit(RuntimeEvent.audit_health, available ? RuntimeResult.enabled : RuntimeResult.disabled,
+                    available ? 0 : LogWatcher.SubscriptionHResult);
+            }
+            long recordErrors = LogWatcher.RecordErrors;
+            if (recordErrors != LastDiagnosticRecordErrors)
+            {
+                LastDiagnosticRecordErrors = recordErrors;
+                AuditRecordReports.Record();
+            }
+            if (AuditRecordReports.TryReport(DateTimeOffset.UtcNow, out _))
+                Diagnostics.Emit(RuntimeEvent.audit_record_error, RuntimeResult.failure);
             long candidates = CandidateOverflows.Total + CorrelatedDrops.Suppressed.Total;
             long prompts = PromptOverflows.Total;
             if (VisibleState.AttributionAvailable == available &&
@@ -2498,6 +2587,9 @@ namespace pylorak.TinyWall
             DisposeRuntimeSubscription();
             WfpEngine.Dispose();
             PromptableFilterIds.Replace(Array.Empty<ulong>());
+            PortBlocklistFilterIds.Clear();
+            PortBlocklistDiagnosticsAvailable = true;
+            EffectivePortBlocklist = false;
             ServerPipe?.Dispose();
             ProcessStartWatcher.EventArrived -= ProcessStartWatcher_EventArrived;
             try { ProcessStartWatcher.Stop(); } catch { }

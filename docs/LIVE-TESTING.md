@@ -18,7 +18,7 @@ In SecureWall Settings, select **Enable diagnostic logging** and save. It is off
 
 Disabling the checkbox stops new detailed diagnostic records; retained records remain available for collection. Existing ordinary error logging continues. Early startup before trusted configuration is available and periods with logging disabled are observation gaps.
 
-The journal records bounded service lifecycle, policy and recovery events, audit health, and aggregate allow/drop observations. It avoids packet contents, destination addresses, application paths, prompt tokens, passwords and API settings. It uses a bounded queue and retained log files, so old or overloaded observations can be lost. The collector reports gaps and recorded loss counters rather than treating missing events as success.
+The journal records service lifecycle, policy and recovery events, blocklist state, hosts operations, audit health, and aggregate filtering observations. See [diagnostic coverage](DIAGNOSTIC-COVERAGE.md) for the evidence available for each operation and its limits. It avoids packet contents, destination addresses, application paths, prompt tokens, passwords and API settings. It uses a bounded queue and retained log files, so old or overloaded observations can be lost. The collector reports gaps and recorded loss counters rather than treating missing events as success.
 
 ## Exercise normal use
 
@@ -36,7 +36,7 @@ Do not deliberately corrupt policy, change protected ACLs, terminate BFE, kill t
 
 Run `tools/diagnostics/Collect-SecureWallDiagnostics.ps1` as described in its adjacent README. The collector is read-only with respect to firewall, service and system policy; its writes are a new report directory and archive. It records missing logs, denied reads, timeouts and other partial results explicitly.
 
-Default collection avoids raw configuration and packet data. Review the README before opting into broader network or WFP inventories, which can disclose application paths and network addresses. Review the resulting archive before sharing it. The collector does not upload it automatically.
+Default collection avoids raw configuration and packet data. Review the README before opting into the network inventory, which discloses addresses, ports and process IDs. The collector does not export a WFP dump. Review the resulting archive before sharing it. The collector does not upload it automatically.
 
 For a useful incident report, include the bundle, the local time, what you did, what you expected, what happened and whether connectivity returned. Application names and destinations you choose to add manually can help reproduce a problem.
 

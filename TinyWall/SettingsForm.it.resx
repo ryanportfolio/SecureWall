@@ -191,12 +191,6 @@
   <data name="chkLockHostsFile.Text" xml:space="preserve">
     <value>Impedisci modifiche al file hosts</value>
   </data>
-  <data name="chkEnableHotkeys.Text" xml:space="preserve">
-    <value>Abilita scorciatoie tastiera</value>
-  </data>
-  <data name="chkAutoUpdateCheck.Text" xml:space="preserve">
-    <value>Controlla aggiornamenti automaticamente</value>
-  </data>
   <data name="chkAskForExceptionDetails.Text" xml:space="preserve">
     <value>Chiedi dettagli sulle eccezioni</value>
   </data>

@@ -14,9 +14,14 @@ namespace pylorak.TinyWall.Prompting
         service_start, service_ready, service_failure, service_stop_requested, service_shutdown,
         baseline_register, policy_journal, policy_persist, policy_enforce, policy_rollback,
         policy_publish, policy_recovery, policy_recovery_clear, fail_closed, heartbeat,
-        diagnostics_enabled, diagnostics_disabled, prompt_allow, prompt_ignore, network_reload, display_reload
+        diagnostics_enabled, diagnostics_disabled, prompt_allow, prompt_ignore, network_reload, display_reload,
+        hosts_backup, hosts_update, hosts_install, hosts_restore, hosts_restore_verify, hosts_protection, dns_flush,
+        port_blocklist_state, hosts_blocklist_state, port_blocklist_rules, configuration_load, database_load,
+        wfp_subscribe, wfp_unsubscribe, windows_firewall_start, windows_firewall_stop, rule_expiry,
+        audit_lease_start, audit_lease_stop, audit_subscribe, audit_unsubscribe, audit_health, audit_record_error,
+        audit_recovery, prompt_suppression, attribution_snapshot, unavailable_rule_paths
     }
-    internal enum RuntimeResult { attempt, success, failure, observed, absent, unknown_token, expired, not_allowable, locked }
+    internal enum RuntimeResult { attempt, success, failure, observed, absent, unknown_token, expired, not_allowable, locked, enabled, disabled, present, fallback, skipped }
 
     internal interface IRuntimeJournalSink
     {
@@ -40,7 +45,7 @@ namespace pylorak.TinyWall.Prompting
         private readonly int processId;
         private readonly int capacity;
         private readonly int heartbeatMilliseconds;
-        private long sequence, dropped, writeFailures, observedAllow, observedDrop;
+        private long sequence, dropped, writeFailures, observedAllow, observedDrop, observedPortBlocklistDrop;
         private int enabled = -1; // -1 = startup decision pending; 0 = disabled; 1 = enabled
         private int auditAvailable = -1;
         private volatile bool stopping;
@@ -97,6 +102,11 @@ namespace pylorak.TinyWall.Prompting
             if (!Enabled || stopping) return;
             if (allowed) Interlocked.Increment(ref observedAllow);
             else Interlocked.Increment(ref observedDrop);
+        }
+
+        internal void ObservePortBlocklistDrop()
+        {
+            if (Enabled && !stopping) Interlocked.Increment(ref observedPortBlocklistDrop);
         }
 
         internal void SetAuditAvailable(bool available)
@@ -162,12 +172,12 @@ namespace pylorak.TinyWall.Prompting
         {
             // All strings come from fixed enums, a GUID, or the fixed timestamp format.
             return string.Format(CultureInfo.InvariantCulture,
-                "{{\"schema\":1,\"run_id\":\"{0}\",\"process_id\":{1},\"sequence\":{2},\"utc\":\"{3}\",\"uptime_ms\":{4}," +
+                "{{\"schema\":2,\"run_id\":\"{0}\",\"process_id\":{1},\"sequence\":{2},\"utc\":\"{3}\",\"uptime_ms\":{4}," +
                 "\"event\":\"{5}\",\"result\":\"{6}\",\"hresult\":{7},\"dropped_records\":{8},\"write_failures\":{9}," +
-                "\"observed_allow\":{10},\"observed_drop\":{11},\"audit_available\":{12}}}",
+                "\"observed_allow\":{10},\"observed_drop\":{11},\"audit_available\":{12},\"observed_port_blocklist_drop\":{13}}}",
                 runId, processId, record.Sequence, record.Utc.ToString("O", CultureInfo.InvariantCulture), record.Uptime,
                 record.Event, record.Result, record.HResult, DroppedRecords, WriteFailures,
-                Interlocked.Read(ref observedAllow), Interlocked.Read(ref observedDrop), Volatile.Read(ref auditAvailable));
+                Interlocked.Read(ref observedAllow), Interlocked.Read(ref observedDrop), Volatile.Read(ref auditAvailable), Interlocked.Read(ref observedPortBlocklistDrop));
         }
 
         private void WriteLoop()

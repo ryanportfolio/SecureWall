@@ -57,7 +57,7 @@ SecureWall is not TinyWall and is not endorsed by TinyWall's author.
 
 ### Installation recovery and logs
 
-Optional diagnostic logging can be enabled in Settings for a normal-use trial and turned off later. See [live testing](docs/LIVE-TESTING.md) and the [local support-bundle collector](tools/diagnostics/README.md). Reports distinguish observed outcomes from cases that have not been tested.
+Optional diagnostic logging can be enabled in Settings for a normal-use trial and turned off later. See [live testing](docs/LIVE-TESTING.md), the [coverage map](docs/DIAGNOSTIC-COVERAGE.md), and the [local support-bundle collector](tools/diagnostics/README.md). Reports distinguish observed outcomes from cases that have not been tested.
 
 A clean TinyWall-only migration requires uninstalling TinyWall and rebooting before installing SecureWall. A previous SecureWall build may leave an unsafe `%ProgramData%\SecureWall` tree that this version must reject. Generic MSI failure can indicate that rejection. Stop, preserve the directory and installer diagnostics, and use trusted manual recovery from a local console. Do not change ACLs or blindly restore writable legacy configuration to bypass validation. See [legacy data and controller recovery](docs/SECURITY.md#legacy-data-and-controller-recovery) for the migration boundary and MSI diagnostic limit.
 

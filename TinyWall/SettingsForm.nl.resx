@@ -171,9 +171,6 @@
   <data name="chkLockHostsFile.Text" xml:space="preserve">
     <value>Voorkom wijzigingen aan het hosts bestand</value>
   </data>
-  <data name="chkAutoUpdateCheck.Text" xml:space="preserve">
-    <value>Automatisch nazien op updates</value>
-  </data>
   <data name="chkAskForExceptionDetails.Text" xml:space="preserve">
     <value>Waarschuwing voor uitzonderingsdetails</value>
   </data>

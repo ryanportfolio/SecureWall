@@ -7,7 +7,7 @@ start SecureWall, change firewall or audit policy, edit settings or upload data.
 Detailed diagnostics are off by default. Select **Enable diagnostic logging** on
 the **General** tab in SecureWall settings before the trial. Disable it later to stop new detailed
 records; existing records remain available. A disable marker is best effort.
-See [the live testing guide](../../docs/LIVE-TESTING.md) for trial preparation.
+See [the live testing guide](../../docs/LIVE-TESTING.md) for trial preparation and [diagnostic coverage](../../docs/DIAGNOSTIC-COVERAGE.md) for the operation-by-operation evidence map.
 
 ## Run the collector
 
@@ -32,11 +32,11 @@ The ZIP contains the same payload as the directory:
 | --- | --- |
 | `manifest.json` | Capture UTC start/end, bounds, command outcomes and each payload file's SHA-256 and size |
 | `system.json` | OS version/build/type, architecture and last boot time |
-| `service.json` | SecureWall service state, startup mode, PID and exit code |
+| `service.json` | SecureWall service state, startup mode, PID, exit code and expected account/service-type checks |
 | `binary.json` | SCM-registered executable's SHA-256, byte size, numeric file/product versions and Authenticode result |
 | `events.json` | Bounded recent relevant SCM/Application error and warning metadata |
 | `journal.json` | Sanitized structured records plus outcomes for each known journal generation |
-| `coverage.json` | Historical paths observed, run gaps, dropped/write-failure counters and observation limits |
+| `coverage.json` | Historical paths, outcome counts, incomplete attempts, run gaps, loss counters and observation limits |
 
 The binary identity describes the registered file on disk. It does not prove that
 an already-running process loaded those exact bytes. `NotSigned` and other
@@ -113,11 +113,15 @@ collected. Leave the switch off for the default privacy scope.
 
 ## Interpret coverage
 
-All journal paths are labeled `historical_observation` or `unobserved`. Counts of
+Coverage distinguishes unobserved paths, historical observations and incomplete observations. Attempts without a completion in the same service run remain unresolved; concurrent operations do not carry individual operation IDs. Counts of
 reported success/failure describe software outcomes. A successful policy publish,
 prompt response, recovery or WFP registration is useful evidence that its code
 path ran. Allow/drop counters cover periods when diagnostics were enabled and
 do not prove packet delivery or the absence of escaped packets.
+
+The collector accepts schema 1 and schema 2 records with their exact allowed fields. Schema 2 adds the aggregate count of observed drops attributed to committed port-blocklist filters. That counter is unavailable for legacy-only runs, rather than reported as zero. A hosts-based domain block cannot produce a WFP domain-drop counter.
+
+The service registration checks describe SCM data, not a verification of the running token or a hostile identity test.
 
 The collector deliberately does not read settings to learn the current checkbox
 state. Last enable/disable markers are historical; missing records can reflect

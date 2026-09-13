@@ -180,12 +180,6 @@
   <data name="chkLockHostsFile.Text" xml:space="preserve">
     <value>Zapobiegaj modyfikacji pliku hosts</value>
   </data>
-  <data name="chkEnableHotkeys.Text" xml:space="preserve">
-    <value>Włącz globalne skróty klawiszowe</value>
-  </data>
-  <data name="chkAutoUpdateCheck.Text" xml:space="preserve">
-    <value>Automatycznie sprawdzaj aktualizacje</value>
-  </data>
   <data name="chkAskForExceptionDetails.Text" xml:space="preserve">
     <value>Pytaj o szczegóły wyjątków</value>
   </data>
