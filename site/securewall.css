@@ -1,0 +1,18 @@
+.header__logo-wrap{width:170px!important;height:38px!important}.header__logo{width:170px!important;height:38px!important;object-fit:contain}.sw-footer-wordmark{width:240px;height:auto}.sw-footer-note{max-width:330px;line-height:1.5}.sw-footer-links{display:flex;flex-direction:column;gap:14px;margin-bottom:30px}.sw-download-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}.sw-download-card{padding:32px 26px;border:1px solid #575b60;border-radius:2px;transition:background .25s,border-color .25s}.sw-download-card:hover{background:#272b30;border-color:#b9c4d1}.sw-chip{display:block;font-family:monospace;letter-spacing:.08em;font-size:14px;margin-bottom:56px;color:#a9bed7}.sw-download-card p{font-size:18px;line-height:1.4;color:#b3b6ba}.sw-download-link{display:block;margin-top:32px;font-size:14px}.sw-alpha-note{max-width:780px;line-height:1.5;margin-bottom:24px}.sw-cta{display:inline-block;padding:16px 22px;border:1px solid #89949f;margin-top:16px;text-decoration:none}.js-hero{background:linear-gradient(0deg,rgba(10,14,22,.63),transparent 60%)}.js-hero h1,.js-hero p{text-shadow:0 2px 24px rgba(0,0,0,.8)}a:focus-visible,button:focus-visible{outline:2px solid #b8d7ff;outline-offset:6px}@media(max-width:767px){.sw-download-grid{grid-template-columns:1fr}.sw-chip{margin-bottom:24px}.sw-alpha-note{padding-inline:20px}.header__logo-wrap,.header__logo{width:142px!important}.sw-footer-wordmark{width:200px}.js-webgl-title-text{text-align:center;padding-inline:20px;font-size:clamp(38px,9vw,72px)}}
+
+.mobile-menu nav a{color:#aeb6c1}.mobile-menu nav a.active{color:var(--light-gray)}
+/* Keep mobile footer copy readable while the animated rings pass behind it. */
+@media(max-width:767px){.footer__outer{background:rgba(10,14,22,.88)}.sw-footer-note{color:#c8cdd4}}
+/* Hero font: Geist Mono Bold, self-hosted under the SIL Open Font License. */
+@font-face{font-family:'Geist Mono';src:url('/fonts/GeistMono-Bold.woff2') format('woff2');font-style:normal;font-weight:700;font-display:swap}
+.js-hero h1{font-family:'Geist Mono',monospace!important;font-weight:700!important;font-size:clamp(80px,14.4vw,208px)!important;line-height:1.06!important;letter-spacing:-.045em!important;text-shadow:none!important}
+.js-hero p{text-shadow:none!important}
+.js-hero{background:linear-gradient(90deg,rgba(9,13,20,.62),rgba(9,13,20,.2) 52%,transparent 80%),linear-gradient(0deg,rgba(9,13,20,.65),transparent 75%)}
+
+.js-webgl-title-text{font-family:'Geist Mono',monospace!important;font-weight:700!important;text-shadow:none!important}
+/* Stack transition words while retaining their animations. */
+.sw-block-title{color:#000!important}
+.sw-block-title,.sw-control-title{font-size:clamp(96px,16.5vw,237px)!important;line-height:1!important;letter-spacing:-.05em!important;text-align:center}
+.sw-block-title>div,.sw-control-title>div{display:block!important}
+
+.sw-block-title,.sw-control-title{margin:0!important}

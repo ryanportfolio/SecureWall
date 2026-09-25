@@ -1,0 +1,10 @@
+.vercel
+scripts
+server.mjs
+README.md
+hero-options.html
+hero-options.css
+hero-options.js
+
+.env*
+.gitignore

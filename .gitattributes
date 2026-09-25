@@ -1,2 +1,4 @@
 # Shell scripts must stay LF. CRLF breaks bash on Windows (git-bash) checkouts.
 *.sh text eol=lf
+# Website files deploy byte-for-byte; never convert line endings.
+site/** -text
