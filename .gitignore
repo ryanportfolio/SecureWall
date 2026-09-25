@@ -46,3 +46,7 @@ Thumbs.db
 /MsiSetup/Sources/ProgramFiles/SecureWall/SecureWall.exe.config
 /tests/**/bin/
 /tests/**/obj/
+
+# Website (secwall.org): prebuilt bundle is deployed as committed, not rebuilt here
+!/site/build/
+/site/.vercel/

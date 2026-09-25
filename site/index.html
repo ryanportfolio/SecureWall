@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SecureWall | Default-deny firewall for Windows</title>
+<meta name="description" content="An open-source default-deny firewall for Windows. Application rules, connection prompts and optional local diagnostics. v0.3.0 unsigned alpha.">
+<link rel="canonical" href="https://secwall.org/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="SecureWall">
+<meta property="og:title" content="SecureWall | Default-deny firewall for Windows">
+<meta property="og:description" content="An open-source default-deny firewall for Windows. Application rules, connection prompts and optional local diagnostics. v0.3.0 unsigned alpha.">
+<meta property="og:url" content="https://secwall.org/">
+<meta property="og:image" content="https://secwall.org/images/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="SecureWall wordmark with the text Choose what connects and Default-deny firewall for Windows">
+<meta name="twitter:card" content="summary_large_image">
+<style>.sw-static{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}</style>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@graph":[
+{"@type":"WebSite","@id":"https://secwall.org/#website","url":"https://secwall.org/","name":"SecureWall","description":"An open-source default-deny firewall for Windows. Application rules, connection prompts and optional local diagnostics. v0.3.0 unsigned alpha.","inLanguage":"en"},
+{"@type":"SoftwareApplication","@id":"https://secwall.org/#software","name":"SecureWall","url":"https://secwall.org/","description":"An open-source default-deny firewall for Windows. Application rules, connection prompts and optional local diagnostics. v0.3.0 unsigned alpha.","applicationCategory":"SecurityApplication","operatingSystem":"Windows 10 21H2 or later, Windows 11","softwareVersion":"0.3.0","license":"https://www.gnu.org/licenses/gpl-3.0.html","downloadUrl":"https://github.com/ryanportfolio/SecureWall/releases/tag/v0.3.0","sameAs":"https://github.com/ryanportfolio/SecureWall","image":"https://secwall.org/images/og.png"}
+]}
+</script>
+<link rel="preload" href="/fonts/GeistMono-Bold.woff2" as="font" type="font/woff2" crossorigin>
+<meta name="theme-color" content="#17191a"><link rel="icon" type="image/svg+xml" href="/images/mark.svg"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preload" href="/build/LazareGrotesk-Light-D7jfWktA.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/build/Magnetik-Light-D4up6828.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/build/SpaceMono-Regular-DidEy8wt.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/build/index-uwBOcFwU.css"><link rel="stylesheet" href="/securewall.css">
+<script>window.globalData={publicUrl:'/',assetsUrl:'/assets/'};</script>
+<script type="module" src="/build/index-DJa5U_1D.js"></script>
+</head><body class="bg-dark-gray home"><div id="root" style="height:100%"><div class="sw-static" inert>
+<header><nav aria-label="Main navigation"><a href="/#home" aria-label="Back to homepage"><img src="/images/wordmark.svg" alt="SecureWall"></a><ul>
+<li><a href="/#about-us">About</a></li>
+<li><a href="/#our-principles">Features</a></li>
+<li><a href="/#team">Downloads</a></li>
+<li><a href="/#public-goods">Guides</a></li>
+<li><a href="https://github.com/ryanportfolio/SecureWall/releases/tag/v0.3.0">GET ALPHA</a></li>
+</ul></nav></header>
+<main>
+<h1>Choose what <span>connects</span></h1>
+<p>A default-deny firewall for Windows. Decide which apps connect.</p>
+<p>SecureWall · v0.3.0 alpha</p>
+<a href="/#about-us">Explore</a>
+<h2>Block by default</h2>
+<h2>Full Control</h2>
+<section id="about-us">
+<img src="/images/mark.svg" alt="SecureWall">
+<p>Control each connection</p>
+<p>Keep apps offline until you choose to give them access. SecureWall lets you manage application allow and block rules on Windows 10 21H2+ and Windows 11, with prompts for eligible unknown outbound connections.</p>
+<p>Built from TinyWall and open source under GPLv3. Review the code, bring your existing settings, and manage connections from the Windows tray.</p>
+<h3>Choose when an app gets access</h3>
+<p>When a connection prompt appears, choose Allow outgoing to save an outbound TCP/UDP rule. Choose Ignore or dismiss it to keep your current rules.</p>
+<h3>See what is connecting</h3>
+<p>Open Network Activity from the tray to see observed allowed and blocked connections, TCP states, and local listening ports. The view refreshes every second.</p>
+</section>
+<section id="our-principles">
+<h2>Features</h2>
+<h3>Keep rules per app</h3>
+<p>Allow the apps you need online and block the ones you want to keep offline. Existing explicit blocks stay in place when you approve a connection prompt.</p>
+<h3>Troubleshoot a blocked app</h3>
+<p>Enable diagnostic logging in Settings to help investigate connection problems. Logging is off by default, and collected reports stay local until you choose to share them.</p>
+<h3>Bring your TinyWall settings</h3>
+<p>Import a TinyWall .tws export to bring over your whole saved configuration, including rules and other settings. Review the imported settings before making changes.</p>
+</section>
+<section id="team">
+<h2>Get SecureWall</h2>
+<ul>
+<li><a href="https://github.com/ryanportfolio/SecureWall/releases/download/v0.3.0/SecureWall_x64.msi"><span>x64</span><h3>Intel / AMD</h3><p>For normal 64-bit Windows PCs.</p><span>Download <span>x64</span> MSI ↗</span></a></li>
+<li><a href="https://github.com/ryanportfolio/SecureWall/releases/download/v0.3.0/SecureWall_arm64.msi"><span>ARM64</span><h3>Windows on ARM</h3><p>For ARM-based Windows devices.</p><span>Download <span>ARM64</span> MSI ↗</span></a></li>
+<li><a href="https://github.com/ryanportfolio/SecureWall/releases/download/v0.3.0/SecureWall_x86.msi"><span>x86</span><h3>32-bit Windows</h3><p>Only for 32-bit Windows installations.</p><span>Download <span>x86</span> MSI ↗</span></a></li>
+</ul>
+<h3>Before you install</h3>
+<p>v0.3.0 is unsigned alpha software and is not end-to-end verified. Read the setup guide before a trial. Verify the MSI against SHA256SUMS.txt. A firewall defect can interrupt networking or weaken host isolation.</p>
+<p>Remove TinyWall and reboot first. Existing SecureWall installations need full removal before this version; in-place upgrades and repair are unsupported. Service loss can leave external networking blocked, including DNS and DHCP. Keep local console access.</p>
+<a href="https://github.com/ryanportfolio/SecureWall/releases/tag/v0.3.0">Read v0.3.0 release notes ↗</a>
+</section>
+<section id="public-goods">
+<h2>Guides</h2>
+<h3><a href="https://github.com/ryanportfolio/SecureWall/releases/tag/v0.3.0">Install SecureWall</a></h3>
+<p>Choose the right Windows installer, check the download, and prepare to switch from TinyWall. Read the removal and recovery steps before installing.</p>
+<h3><a href="https://github.com/ryanportfolio/SecureWall/blob/main/README.md#intended-prompt-behavior">Respond to connection prompts</a></h3>
+<p>Learn what Allow outgoing saves, what Ignore leaves blocked, and which connections can trigger a prompt.</p>
+<h3><a href="https://github.com/ryanportfolio/SecureWall/blob/main/docs/LIVE-TESTING.md#enable-logging">Turn on diagnostic logging</a></h3>
+<p>Find the logging checkbox, record a connection problem, and turn detailed logging off again when you are done.</p>
+<h3><a href="https://github.com/ryanportfolio/SecureWall/tree/v0.3.0/tools/diagnostics">Collect a troubleshooting report</a></h3>
+<p>Gather local logs with the PowerShell collector. Review the report before sharing it with a bug report; nothing is uploaded automatically.</p>
+</section>
+</main>
+<footer>
+<img src="/images/wordmark.svg" alt="SecureWall">
+<p>Windows firewall · GPLv3 · Unsigned alpha. Based on TinyWall 3.5.1. SecureWall is not endorsed by TinyWall's author.</p>
+<ul>
+<li><a href="https://github.com/ryanportfolio/SecureWall/releases/tag/v0.3.0">Release v0.3.0</a></li>
+<li><a href="https://github.com/ryanportfolio/SecureWall">Source code</a></li>
+<li><a href="https://github.com/ryanportfolio/SecureWall/blob/main/LICENSE">License</a></li>
+<li><a href="https://github.com/ryanportfolio/SecureWall/blob/main/docs/SECURITY.md">Security &amp; recovery</a></li>
+</ul>
+<a href="#home">Back to top ↑</a>
+</footer>
+</div></div><noscript><main style="padding:3rem;color:white;font-family:sans-serif"><h1>SecureWall</h1><p>A default-deny Windows firewall. Version 0.3.0 is an unsigned alpha for exploratory testing.</p><a style="color:white" href="https://github.com/ryanportfolio/SecureWall/releases/tag/v0.3.0">Read release notes and get the alpha</a><p>Enable JavaScript to explore the animated site.</p></main></noscript></body></html>
