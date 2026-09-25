@@ -22,7 +22,7 @@ function loadRules() {
   let config = {};
   try { config = JSON.parse(readFileSync(join(root, 'vercel.json'), 'utf8')); } catch { }
   return (config.headers ?? []).map(({ source, headers }) => ({
-    re: new RegExp('^' + source.replace(/[.+?^${}|[\]\\]/g, '\\$&').replace(/\\?\(\.\*\)/g, '(.*)').replace(/:(\w+)\*/g, '(.*)') + '$'),
+    re: new RegExp('^' + source.replace(/[.+?^${}|[\]\\]/g, '\\$&').replace(/\(\\\.\*\)/g, '(.*)').replace(/:(\w+)\*/g, '(.*)') + '$'),
     headers,
   }));
 }

@@ -90,6 +90,9 @@ jobs:
           node .claude\scripts\sync-codex-skills.mjs --check
           Get-Content -Raw .claude\settings.json | ConvertFrom-Json | Out-Null
 
+      - name: Verify website SEO
+        run: node tools/site/seo.mjs --check
+
       - uses: actions/upload-artifact@v4
         with:
           name: SecureWall-unsigned-installers
