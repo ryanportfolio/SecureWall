@@ -1,11 +1,14 @@
 ---
 name: brainstorming
-description: Use when the user asks to brainstorm, explore, compare approaches, or design a feature, or when a requested product, interface, workflow, architecture, or behavior change has unresolved goals, competing directions, material tradeoffs, or high-cost ambiguity. Do not use for routine fixes, precise requests, supplied designs/specs, mechanical edits, or backend-only work without a design decision.
+description: Use when brainstorming or designing a product, interface, workflow, architecture, or behavior change with unresolved goals or material tradeoffs; not for routine or fully specified work.
 ---
 
 # Brainstorming
 
 Resolve only the decisions that materially affect implementation. Match discovery depth to uncertainty and risk; do not turn clear work into ceremony.
+
+When deciding whether repeated operations need a shared boundary, read
+[selective shared-code refactoring](references/shared-code-refactoring.md).
 
 ## Choose the lane
 
@@ -26,6 +29,8 @@ If uncertain between lanes, use the lighter lane until a material unknown appear
 ## Inspect before asking
 
 Read the smallest useful set of project instructions, product/design documents, representative code, tests, and recent changes. Prefer discovering facts from the repository over asking the user.
+
+For an assumption that could change the recommendation, use a cheap, authorized check when available; otherwise state the uncertainty.
 
 Before discussion, identify:
 
