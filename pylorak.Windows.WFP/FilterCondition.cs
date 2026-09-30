@@ -568,11 +568,77 @@ namespace pylorak.Windows.WFP
 
     public sealed class UserIdFilterCondition : SecurityDescriptorFilterCondition
     {
+        // The condition matches when an access check of the token against this descriptor
+        // grants FWP_ACTRL_MATCH_FILTER (CC). The previous single-SID SDDL ended in a stray
+        // ")"; Windows tolerated it, and the generated string is now well-formed.
         public UserIdFilterCondition(string sid, RemoteOrLocal peer)
+            : this(new[] { sid }, Array.Empty<string>(), peer)
+        {
+        }
+
+        // Deny ACEs are written before allow ACEs, so a denied SID never matches even when
+        // the token also carries an allowed group.
+        public UserIdFilterCondition(System.Collections.Generic.IEnumerable<string> allowedSids,
+            System.Collections.Generic.IEnumerable<string> deniedSids, RemoteOrLocal peer)
             : base((RemoteOrLocal.Local == peer) ? ConditionKeys.FWPM_CONDITION_ALE_USER_ID : ConditionKeys.FWPM_CONDITION_ALE_REMOTE_USER_ID,
                   FieldMatchType.FWP_MATCH_EQUAL,
-                  $"O:LSD:(A;;CC;;;{sid}))")
+                  BuildSddl(allowedSids, deniedSids))
         {
+        }
+
+        public static string BuildSddl(System.Collections.Generic.IEnumerable<string> allowedSids,
+            System.Collections.Generic.IEnumerable<string> deniedSids)
+        {
+            if (allowedSids == null)
+                throw new ArgumentNullException(nameof(allowedSids));
+            if (deniedSids == null)
+                throw new ArgumentNullException(nameof(deniedSids));
+
+            var sddl = new System.Text.StringBuilder("O:LSD:");
+            foreach (string sid in deniedSids)
+                sddl.Append("(D;;CC;;;").Append(ValidateSid(sid)).Append(')');
+
+            int allowed = 0;
+            foreach (string sid in allowedSids)
+            {
+                sddl.Append("(A;;CC;;;").Append(ValidateSid(sid)).Append(')');
+                ++allowed;
+            }
+
+            if (allowed == 0)
+                throw new ArgumentException("At least one allowed SID is required.", nameof(allowedSids));
+            return sddl.ToString();
+        }
+
+        // Only literal "S-1-..." SIDs; anything else could change the SDDL structure.
+        private static string ValidateSid(string sid)
+        {
+            if (sid == null || sid.Length < 5 || !sid.StartsWith("S-1-", StringComparison.Ordinal))
+                throw new ArgumentException("Expected a string SID such as S-1-5-18.", nameof(sid));
+
+            bool previousDash = false;
+            for (int i = 4; i < sid.Length; ++i)
+            {
+                char c = sid[i];
+                if (c == '-')
+                {
+                    if (previousDash)
+                        throw new ArgumentException("Expected a string SID such as S-1-5-18.", nameof(sid));
+                    previousDash = true;
+                }
+                else if (c >= '0' && c <= '9')
+                {
+                    previousDash = false;
+                }
+                else
+                {
+                    throw new ArgumentException("Expected a string SID such as S-1-5-18.", nameof(sid));
+                }
+            }
+
+            if (previousDash || sid[4] == '-')
+                throw new ArgumentException("Expected a string SID such as S-1-5-18.", nameof(sid));
+            return sid;
         }
     }
 

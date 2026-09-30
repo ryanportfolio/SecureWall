@@ -7,7 +7,9 @@ namespace pylorak.TinyWall.Prompting
     // controller for an optional "what is this?" lookup. By design it carries only the
     // executable's file name (never the full path, which can leak the Windows user name)
     // plus the unverified embedded publisher, identity kind, service name and package SID.
-    // The remote endpoint is included only when the user explicitly opts in.
+    // The remote endpoint is included only when the user explicitly opts in. Every field is
+    // sanitized (C0/C1 controls removed, whitespace collapsed) and length-capped, because file
+    // names, certificate subjects and service names are chosen by the blocked program.
     internal sealed class AiExplainSubject
     {
         internal AiExplainSubject(
@@ -22,7 +24,7 @@ namespace pylorak.TinyWall.Prompting
                 throw new ArgumentException("Executable name is required.", nameof(executableName));
 
             Kind = kind;
-            ExecutableName = executableName.Trim();
+            ExecutableName = Normalize(executableName) ?? "unknown application";
             Publisher = Normalize(publisher);
             ServiceName = Normalize(serviceName);
             PackageSid = Normalize(packageSid);
@@ -99,7 +101,6 @@ namespace pylorak.TinyWall.Prompting
                 + remotePort.ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
 
-        private static string? Normalize(string? value) =>
-            string.IsNullOrWhiteSpace(value) ? null : value!.Trim();
+        private static string? Normalize(string? value) => AiExplainText.SanitizeField(value);
     }
 }

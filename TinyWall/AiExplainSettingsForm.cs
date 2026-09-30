@@ -24,7 +24,7 @@ namespace pylorak.TinyWall
             StartPosition = FormStartPosition.CenterParent;
             MinimizeBox = false;
             MaximizeBox = false;
-            ClientSize = new Size(460, 330);
+            ClientSize = new Size(460, 370);
 
             var layout = new TableLayoutPanel
             {
@@ -56,10 +56,11 @@ namespace pylorak.TinyWall
             {
                 Text = "Default requests send the file name, unverified publisher, identity type, service name and package SID when present. "
                     + "The key is stored encrypted for your Windows account and never leaves this PC "
-                    + "except in requests you trigger.",
+                    + "except in requests you trigger. Enabling also turns on a SecureWall permit for its own program: "
+                    + "outbound TCP port 443 from signed-in accounts only, never the SecureWall service.",
                 AutoSize = false,
                 Dock = DockStyle.Fill,
-                Height = 90,
+                Height = 130,
             };
             layout.Controls.Add(note);
             layout.SetColumnSpan(note, 2);
@@ -132,8 +133,65 @@ namespace pylorak.TinyWall
                 cfg.AiExplainApiKeyProtected = AiExplainKeyProtection.Protect(typed.Trim());
 
             cfg.Save();
+
+            // The machine-wide permit follows the checkbox so it exists only while the
+            // assistant is enabled. Failure leaves the controller settings saved.
+            if (!TrySetServiceAccess(_enabled.Checked, out string? serviceError))
+            {
+                MessageBox.Show(this,
+                    "Your AI assistant settings were saved, but SecureWall's network permit for the assistant could not be "
+                        + (_enabled.Checked ? "turned on" : "turned off") + ".\n\n" + serviceError,
+                    "AI Assistant", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+
             DialogResult = DialogResult.OK;
             Close();
+        }
+
+        // Sets ServerConfiguration.AiAssistantEgress through the authenticated pipe with the
+        // same PUT_SETTINGS request the settings window uses, so the service password lock and
+        // changeset check apply. The service decides what the flag installs.
+        internal static bool TrySetServiceAccess(bool enabled, out string? error)
+        {
+            error = null;
+            ServerConfiguration? current = ActiveConfig.Service;
+            if (current != null && current.AiAssistantEgress == enabled)
+                return true;
+
+            Controller? pipe = GlobalInstances.Controller;
+            if (pipe == null || current == null)
+            {
+                error = "SecureWall's service is not connected.";
+                return false;
+            }
+
+            ServerConfiguration candidate = Utils.DeepClone(current);
+            candidate.AiAssistantEgress = enabled;
+            TwMessage response = pipe.SetServerConfig(candidate, GlobalInstances.ClientChangeset);
+            switch (response.Type)
+            {
+                case MessageType.PUT_SETTINGS:
+                    var args = (TwMessagePutSettings)response;
+                    ActiveConfig.Service = args.Config;
+                    GlobalInstances.ClientChangeset = args.Changeset;
+                    if (args.Warning)
+                    {
+                        error = "SecureWall's settings changed in the meantime. Try again.";
+                        return false;
+                    }
+                    if (ActiveConfig.Service.AiAssistantEgress != enabled)
+                    {
+                        error = "The SecureWall service did not accept the change.";
+                        return false;
+                    }
+                    return true;
+                case MessageType.RESPONSE_LOCKED:
+                    error = "SecureWall is locked. Unlock it from the tray icon, then try again.";
+                    return false;
+                default:
+                    error = "The SecureWall service could not apply the change.";
+                    return false;
+            }
         }
     }
 }

@@ -98,6 +98,11 @@ namespace pylorak.TinyWall.Prompting
             _deadline?.PauseForReading();
             timeoutTimer.Start();
 
+            // Without the service's narrow permit the request would be blocked and raise a
+            // second, non-allowable prompt for SecureWall itself.
+            if (ActiveConfig.Service?.AiAssistantEgress != true && !OfferToEnableServiceAccess())
+                return;
+
             _aiButton.Enabled = false;
             ShowAiResult("Checking with the AI assistant…");
 
@@ -122,7 +127,9 @@ namespace pylorak.TinyWall.Prompting
                 if (token.IsCancellationRequested || IsDisposed)
                     return;
 
-                ShowAiResult(result.Success ? result.Text! : result.Error!);
+                ShowAiResult(result.Success
+                    ? AiExplainText.FormatExplanation(result.Text)
+                    : AiExplainText.FormatError(result.Error));
             }
             catch (OperationCanceledException)
             {
@@ -131,7 +138,7 @@ namespace pylorak.TinyWall.Prompting
             catch (Exception exception)
             {
                 if (!IsDisposed)
-                    ShowAiResult("The AI lookup failed: " + exception.Message);
+                    ShowAiResult(AiExplainText.FormatError("The AI lookup failed: " + exception.Message));
             }
             finally
             {
@@ -153,6 +160,29 @@ namespace pylorak.TinyWall.Prompting
 
             using var form = new AiExplainSettingsForm();
             form.ShowDialog(this);
+            return false;
+        }
+
+        // Returns true when the service permit is now on. Otherwise the panel explains why the
+        // lookup did not run and how to turn the permit on.
+        private bool OfferToEnableServiceAccess()
+        {
+            DialogResult choice = MessageBox.Show(
+                this,
+                AiExplainEgressPolicy.EnablePrompt,
+                "AI Assistant",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+            string? error = null;
+            if (choice == DialogResult.Yes
+                && AiExplainSettingsForm.TrySetServiceAccess(true, out error))
+            {
+                return true;
+            }
+
+            ShowAiResult(AiExplainText.FormatError(
+                (choice == DialogResult.Yes && error != null ? error + "\r\n\r\n" : string.Empty)
+                + AiExplainEgressPolicy.ServiceAccessOffMessage));
             return false;
         }
 
