@@ -69,15 +69,15 @@ internal static class ExceptionMergePolicyTests
     private static void MergeLoopKeepsExecutableWideBlock()
     {
         var block = (Subject: (Subject)new Executable(SvcHost), Policy: "HardBlock");
-        var learned = (Subject: (Subject)new Service(SvcHost, "Dnscache"), Policy: "udp listener 5353");
+        var serviceRule = (Subject: (Subject)new Service(SvcHost, "Dnscache"), Policy: "udp listener 5353");
         var profile = new List<(Subject Subject, string Policy)> { block };
 
         foreach (var old in profile.ToList())
         {
-            if (ExceptionMergePolicy.SameSubject(old.Subject, learned.Subject))
+            if (ExceptionMergePolicy.SameSubject(old.Subject, serviceRule.Subject))
                 profile.Remove(old);
         }
-        profile.Add(learned);
+        profile.Add(serviceRule);
 
         AssertEx.Equal(2, profile.Count);
         AssertEx.True(profile.Contains(block), "The executable-wide block must survive.");

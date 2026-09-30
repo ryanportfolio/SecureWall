@@ -302,12 +302,6 @@ Sistem menüsünden Yönetici olarak çalıştır'ı seçin ve tekrar deneyin.</
   <data name="CannotGetPathOfProcess" xml:space="preserve">
     <value>İşlemin yolu alınamadı.</value>
   </data>
-  <data name="TheFirewallIsNowLearning" xml:space="preserve">
-    <value>Firewall artık verilen bütün trafik izinlerini kayıt altına alacak.</value>
-  </data>
-  <data name="FirewallModeLearn" xml:space="preserve">
-    <value>Otomatik Öğren</value>
-  </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>SecureWall'ın kaldırılıp güncellenmesi başlasın mı?</value>
   </data>

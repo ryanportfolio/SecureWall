@@ -125,12 +125,15 @@ internal static class PromptTransactionIntegrationTests
         AssertEx.Equal(PromptActionStatus.Expired, f.Queue.Allow(token).Status);
     }
 
-    internal static string Source(string path)
+    internal static string Source(string path) =>
+        File.ReadAllText(SourcePath(path)).Replace("\r\n", "\n");
+
+    internal static string SourcePath(string path)
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir != null && !File.Exists(Path.Combine(dir.FullName, "TinyWall", "TinyWallService.cs"))) dir = dir.Parent;
         if (dir == null) throw new InvalidOperationException("Repository source not found.");
-        return File.ReadAllText(Path.Combine(dir.FullName, path)).Replace("\r\n", "\n");
+        return Path.Combine(dir.FullName, path);
     }
 
     private static void ServiceWiring()

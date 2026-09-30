@@ -13,6 +13,8 @@ namespace pylorak.TinyWall
         BlockAll,
         AllowOutgoing,
         Disabled,
+        // Removed mode. The value stays reserved so older messages and configurations
+        // parse; the service refuses to switch to it and loads it as Normal.
         Learning,
         Unknown = 100
     }

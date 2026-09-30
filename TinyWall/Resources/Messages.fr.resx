@@ -307,12 +307,6 @@ Sélectionnez Élever dans le menu et réessayez.</value>
   <data name="CannotGetPathOfProcess" xml:space="preserve">
     <value>Impossible de trouver le chemin du processus.</value>
   </data>
-  <data name="TheFirewallIsNowLearning" xml:space="preserve">
-    <value>Le pare-feu est en cours d'apprentissage sans restreindre le trafic.</value>
-  </data>
-  <data name="FirewallModeLearn" xml:space="preserve">
-    <value>Auto-apprentissage</value>
-  </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>Souhaitez-vous désinstaller SecureWall ?</value>
   </data>

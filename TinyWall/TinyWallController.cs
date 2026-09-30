@@ -46,8 +46,7 @@ namespace pylorak.TinyWall
             nameof(toolStripMenuItem3),
             nameof(mnuAllowLocalSubnet),
             nameof(mnuEnableHostsBlocklist),
-            nameof(mnuTrafficRate),
-            nameof(mnuModeLearn)
+            nameof(mnuTrafficRate)
         )]
         private void InitializeComponent()
         {
@@ -62,7 +61,6 @@ namespace pylorak.TinyWall
             this.mnuModeBlockAll = new System.Windows.Forms.ToolStripMenuItem();
             this.mnuModeAllowOutgoing = new System.Windows.Forms.ToolStripMenuItem();
             this.mnuModeDisabled = new System.Windows.Forms.ToolStripMenuItem();
-            this.mnuModeLearn = new System.Windows.Forms.ToolStripMenuItem();
             this.mnuManage = new System.Windows.Forms.ToolStripMenuItem();
             this.mnuConnections = new System.Windows.Forms.ToolStripMenuItem();
             this.mnuLock = new System.Windows.Forms.ToolStripMenuItem();
@@ -129,8 +127,7 @@ namespace pylorak.TinyWall
             this.mnuModeNormal,
             this.mnuModeBlockAll,
             this.mnuModeAllowOutgoing,
-            this.mnuModeDisabled,
-            this.mnuModeLearn});
+            this.mnuModeDisabled});
             this.mnuMode.Name = "mnuMode";
             resources.ApplyResources(this.mnuMode, "mnuMode");
             // 
@@ -157,12 +154,6 @@ namespace pylorak.TinyWall
             this.mnuModeDisabled.Name = "mnuModeDisabled";
             resources.ApplyResources(this.mnuModeDisabled, "mnuModeDisabled");
             this.mnuModeDisabled.Click += new System.EventHandler(this.mnuModeDisabled_Click);
-            // 
-            // mnuModeLearn
-            // 
-            this.mnuModeLearn.Name = "mnuModeLearn";
-            resources.ApplyResources(this.mnuModeLearn, "mnuModeLearn");
-            this.mnuModeLearn.Click += new System.EventHandler(this.mnuModeLearn_Click);
             // 
             // mnuManage
             // 
@@ -276,7 +267,6 @@ namespace pylorak.TinyWall
         private System.Windows.Forms.ToolStripMenuItem mnuAllowLocalSubnet;
         private System.Windows.Forms.ToolStripMenuItem mnuEnableHostsBlocklist;
         private System.Windows.Forms.ToolStripMenuItem mnuTrafficRate;
-        private System.Windows.Forms.ToolStripMenuItem mnuModeLearn;
 
         #endregion
 
@@ -566,12 +556,6 @@ namespace pylorak.TinyWall
                     FirewallModeName = Resources.Messages.FirewallModeDisabled;
                     break;
 
-                case FirewallMode.Learning:
-                    Tray.Icon = Resources.Icons.shield_blue_small;
-                    mnuMode.Image = mnuModeLearn.Image;
-                    FirewallModeName = Resources.Messages.FirewallModeLearn;
-                    break;
-
                 case FirewallMode.Unknown:
                     Tray.Icon = Resources.Icons.shield_grey_small;
                     mnuMode.Image = mnuModeDisabled.Image;
@@ -598,7 +582,6 @@ namespace pylorak.TinyWall
                 FirewallMode.AllowOutgoing => Resources.Messages.TheFirewallIsNowAllowsOutgoingConnections,
                 FirewallMode.BlockAll => Resources.Messages.TheFirewallIsNowBlockingAllInAndOut,
                 FirewallMode.Disabled => Resources.Messages.TheFirewallIsNowDisabled,
-                FirewallMode.Learning => Resources.Messages.TheFirewallIsNowLearning,
                 _ => string.Empty
             };
 
@@ -1286,30 +1269,6 @@ namespace pylorak.TinyWall
             ApplyFirewallSettings(confCopy);
         }
 
-        private void mnuModeLearn_Click(object sender, EventArgs e)
-        {
-            if (!EnsureUnlockedServer())
-                return;
-
-            Utils.SplitFirstLine(Resources.Messages.YouAreAboutToEnterLearningMode, out string firstLine, out string contentLines);
-
-            var dialog = new TaskDialog
-            {
-                CustomMainIcon = Resources.Icons.firewall,
-                WindowTitle = Resources.Messages.TinyWall,
-                MainInstruction = firstLine,
-                Content = contentLines,
-                AllowDialogCancellation = false,
-                CommonButtons = TaskDialogCommonButtons.Yes | TaskDialogCommonButtons.No
-            };
-
-            if (dialog.Show() != (int)DialogResult.Yes)
-                return;
-
-            SetMode(FirewallMode.Learning);
-            UpdateDisplay();
-        }
-
         private void InitController()
         {
             mnuTrafficRate.Text = string.Format(CultureInfo.CurrentCulture, "{0}: {1}   {2}: {3}", Resources.Messages.TrafficIn, "...", Resources.Messages.TrafficOut, "...");
@@ -1343,7 +1302,6 @@ namespace pylorak.TinyWall
                 mnuModeAllowOutgoing.Image = Resources.Icons.shield_red_small.ToBitmap();
                 mnuModeBlockAll.Image = Resources.Icons.shield_yellow_small.ToBitmap();
                 mnuModeNormal.Image = Resources.Icons.shield_green_small.ToBitmap();
-                mnuModeLearn.Image = Resources.Icons.shield_blue_small.ToBitmap();
                 TrayMenuShowing = false;
 
                 ApplyControllerSettings();

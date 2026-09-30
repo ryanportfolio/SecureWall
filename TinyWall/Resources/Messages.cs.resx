@@ -299,12 +299,6 @@ Zvolte Navýšit v tray menu a akci zkuste znovu.</value>
   <data name="CannotGetPathOfProcess" xml:space="preserve">
     <value>Nemohu nalézt cestu procesu.</value>
   </data>
-  <data name="TheFirewallIsNowLearning" xml:space="preserve">
-    <value>Firewall se nyní učí pravidla a propouští veškerou komunikaci.</value>
-  </data>
-  <data name="FirewallModeLearn" xml:space="preserve">
-    <value>Autotrénink</value>
-  </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>Vyvolal jste odinstalaci/aktualizaci aplikace SecureWall?</value>
   </data>

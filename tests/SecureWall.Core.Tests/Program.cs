@@ -82,7 +82,7 @@ internal static class Program
             .Concat(ProtectionReleaseTests.Cases)
             .Concat(ServiceRecoveryTests.Cases)
             .Concat(ServiceStartupRobustnessTests.Cases)
-            .Concat(LearningPolicyTests.Cases)
+            .Concat(LearningRemovalTests.Cases)
             .Concat(ExceptionMergePolicyTests.Cases)
             .Concat(ServiceAttributionTests.Cases)
             .Concat(ExceptionMergeTests.Cases)

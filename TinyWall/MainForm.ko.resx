@@ -132,9 +132,6 @@
   <data name="mnuModeDisabled.Text" xml:space="preserve">
     <value>방화벽 비활성화</value>
   </data>
-  <data name="mnuModeLearn.Text" xml:space="preserve">
-    <value>자동 학습</value>
-  </data>
   <data name="mnuMode.Text" xml:space="preserve">
     <value>모드 변경</value>
   </data>

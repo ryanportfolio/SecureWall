@@ -296,15 +296,6 @@ namespace pylorak.TinyWall.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Autolearn.
-        /// </summary>
-        internal static string FirewallModeLearn {
-            get {
-                return ResourceManager.GetString("FirewallModeLearn", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Normal.
         /// </summary>
         internal static string FirewallModeNormal {
@@ -545,15 +536,6 @@ namespace pylorak.TinyWall.Resources {
         internal static string TheFirewallIsNowDisabled {
             get {
                 return ResourceManager.GetString("TheFirewallIsNowDisabled", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to The firewall is now learning while letting all traffic through..
-        /// </summary>
-        internal static string TheFirewallIsNowLearning {
-            get {
-                return ResourceManager.GetString("TheFirewallIsNowLearning", resourceCulture);
             }
         }
         
@@ -807,18 +789,6 @@ namespace pylorak.TinyWall.Resources {
         internal static string XMinutes {
             get {
                 return ResourceManager.GetString("XMinutes", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Are you sure you want to start automatic learning?
-        ///In its automatic learning mode TinyWall will allow all traffic and remember which applications have used the network. When you exit learning mode, TinyWall will add exceptions for you automatically. Note however, that rules cannot be learned for &quot;Special Exceptions&quot; of the configuration.
-        ///
-        ///Before entering learning mode, make sure that your system is free of any malware. It is best to run learning mode on freshly installed systems and it is recommended tha [rest of string was truncated]&quot;;.
-        /// </summary>
-        internal static string YouAreAboutToEnterLearningMode {
-            get {
-                return ResourceManager.GetString("YouAreAboutToEnterLearningMode", resourceCulture);
             }
         }
         

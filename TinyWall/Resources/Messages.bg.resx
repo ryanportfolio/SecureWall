@@ -303,9 +303,6 @@
   <data name="CannotGetPathOfProcess" xml:space="preserve">
     <value>Пътят до процеса не бе открит.</value>
   </data>
-  <data name="TheFirewallIsNowLearning" xml:space="preserve">
-    <value>Апликацията сега се обучава докато позволява трафик.</value>
-  </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>Започнахте ли деинсталация/ъпдейт на SecureWall?</value>
   </data>

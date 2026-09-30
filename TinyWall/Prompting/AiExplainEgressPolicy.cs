@@ -41,7 +41,7 @@ namespace pylorak.TinyWall.Prompting
             "Normal mode only. The SecureWall service itself never gets network access. " +
             "Turning the assistant off in its settings removes the permit.";
 
-        // BlockAll isolates everything; AllowOutgoing, Learning and Disabled already permit
+        // BlockAll isolates everything; AllowOutgoing and Disabled already permit
         // outbound traffic. Display-off blocking restricts every allow to the local subnet, and
         // this permit has no local-subnet form, so it is withdrawn while that block is active.
         internal static bool ShouldInstallPermit(bool enabled, bool normalMode, bool displayOffBlockActive) =>

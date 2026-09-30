@@ -104,13 +104,13 @@ The maintainer says TinyWall 3.6 is in progress and unpublished (#127, 2026-08-1
 - #59, #136 (issue, PR): the UWP picker cannot allow full-trust MSIX apps such as Spotify or Arc, because they carry no AppContainer package SID. The fork has the same picker; allow such apps by executable. #136 warns in the picker; the maintainer prefers filtering the list.
 - #133 (PR): follow exceptions across versioned folders and MSIX updates, gated on a valid signature. The fork has the same exact-path limit.
 - #142 (PR): wildcard path rules; the maintainer said "let's roll with this one" (2026-09-26). Decide intent before porting: wildcards widen what a rule matches, against the fork's exact-identity prompt model.
-- #132 (issue): timed auto-learn; the maintainer plans a forced Learning timeout. SecureWall's Learning mode has no timeout; it ends only when the user switches mode or the service restarts (including at reboot), because Learning is never saved as the startup mode.
+- #132, #139 (issues): timed auto-learn, and documentation of what auto-learn adds. No longer apply: SecureWall removed Learning mode (blocked-connection prompts replace it). The enum value stays reserved; the service refuses a switch to it and loads a configuration naming it as Normal.
 - #141 (PR): move the process-start watcher from WMI to ETW. The fork uses the same WMI watcher for child inheritance; the maintainer objects to parts of the design.
 - #121 (issue): TinyWall 3.5.1 fails to uninstall while password-locked. On switch day, unlock TinyWall before uninstalling it, then reboot; the SecureWall installer refuses to run while TinyWall is installed.
 
 ## SecureWall modifications
 
-SecureWall uses a distinct product name, executable identity, Windows service name, named pipe, scheduled task, application-data directory, and WFP provider GUID. Its principal functional change is a fail-closed, rate-limited outbound-drop prompt pipeline with service-owned attribution and authorization tokens.
+SecureWall uses a distinct product name, executable identity, Windows service name, named pipe, scheduled task, application-data directory, and WFP provider GUID. Its principal functional change is a fail-closed, rate-limited outbound-drop prompt pipeline with service-owned attribution and authorization tokens. It removes TinyWall's Learning (Autolearn) mode, which allowed all traffic and saved whatever ran as permanent exceptions; the prompts replace it.
 
 Source-file namespaces and some internal class names remain `pylorak.TinyWall` to keep the fork reviewable and reduce unnecessary divergence. They do not identify the installed product.
 

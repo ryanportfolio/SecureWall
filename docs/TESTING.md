@@ -48,7 +48,8 @@ Do not run this matrix on the development host. Use an expendable Windows VM wit
 | Ignore, close, and 30-second timeout | No policy change; five-minute identity cooldown; traffic remains blocked |
 | Repeated drops | Coalesced prompt, bounded queue, no notification flood |
 | Explicitly blocked executable | No prompt; remains blocked |
-| BlockAll / AllowOutgoing / Learning / Disabled | No default-block prompt |
+| BlockAll / AllowOutgoing / Disabled | No default-block prompt |
+| Learning mode (removed) | Tray menu has no Autolearn entry; a configuration whose startup mode is Learning (4) starts Normal; a `MODE_SWITCH` to Learning is refused and the mode is unchanged |
 | UWP/AppContainer | Prompt identifies package SID; Allow scopes to package |
 | Single Windows service PID | Prompt identifies exact service and path; Allow scopes to both |
 | Multiple services in one PID | Warning shown; Allow disabled |

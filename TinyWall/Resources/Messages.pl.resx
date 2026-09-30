@@ -305,12 +305,6 @@ Wybierz z menu „podnieś uprawnienia do administrator” i spróbuj ponownie.<
   <data name="CannotGetPathOfProcess" xml:space="preserve">
     <value>Nie można uzyskać ścieżki do procesu.</value>
   </data>
-  <data name="TheFirewallIsNowLearning" xml:space="preserve">
-    <value>Zapora jest w trybie nauki, pozwalając na cały ruch sieciowy.</value>
-  </data>
-  <data name="FirewallModeLearn" xml:space="preserve">
-    <value>nauka</value>
-  </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>Czy rozpocząć dezinstalację/aktualizację SecureWall?</value>
   </data>

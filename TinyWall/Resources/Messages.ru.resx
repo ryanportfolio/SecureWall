@@ -297,12 +297,6 @@
   <data name="CannotGetPathOfProcess" xml:space="preserve">
     <value>Не могу получить путь процесса.</value>
   </data>
-  <data name="TheFirewallIsNowLearning" xml:space="preserve">
-    <value>Фаервол в режиме обучения. Трафик не ограничивается.</value>
-  </data>
-  <data name="FirewallModeLearn" xml:space="preserve">
-    <value>Автообучение.</value>
-  </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>Удалить SecureWall?</value>
   </data>

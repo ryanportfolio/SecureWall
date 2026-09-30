@@ -285,12 +285,6 @@ Kies verhoogde rechten vanuit het tray menu en probeer opnieuw.</value>
   <data name="CannotGetPathOfProcess" xml:space="preserve">
     <value>Kan proces pad niet opzoeken.</value>
   </data>
-  <data name="TheFirewallIsNowLearning" xml:space="preserve">
-    <value>De firewall is nu in leermodus en laat alle netwerkverkeer door.</value>
-  </data>
-  <data name="FirewallModeLearn" xml:space="preserve">
-    <value>Auto leren</value>
-  </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>Heeft u de desinstallatie van SecureWall opgestart?</value>
   </data>

@@ -98,22 +98,6 @@ namespace pylorak.TinyWall.DatabaseClasses
             return null;
         }
 
-        // Learning mode only. A known application keeps its reviewed database profile.
-        // An unknown executable gets an empty TcpUdpPolicy (observed = true) that the
-        // caller fills with the behavior it saw; the shared fallback in
-        // GetExceptionsForApp (all TCP/UDP, including listeners) is not used here.
-        internal List<FirewallExceptionV3> GetLearningExceptionsForApp(ExecutableSubject fromSubject, out bool observed)
-        {
-            if (TryGetApp(fromSubject, out FirewallExceptionV3? _, false) == null)
-            {
-                observed = true;
-                return new List<FirewallExceptionV3> { new FirewallExceptionV3(fromSubject, new TcpUdpPolicy()) };
-            }
-
-            observed = false;
-            return GetExceptionsForApp(fromSubject, false, out _);
-        }
-
         internal List<FirewallExceptionV3> GetExceptionsForApp(ExceptionSubject fromSubject, bool guiPrompt, out Application? app)
         {
             app = null;

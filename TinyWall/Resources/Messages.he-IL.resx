@@ -319,12 +319,6 @@
   <data name="CannotGetPathOfProcess" xml:space="preserve">
     <value>לא ניתן למצא את הנתיב ליישום.</value>
   </data>
-  <data name="TheFirewallIsNowLearning" xml:space="preserve">
-    <value>חומת-האש במצב למידה, במצב זה כל תעבורת-הרשת מאופשרת.</value>
-  </data>
-  <data name="FirewallModeLearn" xml:space="preserve">
-    <value>למידה-אוטומטית</value>
-  </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>הפעלת עדכון/הסרה של SecureWall?</value>
   </data>
