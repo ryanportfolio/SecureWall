@@ -4,10 +4,24 @@ using System.Threading.Tasks;
 
 namespace pylorak.TinyWall.Prompting
 {
+    internal enum PromptUnlockResult
+    {
+        NotUnlocked,
+        AlreadyUnlocked,
+        Unlocked,
+    }
+
     internal interface IPromptActionClient
     {
         PromptActionStatus Allow(Guid token);
         PromptActionStatus Dismiss(Guid token);
+
+        // Runs on the UI thread: shows the same password dialog as the tray. Unlocked means
+        // this call performed the unlock; AlreadyUnlocked means no password was needed.
+        PromptUnlockResult Unlock();
+
+        // Restores the lock after the one Allow that a popup unlock was for.
+        void Relock();
     }
 
     internal interface IPromptView : IDisposable
@@ -174,8 +188,24 @@ namespace pylorak.TinyWall.Prompting
             IPromptView view = _currentView;
             if (!_actionsInFlight.Add(token)) return;
             PromptActionStatus status = await PerformAction(() => _actions.Allow(token));
+            bool relock = false;
+            if (status == PromptActionStatus.Locked && IsCurrent(token, view))
+            {
+                // The popup's deadline pauses on Locked, so the owner can unlock here and
+                // this same token is retried. An unlock made here lasts for this Allow only.
+                view.ShowActionFailure(PromptActionStatus.Locked);
+                PromptUnlockResult unlock = TryUnlock();
+                relock = unlock == PromptUnlockResult.Unlocked;
+                if (unlock != PromptUnlockResult.NotUnlocked && IsCurrent(token, view) &&
+                    _current!.ExpiresUtc > _utcNow())
+                {
+                    status = await PerformAction(() => _actions.Allow(token));
+                }
+            }
+            if (relock)
+                TryRelock();
             _actionsInFlight.Remove(token);
-            if (_disposed || _current?.Token != token || !ReferenceEquals(view, _currentView)) return;
+            if (!IsCurrent(token, view)) return;
             if (status == PromptActionStatus.Allowed ||
                 status == PromptActionStatus.Expired ||
                 status == PromptActionStatus.UnknownToken)
@@ -248,6 +278,22 @@ namespace pylorak.TinyWall.Prompting
         {
             try { return await _performAction(action); }
             catch { return PromptActionStatus.ApplyFailed; }
+        }
+
+        private bool IsCurrent(Guid token, IPromptView view) =>
+            !_disposed && _current?.Token == token && ReferenceEquals(view, _currentView);
+
+        private PromptUnlockResult TryUnlock()
+        {
+            try { return _actions.Unlock(); }
+            catch { return PromptUnlockResult.NotUnlocked; }
+        }
+
+        // Best effort: if the lock request fails, the service's inactivity relock still applies.
+        private void TryRelock()
+        {
+            try { _actions.Relock(); }
+            catch { }
         }
 
         private void CompleteCurrent()

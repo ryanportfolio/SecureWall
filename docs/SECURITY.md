@@ -57,6 +57,19 @@ The controller pipe is created with a DACL that grants Authenticated Users read 
 
 The consequence is that any process running as the same user can start the installed `SecureWall.exe` in controller mode, or drive an already running controller, and send every request the controller can send. That includes `PUT_SETTINGS`, which replaces the service's full configuration (every exception, mode-independent settings, blocklist and hosts options) in one message when the changeset matches, and `MODE_SWITCH`, `SET_PASSPHRASE`, `STOP_SERVICE`, and `ALLOW_PROMPT` (message types above 2047; types above 4095 are service-internal and rejected from the pipe). The application password is the only gate on those messages: while the service is locked they return `RESPONSE_LOCKED`; while it is unlocked (no password set, or within ten minutes of the last successful user action after `UNLOCK`) they are applied. Set a password and keep the service locked when unattended. This behaviour is inherited from TinyWall's pipe design and is unchanged in SecureWall; an operating-system administrator can in any case stop the service through SCM.
 
+## Prompt popup input
+
+The popup runs in the unelevated controller at the owner's integrity level, so any process running as the same user can find it and press Allow on its own prompt (`BM_CLICK`, `SendInput`, UI Automation). Windows gives an `asInvoker` window no reliable way to tell synthesized input from the owner's, and the popup does not try. With no password set, nothing stops a same-user process from allowing itself; this is the same boundary as the pipe above. **Setting a password and keeping SecureWall locked is the control.** While locked, a synthesized Allow reaches the service as `ALLOW_PROMPT` and is refused until the password is entered.
+
+The popup adds timing mitigations for accidental and click-timing grants:
+
+- Enter is not bound to Allow. The form has no accept button; Escape maps to Ignore. The popup still shows without taking focus.
+- Allow stays disabled until the popup has been visible and unmoved for about one second (checked on a 250 ms timer, so 1.0 to 1.25 s) and the executable risk probe (unsigned, user-writable location, recently changed) has finished and its warnings are on screen. Any move or resize, including the popup growing to show warnings or the AI panel, restarts the delay. The click handler rechecks the same condition, so a click on a disabled Allow does nothing.
+
+These stop a keystroke or a click already in progress from landing on a freshly shown Allow. They do not stop a same-user process that waits out the delay.
+
+When the service is locked, Allow opens the same password dialog as the tray. The popup's 30-second display timeout pauses once the service reports Locked and holds the popup until the service token expires (two minutes after the service issued it), so the automatic dismissal and its five-minute ignore cooldown cannot fire while the owner types the password. The token expiry does not move. After a successful unlock the popup retries Allow with the same token, then relocks the service, so a popup unlock covers that one Allow and does not open the ten-minute unlocked window that a tray unlock gives. If the owner cancels or the password is wrong, the connection stays blocked and the popup stays open for another try. If the relock request fails, the service's ten-minute inactivity lock still applies. Because a same-user process can press Allow and so make the password dialog appear, enter the password only for a prompt whose identity, path and warnings you recognize; the popup stays visible beside the dialog.
+
 ## Operational safety
 
 Never install SecureWall over RDP, SSH, remote PowerShell, a cloud-only console, or any machine where losing networking prevents recovery. Use an expendable Windows VM with a snapshot and working local/virtual console. Do not install TinyWall and SecureWall together.

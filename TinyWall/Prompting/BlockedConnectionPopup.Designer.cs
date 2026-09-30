@@ -138,7 +138,6 @@ namespace pylorak.TinyWall.Prompting
             timeoutTimer.Interval = 30000;
             timeoutTimer.Tick += TimeoutTimerTick;
 
-            AcceptButton = allowButton;
             AccessibleDescription = "Shows an outgoing connection that SecureWall blocked.";
             AccessibleName = "SecureWall blocked connection";
             AutoScaleDimensions = new SizeF(96F, 96F);
