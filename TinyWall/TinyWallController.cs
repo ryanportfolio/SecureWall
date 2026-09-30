@@ -1214,7 +1214,7 @@ namespace pylorak.TinyWall
         {
             try
             {
-                Utils.StartProcess(Utils.ExecutablePath, string.Empty, true);
+                Utils.StartProcessAndForget(Utils.ExecutablePath, string.Empty, true);
                 System.Windows.Forms.Application.Exit();
             }
             catch
@@ -1316,6 +1316,10 @@ namespace pylorak.TinyWall
         private void InitController()
         {
             mnuTrafficRate.Text = string.Format(CultureInfo.CurrentCulture, "{0}: {1}   {2}: {3}", Resources.Messages.TrafficIn, "...", Resources.Messages.TrafficOut, "...");
+
+            // The logon task starts the controller elevated. Without this, UIPI drops the TaskbarCreated
+            // broadcast from a restarted Explorer and the tray icon never comes back.
+            Utils.DisableMessageUIPI("TaskbarCreated");
 
             // We will load our database parallel to other things to improve startup performance
             using (var barrier = new ThreadBarrier(2))

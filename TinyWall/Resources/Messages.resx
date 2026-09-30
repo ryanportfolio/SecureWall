@@ -325,6 +325,9 @@ Select Elevate from the tray menu and try again.</value>
   <data name="CannotGetPathOfProcess" xml:space="preserve">
     <value>Cannot get path of process.</value>
   </data>
+  <data name="CouldNotOpenFolder" xml:space="preserve">
+    <value>Could not open the folder. The file or its folder may no longer exist.</value>
+  </data>
   <data name="TheFirewallIsNowLearning" xml:space="preserve">
     <value>The firewall is now learning while letting all traffic through.</value>
   </data>

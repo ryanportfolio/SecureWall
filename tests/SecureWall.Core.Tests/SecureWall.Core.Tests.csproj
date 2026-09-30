@@ -20,6 +20,7 @@
     <Compile Include="..\..\pylorak.Utilities\FileLocker.cs" Link="FileLocker.cs" />
     <Compile Include="..\..\pylorak.Utilities\Disposable.cs" Link="Disposable.cs" />
     <Compile Include="..\..\pylorak.Utilities\Pbkdf2.cs" Link="Pbkdf2.cs" />
+    <Compile Include="..\..\TinyWall\ProcessPathActions.cs" Link="ProcessPathActions.cs" />
   </ItemGroup>
 
   <!--

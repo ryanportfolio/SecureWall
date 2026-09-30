@@ -196,6 +196,15 @@ namespace pylorak.TinyWall.Resources {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Could not open the folder. The file or its folder may no longer exist..
+        /// </summary>
+        internal static string CouldNotOpenFolder {
+            get {
+                return ResourceManager.GetString("CouldNotOpenFolder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Could not whitelist process of {0}..
         /// </summary>
         internal static string CouldNotWhitelistProcess {

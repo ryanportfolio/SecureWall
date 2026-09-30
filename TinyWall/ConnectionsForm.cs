@@ -30,7 +30,7 @@ namespace pylorak.TinyWall
             Utils.SetRightToLeft(this);
             if (Utils.IsDarkModeActive(ActiveConfig.Controller))
             {
-                this.DarkMode = new(this) { ColorMode = DarkModeCS.DisplayMode.DarkMode };
+                this.DarkMode = new(this, false) { ColorMode = DarkModeCS.DisplayMode.DarkMode };
                 this.ListRepaintFilter = new WmPaintFilter(list);
             }
             this.IconList.ImageSize = IconSize;
@@ -352,6 +352,7 @@ namespace pylorak.TinyWall
 
         private void ConnectionsForm_FormClosing(object sender, FormClosingEventArgs e)
         {
+            EnableListUpdate = false;
             RefreshTimer.Stop();
             ActiveConfig.Controller.ConnFormWindowState = this.WindowState;
             if (this.WindowState == FormWindowState.Normal)
@@ -407,7 +408,10 @@ namespace pylorak.TinyWall
         private void contextMenuStrip1_Opening(object sender, System.ComponentModel.CancelEventArgs e)
         {
             if (list.SelectedIndices.Count < 1)
+            {
                 e.Cancel = true;
+                return;
+            }
 
             // Don't allow Kill if we don't have a PID
             bool hasPid = true;
@@ -416,6 +420,20 @@ namespace pylorak.TinyWall
                 hasPid &= ((ProcessInfo)li.Tag).Pid != 0;
             }
             mnuCloseProcess.Enabled = hasPid;
+
+            string path = ((ProcessInfo)list.SelectedItems[0].Tag).Path;
+            mnuCopyPath.Enabled = ProcessPathActions.CanCopyPath(path);
+            mnuOpenFolder.Enabled = ProcessPathActions.IsFileSystemPath(path);
+
+            // The list is rebuilt every second, which drops the selection the menu items act on.
+            // Hold the refresh while the menu is open.
+            RefreshTimer.Stop();
+        }
+
+        private void contextMenuStrip1_Closed(object sender, ToolStripDropDownClosedEventArgs e)
+        {
+            if (EnableListUpdate)
+                RefreshTimer.Start();
         }
 
         private void mnuCloseProcess_Click(object sender, EventArgs e)
@@ -492,7 +510,7 @@ namespace pylorak.TinyWall
                 const string urlTemplate = @"https://www.virustotal.com/latest-scan/{0}";
                 string hash = Hasher.HashFile(((ProcessInfo)li.Tag).Path);
                 string url = string.Format(CultureInfo.InvariantCulture, urlTemplate, hash);
-                Utils.StartProcess(url, string.Empty, false);
+                Utils.StartProcessAndForget(url, string.Empty, false);
             }
             catch
             {
@@ -501,22 +519,6 @@ namespace pylorak.TinyWall
             }
         }
 
-        private void mnuProcessLibrary_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                ListViewItem li = list.SelectedItems[0];
-
-                const string urlTemplate = @"http://www.processlibrary.com/search/?q={0}";
-                string filename = System.IO.Path.GetFileName(((ProcessInfo)li.Tag).Path);
-                string url = string.Format(CultureInfo.InvariantCulture, urlTemplate, filename);
-                Utils.StartProcess(url, string.Empty, false);
-            }
-            catch
-            {
-                MessageBox.Show(this, Resources.Messages.CannotGetPathOfProcess, Resources.Messages.TinyWall, MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
-            }
-        }
         private void mnuFileNameOnTheWeb_Click(object sender, EventArgs e)
         {
             try
@@ -526,7 +528,7 @@ namespace pylorak.TinyWall
                 const string urlTemplate = @"www.google.com/search?q={0}";
                 string filename = System.IO.Path.GetFileName(((ProcessInfo)li.Tag).Path);
                 string url = string.Format(CultureInfo.InvariantCulture, urlTemplate, filename);
-                Utils.StartProcess(url, string.Empty, false);
+                Utils.StartProcessAndForget(url, string.Empty, false);
             }
             catch
             {
@@ -543,11 +545,59 @@ namespace pylorak.TinyWall
                 const string urlTemplate = @"www.google.com/search?q={0}";
                 string address = li.SubItems[6].Text;
                 string url = string.Format(CultureInfo.InvariantCulture, urlTemplate, address);
-                Utils.StartProcess(url, string.Empty, false);
+                Utils.StartProcessAndForget(url, string.Empty, false);
             }
             catch
             {
                 MessageBox.Show(this, Resources.Messages.CannotGetPathOfProcess, Resources.Messages.TinyWall, MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+            }
+        }
+
+        private void mnuCopyPath_Click(object sender, EventArgs e)
+        {
+            if (list.SelectedItems.Count < 1)
+                return;
+
+            string path = ((ProcessInfo)list.SelectedItems[0].Tag).Path;
+            if (!ProcessPathActions.CanCopyPath(path))
+                return;
+
+            var dataObject = new DataObject();
+            dataObject.SetData(DataFormats.UnicodeText, false, path);
+            try
+            {
+                Clipboard.SetDataObject(dataObject, true, 20, 100);
+            }
+            catch
+            {
+                // Fail silently :(
+            }
+        }
+
+        private void mnuOpenFolder_Click(object sender, EventArgs e)
+        {
+            if (list.SelectedItems.Count < 1)
+                return;
+
+            string path = ((ProcessInfo)list.SelectedItems[0].Tag).Path;
+            try
+            {
+                var psi = ProcessPathActions.CreateOpenFolderStartInfo(
+                    path,
+                    Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+                    System.IO.File.Exists,
+                    System.IO.Directory.Exists);
+                if (psi is null)
+                {
+                    MessageBox.Show(this, Resources.Messages.CouldNotOpenFolder, Resources.Messages.TinyWall, MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+                    return;
+                }
+
+                using var _ = Process.Start(psi);
+            }
+            catch
+            {
+                MessageBox.Show(this, Resources.Messages.CouldNotOpenFolder, Resources.Messages.TinyWall, MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
             }
         }
 

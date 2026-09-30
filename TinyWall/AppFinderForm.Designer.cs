@@ -76,7 +76,7 @@
             // 
             // IconList
             // 
-            this.IconList.ColorDepth = System.Windows.Forms.ColorDepth.Depth8Bit;
+            this.IconList.ColorDepth = System.Windows.Forms.ColorDepth.Depth32Bit;
             resources.ApplyResources(this.IconList, "IconList");
             this.IconList.TransparentColor = System.Drawing.Color.Transparent;
             // 
@@ -132,6 +132,7 @@
             // 
             resources.ApplyResources(this, "$this");
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            this.CancelButton = this.btnCancel;
             this.ControlBox = false;
             this.Controls.Add(this.label2);
             this.Controls.Add(this.btnDeselectAll);
