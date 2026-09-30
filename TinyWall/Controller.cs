@@ -77,10 +77,16 @@ namespace pylorak.TinyWall
                 : Array.Empty<PromptWireDto>();
         }
 
-        internal PromptActionStatus DismissPrompt(Guid token)
+        internal PromptActionStatus DismissPrompt(Guid token) =>
+            SendDismiss(TwMessagePromptAction.CreateDismissRequest(token));
+
+        // Automatic popup timeout: the service must not count it as user activity.
+        internal PromptActionStatus DismissPromptAfterTimeout(Guid token) =>
+            SendDismiss(TwMessagePromptAction.CreateTimeoutDismissRequest(token));
+
+        private PromptActionStatus SendDismiss(TwMessagePromptAction request)
         {
-            TwMessage response = Endpoint.QueueMessage(
-                TwMessagePromptAction.CreateDismissRequest(token)).Response;
+            TwMessage response = Endpoint.QueueMessage(request).Response;
             return response is TwMessagePromptAction action
                 ? action.Status
                 : PromptActionStatus.ApplyFailed;

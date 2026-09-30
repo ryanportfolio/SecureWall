@@ -568,11 +568,77 @@ namespace pylorak.Windows.WFP
 
     public sealed class UserIdFilterCondition : SecurityDescriptorFilterCondition
     {
+        // The condition matches when an access check of the token against this descriptor
+        // grants FWP_ACTRL_MATCH_FILTER (CC). The previous single-SID SDDL ended in a stray
+        // ")"; Windows tolerated it, and the generated string is now well-formed.
         public UserIdFilterCondition(string sid, RemoteOrLocal peer)
+            : this(new[] { sid }, Array.Empty<string>(), peer)
+        {
+        }
+
+        // Deny ACEs are written before allow ACEs, so a denied SID never matches even when
+        // the token also carries an allowed group.
+        public UserIdFilterCondition(System.Collections.Generic.IEnumerable<string> allowedSids,
+            System.Collections.Generic.IEnumerable<string> deniedSids, RemoteOrLocal peer)
             : base((RemoteOrLocal.Local == peer) ? ConditionKeys.FWPM_CONDITION_ALE_USER_ID : ConditionKeys.FWPM_CONDITION_ALE_REMOTE_USER_ID,
                   FieldMatchType.FWP_MATCH_EQUAL,
-                  $"O:LSD:(A;;CC;;;{sid}))")
+                  BuildSddl(allowedSids, deniedSids))
         {
+        }
+
+        public static string BuildSddl(System.Collections.Generic.IEnumerable<string> allowedSids,
+            System.Collections.Generic.IEnumerable<string> deniedSids)
+        {
+            if (allowedSids == null)
+                throw new ArgumentNullException(nameof(allowedSids));
+            if (deniedSids == null)
+                throw new ArgumentNullException(nameof(deniedSids));
+
+            var sddl = new System.Text.StringBuilder("O:LSD:");
+            foreach (string sid in deniedSids)
+                sddl.Append("(D;;CC;;;").Append(ValidateSid(sid)).Append(')');
+
+            int allowed = 0;
+            foreach (string sid in allowedSids)
+            {
+                sddl.Append("(A;;CC;;;").Append(ValidateSid(sid)).Append(')');
+                ++allowed;
+            }
+
+            if (allowed == 0)
+                throw new ArgumentException("At least one allowed SID is required.", nameof(allowedSids));
+            return sddl.ToString();
+        }
+
+        // Only literal "S-1-..." SIDs; anything else could change the SDDL structure.
+        private static string ValidateSid(string sid)
+        {
+            if (sid == null || sid.Length < 5 || !sid.StartsWith("S-1-", StringComparison.Ordinal))
+                throw new ArgumentException("Expected a string SID such as S-1-5-18.", nameof(sid));
+
+            bool previousDash = false;
+            for (int i = 4; i < sid.Length; ++i)
+            {
+                char c = sid[i];
+                if (c == '-')
+                {
+                    if (previousDash)
+                        throw new ArgumentException("Expected a string SID such as S-1-5-18.", nameof(sid));
+                    previousDash = true;
+                }
+                else if (c >= '0' && c <= '9')
+                {
+                    previousDash = false;
+                }
+                else
+                {
+                    throw new ArgumentException("Expected a string SID such as S-1-5-18.", nameof(sid));
+                }
+            }
+
+            if (previousDash || sid[4] == '-')
+                throw new ArgumentException("Expected a string SID such as S-1-5-18.", nameof(sid));
+            return sid;
         }
     }
 
@@ -730,6 +796,57 @@ namespace pylorak.Windows.WFP
         {
             [DllImport("Iphlpapi", SetLastError = false, CharSet = CharSet.Unicode)]
             internal static extern int ConvertInterfaceAliasToLuid(string stringSid, [Out] out ulong InterfaceLuid);
+
+            [DllImport("Iphlpapi", SetLastError = false)]
+            internal static extern int GetIfTable2(out IntPtr Table);
+
+            [DllImport("Iphlpapi", SetLastError = false)]
+            internal static extern void FreeMibTable(IntPtr Memory);
+        }
+
+        // Leading fields of MIB_IF_ROW2. Rows are read at the documented native stride.
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct MIB_IF_ROW2_HEAD
+        {
+            public ulong InterfaceLuid;
+            public uint InterfaceIndex;
+            public Guid InterfaceGuid;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 257)]
+            public string Alias;
+        }
+
+        private const int MIB_IF_TABLE2_ROWS_OFFSET = 8;
+        private const int MIB_IF_ROW2_SIZE = 1352;
+        private const int MIB_IF_ROW2_FLAGS_OFFSET = 1152;
+        private const byte FILTER_INTERFACE_FLAG = 0x02;
+
+        // Lists network interfaces by alias and LUID in one snapshot, so the filter
+        // condition uses the LUID that was enumerated rather than a second alias lookup.
+        // NDIS filter-module rows are skipped. Uses GetIfTable2 because
+        // NetworkInterface.GetAllNetworkInterfaces leaks native memory per call.
+        public static System.Collections.Generic.List<(string Alias, ulong Luid)> EnumerateInterfaces()
+        {
+            int err = NativeMethods.GetIfTable2(out IntPtr table);
+            if (err != 0)
+                throw new Win32Exception(err);
+            try
+            {
+                int count = System.Runtime.InteropServices.Marshal.ReadInt32(table);
+                var result = new System.Collections.Generic.List<(string Alias, ulong Luid)>(count);
+                for (int i = 0; i < count; ++i)
+                {
+                    IntPtr row = IntPtr.Add(table, MIB_IF_TABLE2_ROWS_OFFSET + i * MIB_IF_ROW2_SIZE);
+                    if ((System.Runtime.InteropServices.Marshal.ReadByte(row, MIB_IF_ROW2_FLAGS_OFFSET) & FILTER_INTERFACE_FLAG) != 0)
+                        continue;
+                    var head = System.Runtime.InteropServices.Marshal.PtrToStructure<MIB_IF_ROW2_HEAD>(row);
+                    result.Add((head.Alias ?? string.Empty, head.InterfaceLuid));
+                }
+                return result;
+            }
+            finally
+            {
+                NativeMethods.FreeMibTable(table);
+            }
         }
 
         public static bool InterfaceAliasExists(string ifAlias)
@@ -755,7 +872,17 @@ namespace pylorak.Windows.WFP
                 throw new Win32Exception(err);
 
             NativeMem = SafeHGlobalHandle.FromStruct(luid);
+            SetLuidCondition();
+        }
 
+        public LocalInterfaceCondition(ulong interfaceLuid)
+        {
+            NativeMem = SafeHGlobalHandle.FromStruct(interfaceLuid);
+            SetLuidCondition();
+        }
+
+        private void SetLuidCondition()
+        {
             _nativeStruct.matchType = FieldMatchType.FWP_MATCH_EQUAL;
             _nativeStruct.fieldKey = ConditionKeys.FWPM_CONDITION_IP_LOCAL_INTERFACE;
             _nativeStruct.conditionValue.type = Interop.FWP_DATA_TYPE.FWP_UINT64;

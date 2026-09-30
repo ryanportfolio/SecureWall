@@ -238,9 +238,6 @@
   <data name="groupBox2.Text" xml:space="preserve">
     <value>?</value>
   </data>
-  <data name="btnUpdate.Text" xml:space="preserve">
-    <value>Aggiorna</value>
-  </data>
   <data name="btnWeb.Text" xml:space="preserve">
     <value>Visita il sito</value>
   </data>

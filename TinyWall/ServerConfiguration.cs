@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Runtime.Serialization;
 using System.Text.Json.Serialization.Metadata;
+using pylorak.TinyWall.Prompting;
 
 namespace pylorak.TinyWall
 {
@@ -12,6 +13,8 @@ namespace pylorak.TinyWall
         BlockAll,
         AllowOutgoing,
         Disabled,
+        // Removed mode. The value stays reserved so older messages and configurations
+        // parse; the service refuses to switch to it and loads it as Normal.
         Learning,
         Unknown = 100
     }
@@ -80,7 +83,7 @@ namespace pylorak.TinyWall
                         // Two exceptions can have the same IDs if the user just edited one.
                         AppExceptions.Remove(oldEx);
                     }
-                    else if (oldEx.Subject.Equals(newEx.Subject)
+                    else if (ExceptionMergePolicy.SameSubject(oldEx.Subject, newEx.Subject)
                         && (oldEx.Timer == AppExceptionTimer.Permanent)
                         && (newEx.Timer == AppExceptionTimer.Permanent)
                     )
@@ -120,7 +123,7 @@ namespace pylorak.TinyWall
                         var older = app1.CreationDate > app2.CreationDate ? app2 : app1;
                         AppExceptions.Remove(older);
                     }
-                    else if (app1.Subject.Equals(app2.Subject)
+                    else if (ExceptionMergePolicy.SameSubject(app1.Subject, app2.Subject)
                         && (app1.Timer == AppExceptionTimer.Permanent)
                         && (app2.Timer == AppExceptionTimer.Permanent)
                     )
@@ -152,13 +155,16 @@ namespace pylorak.TinyWall
         public bool LockHostsFile { get; set; } = true;
 
         [DataMember(EmitDefaultValue = false)]
-        public bool AutoUpdateCheck { get; set; } = false;
-
-        [DataMember(EmitDefaultValue = false)]
         public bool EnableDiagnosticLogging { get; set; } = false;
 
         [DataMember(EmitDefaultValue = false)]
         public FirewallMode StartupMode { get; set; } = FirewallMode.Normal;
+
+        // Optional AI assistant. While true, Normal mode adds a permit for SecureWall.exe:
+        // outbound TCP to remote port 443, interactive user tokens only, never the service
+        // accounts (AiExplainEgressPolicy). Set by the controller's AI assistant settings.
+        [DataMember(EmitDefaultValue = false)]
+        public bool AiAssistantEgress { get; set; } = false;
 
         [DataMember(EmitDefaultValue = false)]
         public List<ServerProfileConfiguration> Profiles { get; set; } = new List<ServerProfileConfiguration>();
@@ -210,6 +216,8 @@ namespace pylorak.TinyWall
             }
         }
 
+        // These keys are okay to be public. They only obfuscate the file to discourage manual editing.
+        // Protection against unauthorized modification comes from the machine data directory ACL.
         private const string ENC_SALT = @";n~3+i=wV;eg6Q@f";
         private const string ENC_IV = @"0!.&3x=GGu%>$G&5";   // must be 16/24/32 bytes
 

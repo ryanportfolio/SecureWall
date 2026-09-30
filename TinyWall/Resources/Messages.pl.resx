@@ -305,20 +305,6 @@ Wybierz z menu „podnieś uprawnienia do administrator” i spróbuj ponownie.<
   <data name="CannotGetPathOfProcess" xml:space="preserve">
     <value>Nie można uzyskać ścieżki do procesu.</value>
   </data>
-  <data name="TheFirewallIsNowLearning" xml:space="preserve">
-    <value>Zapora jest w trybie nauki, pozwalając na cały ruch sieciowy.</value>
-  </data>
-  <data name="FirewallModeLearn" xml:space="preserve">
-    <value>nauka</value>
-  </data>
-  <data name="YouAreAboutToEnterLearningMode" xml:space="preserve">
-    <value>Czy na pewno chcesz, aby rozpocząć automatyczne uczenie się?
-W tym automatycznym trybie uczenia SecureWall pozwoli na cały ruch sieciowy i zapamięta, które aplikacje korzystają z sieci. Po wyjściu z trybu nauki, SecureWall automatycznie doda wyjątki za Ciebie. Należy jednak pamiętać, że reguł zostaną nauczone się reguły dla „wyjątków specjalnych” w opcjach konfiguracji.
-
-Przed wejściem w tryb uczenia się, upewnij się, że Twój system jest wolny od szkodliwego oprogramowania. Najlepiej uruchomić tryb uczenia się na świeżo zainstalowanym systemie i zaleca się sprawdzić swój komputer w poszukiwaniu wirusów przed zastosowaniem tego trybu.
-
-Czy chcesz przejść do trybu uczenia się?</value>
-  </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>Czy rozpocząć dezinstalację/aktualizację SecureWall?</value>
   </data>

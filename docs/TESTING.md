@@ -15,12 +15,12 @@ Source checks must confirm:
 - Allow is in the password-gated message range;
 - GPL and upstream provenance files exist;
 - runtime service, pipe, task, data directory, installer, executable, and WFP provider identities are SecureWall;
-- upstream binary updates are disabled.
+- product sources contain no update client: no TinyWall feed host, update descriptor, `/updatenow` switch or `WebClient` download; legacy `AutoUpdateCheck` settings still load.
 - the MSI declarations cover staging's runtime and localization lists, including `System.IO.Pipelines.dll`; after tooling is available, compare actual packaged files against every assembly emitted by a clean Release build.
-- both defaults target `INSTALLDIR/data-defaults`; only guarded SYSTEM setup seeds absent machine-data files after full-tree validation, and MSI has no ProgramData writes/deletes.
+- both defaults target `INSTALLDIR/data-defaults`; only guarded SYSTEM setup writes machine-data defaults, after full-tree validation: an absent `profiles.json` or `hosts.bck` is created, an identical one is left untouched and a different one is replaced; configuration, password, `hosts.orig` and journals are never written, and MSI has no ProgramData writes/deletes.
 - source and packaged Windows_Update entries retain the exact `wuauserv` outbound TCP service rule and contain no executable-wide allow.
 - persistent and boot-time filters contain only external denial, including DNS/DHCP; no recovery permits survive service loss.
-- every filter registration failure propagates and rolls back instead of being swallowed;
+- default-block, block and every other filter registration failure propagates and rolls back instead of being swallowed; only an optional WSL 2 permit failure is logged and skipped;
 - Network Activity shows observed allows and blocks, exact TCP states, and local-only listener wording, with one-second refresh.
 
 Build all three MSI packages and `tests\SecureWall.NetworkProbe`, then run `tools\vm\Prepare-SecureWallVmBundle.ps1` to create an ignored, hash-manifested VM bundle. Its guarded runner verifies the selected MSI hash and baseline connectivity, installs that MSI silently, checks the WFP provider, drives separate Allow and Ignore probes, captures 5157/WFP/audit evidence, uninstalls through MSI, and compares service, provider, task, audit policy, firewall rules, notification flags and hosts state. This guided path does not execute every failure case below.
@@ -48,12 +48,13 @@ Do not run this matrix on the development host. Use an expendable Windows VM wit
 | Ignore, close, and 30-second timeout | No policy change; five-minute identity cooldown; traffic remains blocked |
 | Repeated drops | Coalesced prompt, bounded queue, no notification flood |
 | Explicitly blocked executable | No prompt; remains blocked |
-| BlockAll / AllowOutgoing / Learning / Disabled | No default-block prompt |
+| BlockAll / AllowOutgoing / Disabled | No default-block prompt |
+| Learning mode (removed) | Tray menu has no Autolearn entry; a configuration whose startup mode is Learning (4) starts Normal; a `MODE_SWITCH` to Learning is refused and the mode is unchanged |
 | UWP/AppContainer | Prompt identifies package SID; Allow scopes to package |
 | Single Windows service PID | Prompt identifies exact service and path; Allow scopes to both |
 | Multiple services in one PID | Warning shown; Allow disabled |
 | Registered service executable without 5157/PID enrichment | Warning shown; Allow disabled |
-| Password lock enabled | Ignore works; Allow returns locked and creates no exception |
+| Password lock enabled | Ignore works; Allow opens the password dialog and the popup stays open while it is shown. Cancel or wrong password creates no exception and leaves the popup open. Correct password creates the rule for that prompt and the service is locked again afterwards (see HARDENING-VALIDATION) |
 | Controller exits/restarts | Service keeps enforcing; pending tokens expire; no grant on shutdown |
 | Service restarts/reboot | Strict external deny, including DNS/DHCP, covers the baseline-only interval; saved allows return only after successful startup; audit flags are correct |
 | Audit category initially success-only/failure-only/both/none | SecureWall adds required flags and restores exact original flags on stop |

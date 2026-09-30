@@ -297,19 +297,6 @@
   <data name="CannotGetPathOfProcess" xml:space="preserve">
     <value>Не могу получить путь процесса.</value>
   </data>
-  <data name="TheFirewallIsNowLearning" xml:space="preserve">
-    <value>Фаервол в режиме обучения. Трафик не ограничивается.</value>
-  </data>
-  <data name="FirewallModeLearn" xml:space="preserve">
-    <value>Автообучение.</value>
-  </data>
-  <data name="YouAreAboutToEnterLearningMode" xml:space="preserve">
-    <value>Вы уверены, что хотите включить режим автообучения? В этом режиме SecureWall пропускает любой трафик и запоминает приложения, использующие сеть. Когда вы выйдете из режима обучения, SecureWall добавит исключения автоматически. Обратите внимание на то, что правила для "Специальных исключений", в процессе обучения не создаются.
-
-Перед входом в режим обучения убедитесь, что в вашей системе нет вредоносных прграмм. Самый хороший вариант - запуск режима обучения на только что установленной операционной системе. Также рекомендуется проверить компьютер на вирусы.
-
-Вы уверены, что хотите запустить режим обучения прямо сейчас?</value>
-  </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>Удалить SecureWall?</value>
   </data>

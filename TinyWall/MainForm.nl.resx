@@ -129,9 +129,6 @@
   <data name="mnuModeDisabled.Text" xml:space="preserve">
     <value>Firewall uitzetten</value>
   </data>
-  <data name="mnuModeLearn.Text" xml:space="preserve">
-    <value>Auto leren</value>
-  </data>
   <data name="mnuMode.Text" xml:space="preserve">
     <value>Verander staat</value>
   </data>

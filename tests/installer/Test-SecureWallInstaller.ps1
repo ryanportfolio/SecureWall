@@ -59,7 +59,7 @@ $project = Read-RepoFile 'TinyWall\TinyWall.csproj'
 Assert-True ($project -match '<AssemblyName>SecureWall</AssemblyName>') 'application assembly is SecureWall.exe'
 Assert-True ($project -match '<Product>SecureWall</Product>') 'application product metadata is SecureWall'
 Assert-True ($project -match '<AssemblyTitle>SecureWall</AssemblyTitle>') 'application title is SecureWall'
-Assert-True ($project -match '<Version>0\.3\.0</Version>') 'application version is 0.3.0'
+Assert-True ($project -match '<Version>0\.4\.0</Version>') 'application version is 0.4.0'
 
 $product = Read-RepoFile 'MsiSetup\Product.wxs'
 Assert-True ($product -match '<\?define ProductName="SecureWall" \?>') 'MSI product name is SecureWall'
@@ -109,7 +109,7 @@ Assert-True ($managedInstaller -match '(?s)void Install\(.*?RequireNoTinyWall\(\
 Assert-True ($safety -match 'identity.IsSystem') 'MSI maintenance explicitly checks LocalSystem token'
 Assert-True ($safety -match 'ReparsePoint' -and $safety -match 'GetOwner' -and $safety -match 'GetAccessRules') 'privileged install checks reparse points, ownership, and write ACLs'
 Assert-True ($safety -match 'CheckTree\(entry\)' -and $safety -match 'SpecialFolder.ProgramFiles') 'privileged install validates Program Files and all dependencies recursively'
-Assert-True ($doctor.IndexOf('WindowsFirewall.RestoreOwnedState();') -lt $doctor.IndexOf('TinyWallServer.DeleteWfpObjects')) 'crash cleanup restores compatibility before removing protective WFP objects'
+Assert-True ($doctor.IndexOf('WindowsFirewall.RestoreOwnedState()') -ge 0 -and $doctor.IndexOf('WindowsFirewall.RestoreOwnedState()') -lt $doctor.IndexOf('TinyWallServer.DeleteWfpObjects')) 'crash cleanup restores compatibility before removing protective WFP objects'
 Assert-True ($firewall -notmatch 'Contains\(SecureWallProduct.Name\)') 'firewall cleanup does not delete product-substring matches'
 Assert-True ($firewall -match 'journal.Flush\(\)' -and $firewall -match 'RegistryView.Registry64') 'notification recovery is durable and architecture-independent'
 Assert-True ($doctor -match '(?s)RequireServiceNotPendingDeletion\(\).*?WindowsFirewall.RequireServiceRunning\(\).*?InstallHelper') 'activation rejects pending deletion and unavailable Windows Firewall before registration'
@@ -118,7 +118,13 @@ Assert-True ($firewall.Contains('service.Status == ServiceControllerStatus.Stopp
 Assert-True ($safety -match '(?s)if \(process.IsInvalid\).*?RequireStoppedAfterProcessOpenFailure.*?ReadStatus\(service\)') 'rollback rechecks stopped SCM state after process-open failure'
 Assert-True ($doctor -match '(?s)InstallHelper\(new string\[\] \{ "/u".*?EnsureStoppedServiceDeletion\(\)') 'managed uninstall is followed by a checked native deletion postcondition'
 Assert-True ($safety -match '(?s)EnsureStoppedServiceDeletion.*?ReadStatus\(service\).CurrentState != 1.*?if \(!DeleteService\(service\)\).*?error != 1072') 'native deletion requires stopped state and rejects errors other than already-marked deletion'
-Assert-True ($doctor.Contains('return succeeded ? 0 : -1;') -and $doctor.Contains('service deletion was accepted by Windows')) 'accepted deferred service deletion permits successful teardown and reports pending handles'
+Assert-True ($doctor.Contains('return succeeded;') -and $doctor.Contains('return released ? 0 : -1;') -and $doctor.Contains('service deletion was accepted by Windows')) 'accepted deferred service deletion permits successful teardown and reports pending handles'
+$serviceSource = Read-RepoFile 'TinyWall\TinyWallService.cs'
+$baselineStart = $serviceSource.IndexOf('private void RegisterRestrictiveBaseline()')
+$baselineEnd = $serviceSource.IndexOf('transaction.Commit();', $baselineStart)
+$baseline = if ($baselineStart -ge 0 -and $baselineEnd -gt $baselineStart) { $serviceSource.Substring($baselineStart, $baselineEnd - $baselineStart) } else { '' }
+Assert-True ($baseline.Contains('FWPM_PROVIDER_FLAG_PERSISTENT') -and $baseline -notmatch 'serviceName\s*=') 'deny baseline provider names no service, so a Disabled or Manual service cannot drop it at boot'
+Assert-True ($doctor.Contains('ReleaseForMsiWithRejectedMachineData(bool failedInstallRollback)') -and $doctor.Contains('CleanupForMsi(failedInstallRollback, false)') -and $doctor -match '(?s)ReleaseForMsiWithRejectedMachineData.*?CleanupForMsi\(bool failedInstallRollback, bool machineDataTrusted = true\).*?InstallationSafety.RequireSystemMaintenance\(\);.*?if \(machineDataTrusted\) InstallationSafety.RequireProtectedMachineData\(\);.*?ValidateRegisteredServiceImage\(!machineDataTrusted\);') 'emergency release is SYSTEM MSI maintenance that authenticates installation and LocalSystem service registration'
 
 $installUi = Read-RepoFile 'MsiSetup\WixUI_InstallDir_Custom.wxs'
 [xml]$uiXml = $installUi
@@ -166,8 +172,14 @@ $guardCatch = if ($guardCatchStart -ge 0 -and $guardCatchEnd -gt $guardCatchStar
 Assert-True ($guardCatch -match 'Console\.Error\.WriteLine\(diagnostic\)' -and $guardCatch -match 'return -1;' -and $guardCatch -match 'MachineDataRecoveryMessage') 'guard rejection explains recovery on stderr and returns failure'
 Assert-True ($guardCatch -notmatch 'Utils\.(AppDataPath|Log|LogException)\b|File\.(Write|Copy|Move|Delete|Create)|Directory\.Create') 'guard rejection performs no file logging or machine-data writes'
 Assert-True ($guardCatch -match 'if \(!maintenance\) Utils.ShowControllerFailure\(diagnostic\);' -and @('/install', '/uninstall', '/msi-cleanup', '/msi-rollback-install', '/service').Where({ -not $guardCatch.Contains('"' + $_ + '"') }).Count -eq 0) 'guard failure dialog excludes every maintenance and service entry mode'
+Assert-True ($guardCatch -match '(?s)"/msi-cleanup"\)\)\s*return TinyWallDoctor.ReleaseForMsiWithRejectedMachineData\(false\);.*?"/msi-rollback-install"\)\)\s*return TinyWallDoctor.ReleaseForMsiWithRejectedMachineData\(true\);' -and $guardCatch -notmatch '"/(uninstall|service)"\)\)\s*return TinyWallDoctor') 'only SYSTEM MSI removal and failed-install rollback reach emergency release after guard rejection'
 Assert-True ($utils -match '(?s)SpecialFolder.CommonApplicationData.*?MachineDataGuard.Require\(\);\s*return dir;') 'production AppDataPath access enters shared guard'
-Assert-True ($machineData -match '(?s)void InstallDefaults\(\)\s*\{\s*Require\(true, true\);.*?"data-defaults".*?new\[\] \{ "profiles.json", "hosts.bck" \}.*?Require\(\);.*?if \(!File.Exists\(target\)\) File.Copy\(Path.Combine\(source, name\), target, false\);.*?Require\(false, true\);') 'seeding validates full tree first, copies exactly two absent defaults without overwrite, then revalidates'
+$shippedPolicy = Read-RepoFile 'TinyWall\Prompting\ShippedDataPolicy.cs'
+Assert-True ($machineData -match '(?s)void InstallDefaults\(\)\s*\{\s*Require\(true, true\);.*?"data-defaults".*?foreach \(string name in ShippedDataPolicy.Names\).*?Require\(\);.*?ShippedDataPolicy.Refresh\(source, PathName, name\);.*?Require\(false, true\);') 'default refresh validates full tree first, refreshes shipped data only, then revalidates'
+Assert-True ($shippedPolicy -match 'Names = \{ "profiles.json", "hosts.bck" \};' -and $shippedPolicy -match 'AtomicFileWriter.Write\(target' -and $shippedPolicy -notmatch '"(config|pwd|hosts.orig)"') 'shipped data is exactly profiles.json and hosts.bck, replaced atomically'
+$eventSource = $wix.SelectSingleNode('//w:Component[@Id="EventLogSource"]', $ns)
+Assert-True ($null -ne $eventSource -and $eventSource.InnerXml -match 'EventSource' -and $eventSource.InnerXml -match 'Name="SecureWall"' -and $eventSource.InnerXml -match 'Log="Application"' -and $null -ne $wix.SelectSingleNode("//w:Feature/w:ComponentRef[@Id='EventLogSource']", $ns)) 'MSI registers the SecureWall Application event source'
+Assert-True ($guardCatch -match 'MaintenanceEventLog.ReportError\(Installer.MaintenanceEventLog.GuardFailureId') 'guard rejection writes one line to the Application event log'
 Assert-True ($machineData -match 'identity.IsSystem' -and $machineData -match 'Directory.CreateDirectory\(path, acl\)' -and $machineData -match 'O:SYG:SYD:P') 'missing data directory is created with protected ACL by SYSTEM'
 Assert-True ($machineData -match 'MachineDataPolicy.CheckTree' -and $machineData -match 'ReparsePoint' -and $machineData -match 'raw.Owner' -and $machineData -match 'raw.DiscretionaryAcl') 'machine-data guard recursively checks reparse state, ownership and DACL'
 Assert-True ($machinePolicy -match '(?s)verifyAncestors\(\);.*?if \(!exists\(\)\).*?if \(!allowCreation\).*?createProtected\(\);.*?verifyTree\(\);') 'ancestors precede creation and existing trees are validated without repair'
@@ -204,6 +216,16 @@ foreach ($entry in @(@{ Name = 'source'; Rules = @($sourceUpdate.Components) }, 
     })
     Assert-True ($serviceRules.Count -eq 1) "$($entry.Name) Windows_Update retains intended wuauserv outbound TCP service rule"
 }
+
+# profiles.json is compiled from TinyWall\Database by the interactive develtool,
+# so a source edit without a matching payload edit would ship stale rules.
+$sourceProfiles = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'TinyWall\Database') -Filter '*.json' -Recurse -File |
+    ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) | ConvertFrom-Json | ConvertTo-Json -Depth 32 -Compress } | Sort-Object)
+$payloadProfiles = @($packagedDatabase.KnownApplications | ForEach-Object { $_ | ConvertTo-Json -Depth 32 -Compress } | Sort-Object)
+Assert-True ($sourceProfiles.Count -gt 0 -and (Compare-Object $sourceProfiles $payloadProfiles -CaseSensitive -SyncWindow 0).Count -eq 0) 'packaged profiles.json matches the Database source profiles'
+$defenderPaths = @($packagedDatabase.KnownApplications | Where-Object { $_.Name -eq 'Windows_Defender' } | ForEach-Object { $_.Components } | ForEach-Object { Split-Path -Leaf $_.Subject.ExecutablePath })
+Assert-True ($defenderPaths -contains 'MpCmdRun.exe') 'payload Windows_Defender allows MpCmdRun.exe protection updates'
+Assert-True ($defenderPaths -notcontains 'MpDefenderCoreService.exe') 'payload Windows_Defender excludes MpDefenderCoreService.exe'
 
 $productConstants = Read-RepoFile 'TinyWall\SecureWallProduct.cs'
 Assert-True ($productConstants -match 'internal const string Name = "SecureWall"') 'runtime product name is SecureWall'
@@ -263,7 +285,7 @@ if ($ArtifactsDirectory) {
         foreach ($name in $expectedMsi) {
             $msiPath = Join-Path $artifactRoot $name
             Assert-True ((Get-MsiProperty $installer $msiPath 'ProductName') -eq 'SecureWall') "$name ProductName is SecureWall"
-            Assert-True ((Get-MsiProperty $installer $msiPath 'ProductVersion') -eq '0.3.0.0') "$name ProductVersion is 0.3.0.0"
+            Assert-True ((Get-MsiProperty $installer $msiPath 'ProductVersion') -eq '0.4.0.0') "$name ProductVersion is 0.4.0.0"
             Assert-True ((Get-MsiProperty $installer $msiPath 'ALLUSERS') -eq '1') "$name is per-machine"
         }
     }

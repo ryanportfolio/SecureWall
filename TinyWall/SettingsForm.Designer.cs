@@ -87,7 +87,6 @@
             this.label6 = new System.Windows.Forms.Label();
             this.lblVersion = new System.Windows.Forms.Label();
             this.label12 = new System.Windows.Forms.Label();
-            this.btnUpdate = new System.Windows.Forms.Button();
             this.btnWeb = new System.Windows.Forms.Button();
             this.sfd = new System.Windows.Forms.SaveFileDialog();
             this.ofd = new System.Windows.Forms.OpenFileDialog();
@@ -238,7 +237,7 @@
             // 
             // IconList
             // 
-            this.IconList.ColorDepth = System.Windows.Forms.ColorDepth.Depth8Bit;
+            this.IconList.ColorDepth = System.Windows.Forms.ColorDepth.Depth32Bit;
             resources.ApplyResources(this.IconList, "IconList");
             this.IconList.TransparentColor = System.Drawing.Color.Transparent;
             // 
@@ -441,7 +440,6 @@
             this.tabPage4.Controls.Add(this.btnImport);
             this.tabPage4.Controls.Add(this.btnExport);
             this.tabPage4.Controls.Add(this.groupBox2);
-            this.tabPage4.Controls.Add(this.btnUpdate);
             this.tabPage4.Controls.Add(this.btnWeb);
             resources.ApplyResources(this.tabPage4, "tabPage4");
             this.tabPage4.Name = "tabPage4";
@@ -538,14 +536,6 @@
             resources.ApplyResources(this.label12, "label12");
             this.label12.Name = "label12";
             // 
-            // btnUpdate
-            // 
-            resources.ApplyResources(this.btnUpdate, "btnUpdate");
-            this.btnUpdate.Image = global::pylorak.TinyWall.Resources.Icons.update;
-            this.btnUpdate.Name = "btnUpdate";
-            this.btnUpdate.UseVisualStyleBackColor = true;
-            this.btnUpdate.Click += new System.EventHandler(this.btnUpdate_Click);
-            // 
             // btnWeb
             // 
             resources.ApplyResources(this.btnWeb, "btnWeb");
@@ -627,7 +617,6 @@
         private System.Windows.Forms.Button btnWeb;
         private System.Windows.Forms.Label lblVersion;
         private System.Windows.Forms.Label label12;
-        private System.Windows.Forms.Button btnUpdate;
         private System.Windows.Forms.CheckBox chkBlockMalwarePorts;
         private System.Windows.Forms.Button btnAppAutoDetect;
         private System.Windows.Forms.ImageList IconList;

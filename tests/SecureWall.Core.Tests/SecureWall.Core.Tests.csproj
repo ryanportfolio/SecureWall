@@ -13,12 +13,21 @@
       Exclude="..\..\TinyWall\Prompting\BlockedConnectionPopup*.cs;..\..\TinyWall\Prompting\ControllerPromptActionClient.cs"
       Link="Prompting\%(Filename)%(Extension)" />
     <Compile Include="..\..\TinyWall\AuditPolicyLease.cs" Link="AuditPolicyLease.cs" />
+    <Compile Include="..\..\TinyWall\WfpSublayerKeys.cs" Link="WfpSublayerKeys.cs" />
     <Compile Include="..\..\TinyWall\AtomicFileWriter.cs" Link="AtomicFileWriter.cs" />
     <Compile Include="..\..\pylorak.Utilities\AtomicFileReplacement.cs" Link="AtomicFileReplacement.cs" />
     <Compile Include="..\..\pylorak.Utilities\AtomicFileUpdater.cs" Link="AtomicFileUpdater.cs" />
     <Compile Include="..\..\TinyWall\HostsFileManager.cs" Link="HostsFileManager.cs" />
     <Compile Include="..\..\pylorak.Utilities\FileLocker.cs" Link="FileLocker.cs" />
     <Compile Include="..\..\pylorak.Utilities\Disposable.cs" Link="Disposable.cs" />
+    <Compile Include="..\..\pylorak.Utilities\Pbkdf2.cs" Link="Pbkdf2.cs" />
+    <Compile Include="..\..\TinyWall\ProcessPathActions.cs" Link="ProcessPathActions.cs" />
+    <Compile Include="..\..\TinyWall\MessageType.cs" Link="MessageType.cs" />
+    <Compile Include="..\..\TinyWall\ExceptionPolicy.cs" Link="ExceptionPolicy.cs" />
+    <Compile Include="..\..\TinyWall\PolymorphicJsonConverter.cs" Link="PolymorphicJsonConverter.cs" />
+    <Compile Include="..\..\TinyWall\ExceptionSubject.cs" Link="ExceptionSubject.cs" />
+    <Compile Include="..\..\TinyWall\FirewallException.cs" Link="FirewallException.cs" />
+    <Compile Include="..\..\TinyWall\ServerConfiguration.cs" Link="ServerConfiguration.cs" />
   </ItemGroup>
 
   <!--
@@ -37,4 +46,31 @@
       <HintPath>..\..\pylorak.Windows.WFP\bin\$(Configuration)\pylorak.Windows.WFP.dll</HintPath>
     </Reference>
   </ItemGroup>
+
+  <!--
+    ExceptionSubject.cs and FirewallException.cs are net48 product files. Under net9.0 their
+    Equals overrides and ToString meet nullable BCL annotations, and the certificate helper
+    is marked obsolete. A generated global analyzer config silences only those diagnostics,
+    only for those two linked files; test code keeps warnings as errors.
+  -->
+  <PropertyGroup>
+    <LinkedProductAnalyzerConfig>$(MSBuildProjectDirectory)\obj\linked-product.globalconfig</LinkedProductAnalyzerConfig>
+    <LinkedProductDirectory>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..\TinyWall').Replace('\', '/'))</LinkedProductDirectory>
+  </PropertyGroup>
+  <ItemGroup>
+    <LinkedProductAnalyzerLine Include="is_global = true" />
+    <LinkedProductAnalyzerLine Include="[$(LinkedProductDirectory)/ExceptionSubject.cs]" />
+    <LinkedProductAnalyzerLine Include="dotnet_diagnostic.CS8765.severity = none" />
+    <LinkedProductAnalyzerLine Include="dotnet_diagnostic.CS8767.severity = none" />
+    <LinkedProductAnalyzerLine Include="dotnet_diagnostic.SYSLIB0057.severity = none" />
+    <LinkedProductAnalyzerLine Include="[$(LinkedProductDirectory)/FirewallException.cs]" />
+    <LinkedProductAnalyzerLine Include="dotnet_diagnostic.CS8603.severity = none" />
+  </ItemGroup>
+  <Target Name="WriteLinkedProductAnalyzerConfig" BeforeTargets="CoreCompile">
+    <WriteLinesToFile File="$(LinkedProductAnalyzerConfig)" Lines="@(LinkedProductAnalyzerLine)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <!-- Added here, not at evaluation: the SDK drops analyzer config files that do not exist yet. -->
+    <ItemGroup>
+      <EditorConfigFiles Include="$(LinkedProductAnalyzerConfig)" />
+    </ItemGroup>
+  </Target>
 </Project>

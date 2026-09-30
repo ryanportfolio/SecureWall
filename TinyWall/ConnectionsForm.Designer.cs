@@ -47,10 +47,11 @@
             this.mnuCloseProcess = new System.Windows.Forms.ToolStripMenuItem();
             this.mnuSearch = new System.Windows.Forms.ToolStripMenuItem();
             this.mnuVirusTotal = new System.Windows.Forms.ToolStripMenuItem();
-            this.mnuProcessLibrary = new System.Windows.Forms.ToolStripMenuItem();
             this.mnuFileNameOnTheWeb = new System.Windows.Forms.ToolStripMenuItem();
             this.mnuRemoteAddressOnTheWeb = new System.Windows.Forms.ToolStripMenuItem();
             this.mnuCopyRemoteAddress = new System.Windows.Forms.ToolStripMenuItem();
+            this.mnuCopyPath = new System.Windows.Forms.ToolStripMenuItem();
+            this.mnuOpenFolder = new System.Windows.Forms.ToolStripMenuItem();
             this.IconList = new System.Windows.Forms.ImageList(this.components);
             this.btnRefresh = new System.Windows.Forms.Button();
             this.chkShowListen = new System.Windows.Forms.CheckBox();
@@ -150,9 +151,12 @@
             this.mnuUnblock,
             this.mnuCloseProcess,
             this.mnuSearch,
-            this.mnuCopyRemoteAddress});
+            this.mnuCopyRemoteAddress,
+            this.mnuCopyPath,
+            this.mnuOpenFolder});
             this.contextMenuStrip1.Name = "contextMenuStrip1";
             resources.ApplyResources(this.contextMenuStrip1, "contextMenuStrip1");
+            this.contextMenuStrip1.Closed += new System.Windows.Forms.ToolStripDropDownClosedEventHandler(this.contextMenuStrip1_Closed);
             this.contextMenuStrip1.Opening += new System.ComponentModel.CancelEventHandler(this.contextMenuStrip1_Opening);
             // 
             // mnuUnblock
@@ -173,7 +177,6 @@
             // 
             this.mnuSearch.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.mnuVirusTotal,
-            this.mnuProcessLibrary,
             this.mnuFileNameOnTheWeb,
             this.mnuRemoteAddressOnTheWeb});
             this.mnuSearch.Image = global::pylorak.TinyWall.Resources.Icons.search;
@@ -185,12 +188,6 @@
             this.mnuVirusTotal.Name = "mnuVirusTotal";
             resources.ApplyResources(this.mnuVirusTotal, "mnuVirusTotal");
             this.mnuVirusTotal.Click += new System.EventHandler(this.mnuVirusTotal_Click);
-            // 
-            // mnuProcessLibrary
-            // 
-            this.mnuProcessLibrary.Name = "mnuProcessLibrary";
-            resources.ApplyResources(this.mnuProcessLibrary, "mnuProcessLibrary");
-            this.mnuProcessLibrary.Click += new System.EventHandler(this.mnuProcessLibrary_Click);
             // 
             // mnuFileNameOnTheWeb
             // 
@@ -206,13 +203,28 @@
             // 
             // mnuCopyRemoteAddress
             // 
+            this.mnuCopyRemoteAddress.Image = global::pylorak.TinyWall.Resources.Icons.copy;
             this.mnuCopyRemoteAddress.Name = "mnuCopyRemoteAddress";
             resources.ApplyResources(this.mnuCopyRemoteAddress, "mnuCopyRemoteAddress");
             this.mnuCopyRemoteAddress.Click += new System.EventHandler(this.mnuCopyRemoteAddress_Click);
             // 
+            // mnuCopyPath
+            // 
+            this.mnuCopyPath.Image = global::pylorak.TinyWall.Resources.Icons.copy;
+            this.mnuCopyPath.Name = "mnuCopyPath";
+            resources.ApplyResources(this.mnuCopyPath, "mnuCopyPath");
+            this.mnuCopyPath.Click += new System.EventHandler(this.mnuCopyPath_Click);
+            // 
+            // mnuOpenFolder
+            // 
+            this.mnuOpenFolder.Image = global::pylorak.TinyWall.Resources.Icons.open_folder;
+            this.mnuOpenFolder.Name = "mnuOpenFolder";
+            resources.ApplyResources(this.mnuOpenFolder, "mnuOpenFolder");
+            this.mnuOpenFolder.Click += new System.EventHandler(this.mnuOpenFolder_Click);
+            // 
             // IconList
             // 
-            this.IconList.ColorDepth = System.Windows.Forms.ColorDepth.Depth8Bit;
+            this.IconList.ColorDepth = System.Windows.Forms.ColorDepth.Depth32Bit;
             resources.ApplyResources(this.IconList, "IconList");
             this.IconList.TransparentColor = System.Drawing.Color.Transparent;
             // 
@@ -297,12 +309,13 @@
         private System.Windows.Forms.ToolStripMenuItem mnuCopyRemoteAddress;
         private System.Windows.Forms.ToolStripMenuItem mnuSearch;
         private System.Windows.Forms.ToolStripMenuItem mnuVirusTotal;
-        private System.Windows.Forms.ToolStripMenuItem mnuProcessLibrary;
         private System.Windows.Forms.ToolStripMenuItem mnuFileNameOnTheWeb;
         private System.Windows.Forms.ToolStripMenuItem mnuRemoteAddressOnTheWeb;
         private System.Windows.Forms.ColumnHeader columnHeader8;
         private System.Windows.Forms.ColumnHeader columnHeader9;
         private System.Windows.Forms.ColumnHeader columnHeader10;
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanel1;
+        private System.Windows.Forms.ToolStripMenuItem mnuCopyPath;
+        private System.Windows.Forms.ToolStripMenuItem mnuOpenFolder;
     }
 }

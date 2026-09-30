@@ -46,8 +46,7 @@ namespace pylorak.TinyWall
             nameof(toolStripMenuItem3),
             nameof(mnuAllowLocalSubnet),
             nameof(mnuEnableHostsBlocklist),
-            nameof(mnuTrafficRate),
-            nameof(mnuModeLearn)
+            nameof(mnuTrafficRate)
         )]
         private void InitializeComponent()
         {
@@ -62,7 +61,6 @@ namespace pylorak.TinyWall
             this.mnuModeBlockAll = new System.Windows.Forms.ToolStripMenuItem();
             this.mnuModeAllowOutgoing = new System.Windows.Forms.ToolStripMenuItem();
             this.mnuModeDisabled = new System.Windows.Forms.ToolStripMenuItem();
-            this.mnuModeLearn = new System.Windows.Forms.ToolStripMenuItem();
             this.mnuManage = new System.Windows.Forms.ToolStripMenuItem();
             this.mnuConnections = new System.Windows.Forms.ToolStripMenuItem();
             this.mnuLock = new System.Windows.Forms.ToolStripMenuItem();
@@ -129,8 +127,7 @@ namespace pylorak.TinyWall
             this.mnuModeNormal,
             this.mnuModeBlockAll,
             this.mnuModeAllowOutgoing,
-            this.mnuModeDisabled,
-            this.mnuModeLearn});
+            this.mnuModeDisabled});
             this.mnuMode.Name = "mnuMode";
             resources.ApplyResources(this.mnuMode, "mnuMode");
             // 
@@ -157,12 +154,6 @@ namespace pylorak.TinyWall
             this.mnuModeDisabled.Name = "mnuModeDisabled";
             resources.ApplyResources(this.mnuModeDisabled, "mnuModeDisabled");
             this.mnuModeDisabled.Click += new System.EventHandler(this.mnuModeDisabled_Click);
-            // 
-            // mnuModeLearn
-            // 
-            this.mnuModeLearn.Name = "mnuModeLearn";
-            resources.ApplyResources(this.mnuModeLearn, "mnuModeLearn");
-            this.mnuModeLearn.Click += new System.EventHandler(this.mnuModeLearn_Click);
             // 
             // mnuManage
             // 
@@ -276,12 +267,10 @@ namespace pylorak.TinyWall
         private System.Windows.Forms.ToolStripMenuItem mnuAllowLocalSubnet;
         private System.Windows.Forms.ToolStripMenuItem mnuEnableHostsBlocklist;
         private System.Windows.Forms.ToolStripMenuItem mnuTrafficRate;
-        private System.Windows.Forms.ToolStripMenuItem mnuModeLearn;
 
         #endregion
 
         private readonly MouseInterceptor MouseInterceptor = new();
-        private readonly System.Threading.Timer UpdateTimer;
         private readonly System.Windows.Forms.Timer ServiceTimer;
         private readonly System.Windows.Forms.Timer PromptPollTimer;
         private readonly DateTime AppStarted = DateTime.Now;
@@ -304,6 +293,7 @@ namespace pylorak.TinyWall
         private PromptDisplayCoordinator? PromptCoordinator;
         private int PromptPollInFlight;
         private readonly AttributionNotificationGate AttributionNotifications = new();
+        private readonly ServiceHealthNotificationGate HealthNotifications = new();
         private bool ControllerDisposing;
 
         private bool m_Locked;
@@ -351,7 +341,6 @@ namespace pylorak.TinyWall
             Utils.SetRightToLeft(TrayMenu);
             MouseInterceptor.MouseLButtonDown += new MouseInterceptor.MouseHookLButtonDown(MouseInterceptor_MouseLButtonDown);
             TrafficTimer = new System.Threading.Timer(TrafficTimerTick, null, Timeout.Infinite, Timeout.Infinite);
-            UpdateTimer = new System.Threading.Timer(UpdateTimerTick, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(240));
             ServiceTimer = new System.Windows.Forms.Timer(components);
             PromptPollTimer = new System.Windows.Forms.Timer(components)
             {
@@ -394,12 +383,6 @@ namespace pylorak.TinyWall
 
                 using (WaitHandle wh = new AutoResetEvent(false))
                 {
-                    UpdateTimer.Dispose(wh);
-                    wh.WaitOne();
-                }
-
-                using (WaitHandle wh = new AutoResetEvent(false))
-                {
                     TrafficTimer.Dispose(wh);
                     wh.WaitOne();
                 }
@@ -410,34 +393,6 @@ namespace pylorak.TinyWall
             }
 
             base.Dispose(disposing);
-        }
-
-        private void UpdateTimerTick(object state)
-        {
-            if (!SecureWallProduct.UpdateFeedEnabled)
-                return;
-
-            // This is an automatic update check in the background.
-            // If we fail (for whatever reason, no internet, server down etc.), do it silently.
-            try
-            {
-                if (ActiveConfig.Service.AutoUpdateCheck)
-                {
-                    UpdateModule? MainAppModule = FirewallState.Update?.GetModule(UpdateDescriptor.MODULE_NAME_MAINBIN);
-                    if (MainAppModule is null)
-                        return;
-
-                    if (new Version(MainAppModule.ComponentVersion) > new Version(Application.ProductVersion))
-                    {
-                        Utils.Invoke(SyncCtx, (SendOrPostCallback)delegate (object o)
-                        {
-                            string prompt = string.Format(CultureInfo.CurrentCulture, pylorak.TinyWall.Resources.Messages.UpdateAvailableBubble, MainAppModule.ComponentVersion);
-                            ShowBalloonTip(prompt, ToolTipIcon.Info, 5000, StartUpdate, MainAppModule.UpdateURL);
-                        });
-                    }
-                }
-            }
-            catch { }
         }
 
         private async void PromptPollTimerTick(object? sender, EventArgs eventArgs)
@@ -466,6 +421,9 @@ namespace pylorak.TinyWall
                         FirewallState.DroppedPrompts = poll.State.DroppedPrompts;
                         string? diagnostic = AttributionNotifications.Update(poll.State.AttributionAvailable,
                             poll.State.DroppedPromptCandidates, poll.State.DroppedPrompts, DateTimeOffset.UtcNow);
+                        FirewallState.HealthWarnings = poll.State.HealthWarnings;
+                        // One balloon per poll; a pending health warning shows on the next poll.
+                        if (diagnostic == null) diagnostic = HealthNotifications.Update(poll.State.HealthWarnings);
                         if (diagnostic != null) ShowBalloonTip(diagnostic, ToolTipIcon.Warning, 10000);
                     }
                 }
@@ -562,11 +520,6 @@ namespace pylorak.TinyWall
             }
         }
 
-        private void StartUpdate(object sender, AnyEventArgs e)
-        {
-            Updater.StartUpdate();
-        }
-
         private void mnuQuit_Click(object sender, EventArgs e)
         {
             Tray.Visible = false;
@@ -603,12 +556,6 @@ namespace pylorak.TinyWall
                     FirewallModeName = Resources.Messages.FirewallModeDisabled;
                     break;
 
-                case FirewallMode.Learning:
-                    Tray.Icon = Resources.Icons.shield_blue_small;
-                    mnuMode.Image = mnuModeLearn.Image;
-                    FirewallModeName = Resources.Messages.FirewallModeLearn;
-                    break;
-
                 case FirewallMode.Unknown:
                     Tray.Icon = Resources.Icons.shield_grey_small;
                     mnuMode.Image = mnuModeDisabled.Image;
@@ -635,7 +582,6 @@ namespace pylorak.TinyWall
                 FirewallMode.AllowOutgoing => Resources.Messages.TheFirewallIsNowAllowsOutgoingConnections,
                 FirewallMode.BlockAll => Resources.Messages.TheFirewallIsNowBlockingAllInAndOut,
                 FirewallMode.Disabled => Resources.Messages.TheFirewallIsNowDisabled,
-                FirewallMode.Learning => Resources.Messages.TheFirewallIsNowLearning,
                 _ => string.Empty
             };
 
@@ -1069,6 +1015,8 @@ namespace pylorak.TinyWall
             LoadSettingsFromServer();
 
             bool single = (list.Count == 1);
+            // showEditUi is false only after ApplicationExceptionForm already ran its own-image warning.
+            bool editorConfirmed = !showEditUi;
 
             if (single && ActiveConfig.Controller.AskForExceptionDetails && showEditUi)
             {
@@ -1079,6 +1027,20 @@ namespace pylorak.TinyWall
                 list.Clear();
                 list.AddRange(f.ExceptionSettings);
                 single = (list.Count == 1);
+                editorConfirmed = true;
+            }
+
+            // Tray whitelisting by executable, process or window saves without the editor.
+            if (!editorConfirmed
+                && list.Exists(ex => ex.Subject is ExecutableSubject exe && AiExplainEgressPolicy.RequiresOwnImageWarning(
+                    ex.Policy.PolicyType == PolicyType.HardBlock, exe.ExecutablePath, Utils.ExecutablePath))
+                && Utils.ShowMessageBox(
+                    AiExplainEgressPolicy.OwnImageExceptionWarning,
+                    Resources.Messages.TinyWall,
+                    TaskDialogCommonButtons.Yes | TaskDialogCommonButtons.No,
+                    TaskDialogIcon.Warning) != DialogResult.Yes)
+            {
+                return;
             }
 
             ServerConfiguration confCopy = Utils.DeepClone(ActiveConfig.Service);
@@ -1153,6 +1115,24 @@ namespace pylorak.TinyWall
             return false;
         }
 
+        // A popup Allow that the service rejected as locked. Same password dialog as the tray;
+        // AlreadyUnlocked means no password was asked for; otherwise the popup relocks.
+        private PromptUnlockResult UnlockForPrompt()
+        {
+            Locked = GlobalInstances.Controller.IsServerLocked;
+            if (!Locked)
+                return PromptUnlockResult.AlreadyUnlocked;
+            return EnsureUnlockedServer() ? PromptUnlockResult.Unlocked : PromptUnlockResult.NotUnlocked;
+        }
+
+        private void RelockAfterPrompt()
+        {
+            MessageType lockResp = GlobalInstances.Controller.LockServer();
+            if ((lockResp == MessageType.LOCK) || (lockResp == MessageType.RESPONSE_LOCKED))
+                this.Locked = true;
+            UpdateDisplay();
+        }
+
         private void mnuLock_Click(object sender, EventArgs e)
         {
             MessageType lockResp = GlobalInstances.Controller.LockServer();
@@ -1214,7 +1194,7 @@ namespace pylorak.TinyWall
         {
             try
             {
-                Utils.StartProcess(Utils.ExecutablePath, string.Empty, true);
+                Utils.StartProcessAndForget(Utils.ExecutablePath, string.Empty, true);
                 System.Windows.Forms.Application.Exit();
             }
             catch
@@ -1289,33 +1269,13 @@ namespace pylorak.TinyWall
             ApplyFirewallSettings(confCopy);
         }
 
-        private void mnuModeLearn_Click(object sender, EventArgs e)
-        {
-            if (!EnsureUnlockedServer())
-                return;
-
-            Utils.SplitFirstLine(Resources.Messages.YouAreAboutToEnterLearningMode, out string firstLine, out string contentLines);
-
-            var dialog = new TaskDialog
-            {
-                CustomMainIcon = Resources.Icons.firewall,
-                WindowTitle = Resources.Messages.TinyWall,
-                MainInstruction = firstLine,
-                Content = contentLines,
-                AllowDialogCancellation = false,
-                CommonButtons = TaskDialogCommonButtons.Yes | TaskDialogCommonButtons.No
-            };
-
-            if (dialog.Show() != (int)DialogResult.Yes)
-                return;
-
-            SetMode(FirewallMode.Learning);
-            UpdateDisplay();
-        }
-
         private void InitController()
         {
             mnuTrafficRate.Text = string.Format(CultureInfo.CurrentCulture, "{0}: {1}   {2}: {3}", Resources.Messages.TrafficIn, "...", Resources.Messages.TrafficOut, "...");
+
+            // The logon task starts the controller elevated. Without this, UIPI drops the TaskbarCreated
+            // broadcast from a restarted Explorer and the tray icon never comes back.
+            Utils.DisableMessageUIPI("TaskbarCreated");
 
             // We will load our database parallel to other things to improve startup performance
             using (var barrier = new ThreadBarrier(2))
@@ -1342,13 +1302,12 @@ namespace pylorak.TinyWall
                 mnuModeAllowOutgoing.Image = Resources.Icons.shield_red_small.ToBitmap();
                 mnuModeBlockAll.Image = Resources.Icons.shield_yellow_small.ToBitmap();
                 mnuModeNormal.Image = Resources.Icons.shield_green_small.ToBitmap();
-                mnuModeLearn.Image = Resources.Icons.shield_blue_small.ToBitmap();
                 TrayMenuShowing = false;
 
                 ApplyControllerSettings();
                 GlobalInstances.InitClient();
                 PromptCoordinator = new PromptDisplayCoordinator(
-                    new ControllerPromptActionClient(GlobalInstances.Controller),
+                    new ControllerPromptActionClient(GlobalInstances.Controller, UnlockForPrompt, RelockAfterPrompt),
                     () => new BlockedConnectionPopup(),
                     performAction: action => Task.Run(action));
                 PromptPollTimer.Enabled = true;
@@ -1377,11 +1336,6 @@ namespace pylorak.TinyWall
                 if (StartupOpts.autowhitelist)
                 {
                     AutoWhitelist();
-                }
-
-                if (StartupOpts.updatenow)
-                {
-                    StartUpdate(this, AnyEventArgs.Empty);
                 }
             }
             else

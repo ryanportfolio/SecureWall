@@ -302,20 +302,6 @@ Sistem menüsünden Yönetici olarak çalıştır'ı seçin ve tekrar deneyin.</
   <data name="CannotGetPathOfProcess" xml:space="preserve">
     <value>İşlemin yolu alınamadı.</value>
   </data>
-  <data name="TheFirewallIsNowLearning" xml:space="preserve">
-    <value>Firewall artık verilen bütün trafik izinlerini kayıt altına alacak.</value>
-  </data>
-  <data name="FirewallModeLearn" xml:space="preserve">
-    <value>Otomatik Öğren</value>
-  </data>
-  <data name="YouAreAboutToEnterLearningMode" xml:space="preserve">
-    <value>Otomatik öğrenme modunu başlatmak istediğinizden emin misiniz ?
-Otomatik öğrenme modunda SecureWall bütün trafiğe izin verecek ve hangi uygulamaların ağı kullandığını kayıt altına alacak. Öğrenme modundan çıktığınız zaman, SecureWall sizin için uygulamaları otomatik olarak kayıt edecektir. Ancak dikkat, kurallar konfigürasyona özel istisnalar içermez.
-
-Öğrenme moduna girmeden önce, bilgisayarınızda virüs yada zararlı yazılım olmadığından emin olmalısınız. Öğrenme modunu en iyi şekilde kullanma yöntemi, yeni kurulmuş bir Windows ve bir virüs programıyla komple taranmış bilgisayarda çalıştırmaktır.
-
-Şimdi öğrenme modunu başlatmak istiyormusunuz ?</value>
-  </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>SecureWall'ın kaldırılıp güncellenmesi başlasın mı?</value>
   </data>

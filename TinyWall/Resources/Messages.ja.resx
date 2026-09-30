@@ -321,20 +321,6 @@
   <data name="CannotGetPathOfProcess" xml:space="preserve">
     <value>プロセスのパスを取得できません</value>
   </data>
-  <data name="TheFirewallIsNowLearning" xml:space="preserve">
-    <value>ファイアウォールは現在すべてのトラフィックに対して学習モードです</value>
-  </data>
-  <data name="FirewallModeLearn" xml:space="preserve">
-    <value>自動学習</value>
-  </data>
-  <data name="YouAreAboutToEnterLearningMode" xml:space="preserve">
-    <value>本当に自動学習モードにしますか?
-SecureWall の自動学習モードでは、すべての許可されたトラフィックに対して、どのアプリケーションがネットワークを使用したかについて学習します。また学習モードを終了する際、例外は自動的に追加されますが、構成設定の特殊例外項目については学習することが出来ないという点にご注意ください。
-
-そして学習モードを有効にする前に、システムがいかなるマルウェアにも感染していないことを必ず確認する必要があります。(この学習モードは新たにインストールされたシステムで有効にするのが望ましいといえます) このモードを有効にする前にウイルスチェックを行っておくことが推奨されます。
-
-本当に学習モードを有効にしますか?</value>
-  </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>SecureWall のアンインストールを開始しますか?</value>
   </data>

@@ -125,12 +125,15 @@ internal static class PromptTransactionIntegrationTests
         AssertEx.Equal(PromptActionStatus.Expired, f.Queue.Allow(token).Status);
     }
 
-    internal static string Source(string path)
+    internal static string Source(string path) =>
+        File.ReadAllText(SourcePath(path)).Replace("\r\n", "\n");
+
+    internal static string SourcePath(string path)
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir != null && !File.Exists(Path.Combine(dir.FullName, "TinyWall", "TinyWallService.cs"))) dir = dir.Parent;
         if (dir == null) throw new InvalidOperationException("Repository source not found.");
-        return File.ReadAllText(Path.Combine(dir.FullName, path)).Replace("\r\n", "\n");
+        return Path.Combine(dir.FullName, path);
     }
 
     private static void ServiceWiring()
@@ -140,10 +143,15 @@ internal static class PromptTransactionIntegrationTests
         int invalidate = service.IndexOf("ResetPromptCandidates(revokeTokens: false);", start, StringComparison.Ordinal);
         int rebuild = service.IndexOf("PathMapper.Instance.RebuildCache();", start, StringComparison.Ordinal);
         int commit = service.IndexOf("trx.Commit();", start, StringComparison.Ordinal);
-        int revoke = service.IndexOf("ResetPromptCandidates();", start, StringComparison.Ordinal);
+        // Revocation is skipped only for an AI-egress-only settings change (AiExplainEgressPolicy).
+        int revoke = service.IndexOf("ResetPromptCandidates(revokeTokens: !PreservePromptTokens);", start, StringComparison.Ordinal);
         AssertEx.True(start < invalidate && invalidate < rebuild && rebuild < commit && commit < revoke);
         AssertEx.True(service.Contains("PromptCandidateLifecycle.Reset(BlockedPromptQueue, CorrelatedDrops, DropCandidates, stop, revokeTokens);"));
-        AssertEx.True(service.Contains("ResetPromptCandidates();\n                            VisibleState.Mode = mode;"));
+        AssertEx.True(service.Contains("ResetPromptCandidates(revokeTokens: !PreservePromptTokens);\n                            VisibleState.Mode = mode;"));
+        AssertEx.Equal(3, service.Split("PreservePromptTokens = ").Length - 1,
+            "PreservePromptTokens is assigned only by the egress-only comparison, its failure path and the finally reset.");
+        AssertEx.True(service.Contains("PreservePromptTokens = AiExplainEgressPolicy.IsEgressOnlyChange(previous, candidate,"));
+        AssertEx.True(service.Contains("ApplyingMode = null;\n                PreservePromptTokens = false;"));
         foreach (string method in new[] { "private void FailClosed()", "public void Dispose()" })
         {
             int at = service.IndexOf(method, StringComparison.Ordinal);

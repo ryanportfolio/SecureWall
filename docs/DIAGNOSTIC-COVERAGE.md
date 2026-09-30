@@ -12,7 +12,7 @@ Missing completion, missing files, record loss and unobserved paths remain gaps.
 
 | Area | Evidence to inspect | What it establishes |
 | --- | --- | --- |
-| Service lifecycle | Start, ready, failure, stop request and shutdown | Which lifecycle boundaries were reached |
+| Service lifecycle | Start, ready, failure, stop request and shutdown | Which lifecycle boundaries were reached; a failure record means the service exited with a nonzero exit code for SCM restart |
 | Policy changes | Journal, persistence, enforcement, publication, rollback and recovery | Which part of a settings change succeeded or failed |
 | Configuration and database | Load outcomes and fallback | Whether saved policy and bundled exception data were available |
 | Port blocklist | Requested state, rule availability and attributed drop count | Whether the blocklist was configured and whether WFP reported drops against its committed filters |
@@ -23,7 +23,8 @@ Missing completion, missing files, record loss and unobserved paths remain gaps.
 | Rule lifetime | Expiry processing | Whether the service processed expiring exceptions |
 | Prompt actions | Allow and Ignore outcomes, including refusal reasons | Whether the service accepted an action |
 | Missing prompts or rules | Coalesced suppression, attribution failures and unavailable rule paths | Whether those conditions occurred; coalesced event counts are not counts of every affected connection |
-| Environment changes | Network and display reload outcomes | Whether policy reapplication completed |
+| Environment changes | Network and display reload outcomes | Whether policy reapplication completed. A reload failure without a following fail-closed record kept the committed policy for a bounded retry |
+| Runtime revocation | Fail-closed, then subscription, network reload and policy records | Whether a withdrawn runtime session was rebuilt in-process; repeated subscription or policy failures precede a service failure exit |
 | Journal health | Sequence gaps, dropped records and write failures | Whether the diagnostic history has known losses |
 | Installed service | State, startup mode, PID, exit code and expected registration facts | What SCM reported during collection |
 | Installed binary | Registered file hash, version and signature result | Identity of the file on disk, not proof of the bytes already loaded by a running process |

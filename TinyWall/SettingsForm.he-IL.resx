@@ -234,9 +234,6 @@
   <data name="groupBox2.Text" xml:space="preserve">
     <value>אודות</value>
   </data>
-  <data name="btnUpdate.Text" xml:space="preserve">
-    <value>עדכון</value>
-  </data>
   <data name="btnWeb.Text" xml:space="preserve">
     <value>ביקור באתר-הבית</value>
   </data>

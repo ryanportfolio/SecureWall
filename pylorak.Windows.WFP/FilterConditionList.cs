@@ -19,7 +19,22 @@ namespace pylorak.Windows.WFP
             _list = new List<FilterCondition>(capacity);
         }
 
-        public FilterCondition this[int index] { get => _list[index]; set => _list[index] = value; }
+        public FilterCondition this[int index]
+        {
+            get => _list[index];
+            set
+            {
+                if (IsDisposed)
+                    throw new ObjectDisposedException(nameof(FilterConditionList));
+
+                // Read the old item first so a bad index throws before any refcount changes.
+                // AddRef before RemoveRef keeps self-assignment from disposing the item.
+                var old = _list[index];
+                value.AddRef();
+                _list[index] = value;
+                old.RemoveRef();
+            }
+        }
 
         public int Count => _list.Count;
 

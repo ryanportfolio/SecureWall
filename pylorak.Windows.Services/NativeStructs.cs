@@ -109,7 +109,8 @@ namespace pylorak.Windows.Services
     public enum ServiceConfig2InfoLevel : int
     {
         SERVICE_CONFIG_DESCRIPTION = 0x00000001, // The lpBuffer parameter is a pointer to a SERVICE_DESCRIPTION structure.
-        SERVICE_CONFIG_FAILURE_ACTIONS = 0x00000002 // The lpBuffer parameter is a pointer to a SERVICE_FAILURE_ACTIONS structure.
+        SERVICE_CONFIG_FAILURE_ACTIONS = 0x00000002, // The lpBuffer parameter is a pointer to a SERVICE_FAILURE_ACTIONS structure.
+        SERVICE_CONFIG_SERVICE_SID_INFO = 0x00000005 // The lpBuffer parameter is a pointer to a SERVICE_SID_INFO structure.
     }
 
     public enum SC_ACTION_TYPE : uint

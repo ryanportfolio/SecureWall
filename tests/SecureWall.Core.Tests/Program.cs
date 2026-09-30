@@ -67,13 +67,30 @@ internal static class Program
             .Concat(LifecycleHardeningTests.Cases)
             .Concat(ControllerHardeningTests.Cases)
             .Concat(NetEventParsingTests.Cases)
+            .Concat(WfpWrapperTests.Cases)
             .Concat(AtomicFileWriterTests.Cases)
             .Concat(AuditPolicyLeaseTests.Cases)
             .Concat(HostsRestorationTests.Cases)
             .Concat(HostsAdapterTests.Cases)
             .Concat(PromptTransactionIntegrationTests.Cases)
-            .Concat(ExecutableRiskTests.Cases).ToArray();
-        tests = tests.Concat(RuntimeJournalTests.Cases).Concat(RuntimeDiagnosticCoverageTests.Cases).ToArray();
+            .Concat(ExecutableRiskTests.Cases)
+            .Concat(PasswordStorageTests.Cases)
+            .Concat(ControllerUiPortTests.Cases)
+            .Concat(BlockReasonTests.Cases).ToArray();
+        tests = tests.Concat(RuntimeJournalTests.Cases).Concat(RuntimeDiagnosticCoverageTests.Cases)
+            .Concat(WfpCoexistenceTests.Cases)
+            .Concat(ProtectionReleaseTests.Cases)
+            .Concat(ServiceRecoveryTests.Cases)
+            .Concat(ServiceStartupRobustnessTests.Cases)
+            .Concat(LearningRemovalTests.Cases)
+            .Concat(ExceptionMergePolicyTests.Cases)
+            .Concat(ServiceAttributionTests.Cases)
+            .Concat(ExceptionMergeTests.Cases)
+            .Concat(ControllerActivityTests.Cases)
+            .Concat(AiExplainHardeningTests.Cases)
+            .Concat(InstallerDiagnosticsTests.Cases)
+            .Concat(ProfileMergeTests.Cases)
+            .Concat(UpdateFeedRemovalTests.Cases).ToArray();
         var failed = 0;
 
         foreach (var (name, test) in tests)
@@ -616,8 +633,10 @@ internal static class Program
             ServiceImagePath.TryExtractExecutable(
                 "\"C:\\Program Files\\Example Service\\service.exe\" --service",
                 @"C:\Windows"));
-        AssertEx.Equal(
-            @"C:\Program Files\Example Service\service.exe",
+        // Unquoted with spaces: CreateProcess tries C:\Program.exe first, so the executable
+        // depends on the disk and stays unresolved.
+        AssertEx.Equal<string?>(
+            null,
             ServiceImagePath.TryExtractExecutable(
                 @"C:\Program Files\Example Service\service.exe --service",
                 @"C:\Windows"));
@@ -820,7 +839,10 @@ internal static class Program
         views[0].RaiseClosed();
         views[1].RaiseTimeout();
 
-        AssertEx.SequenceEqual(new[] { first.Token, second.Token }, actions.Dismissed);
+        // Both dismiss the token; only the timeout is sent as automatic, so it cannot
+        // extend the service's password unlock window.
+        AssertEx.SequenceEqual(new[] { first.Token }, actions.Dismissed);
+        AssertEx.SequenceEqual(new[] { second.Token }, actions.TimedOut);
         AssertEx.Equal<Guid?>(null, coordinator.CurrentToken);
     }
 
@@ -938,6 +960,17 @@ internal static class Program
             Dismissed.Add(token);
             return DismissResult;
         }
+
+        internal List<Guid> TimedOut { get; } = new();
+
+        public PromptActionStatus DismissAfterTimeout(Guid token)
+        {
+            TimedOut.Add(token);
+            return DismissResult;
+        }
+
+        public PromptUnlockResult Unlock() => PromptUnlockResult.NotUnlocked;
+        public void Relock() { }
     }
 
     private sealed class FakePromptView : IPromptView

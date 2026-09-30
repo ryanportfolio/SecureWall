@@ -303,20 +303,6 @@
   <data name="CannotGetPathOfProcess" xml:space="preserve">
     <value>无法获得进程路径。</value>
   </data>
-  <data name="TheFirewallIsNowLearning" xml:space="preserve">
-    <value>防火墙在允许流量通过的同时进行学习。</value>
-  </data>
-  <data name="FirewallModeLearn" xml:space="preserve">
-    <value>自动学习</value>
-  </data>
-  <data name="YouAreAboutToEnterLearningMode" xml:space="preserve">
-    <value>您确定要开始自动学习吗？
-在自动学习模式中，SecureWall将允许所有流量的通过并记住哪些应用程序使用了网络。当您退出学习模式时，SecureWall将自动为您添加例外。但是，请注意，针对配置的“特殊例外”的规则是无法被学习的。
-
-在进入学习模式前，请确保您的系统不存在任何恶意软件。最好的做法是在全新安装的系统上运行学习模式，我们建议您在使用该模式前先对系统进行病毒扫描。
-
-您希望立即进入学习模式吗？</value>
-  </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>您希望卸载SecureWall吗？</value>
   </data>

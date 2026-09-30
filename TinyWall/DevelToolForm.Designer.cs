@@ -46,16 +46,6 @@ namespace pylorak.TinyWall
             this.txtAssocExePath = new System.Windows.Forms.TextBox();
             this.txtAssocResult = new System.Windows.Forms.TextBox();
             this.tabPage2 = new System.Windows.Forms.TabPage();
-            this.tabPage4 = new System.Windows.Forms.TabPage();
-            this.btnUpdateInstallerBrowse = new System.Windows.Forms.Button();
-            this.txtUpdateURL = new System.Windows.Forms.TextBox();
-            this.label8 = new System.Windows.Forms.Label();
-            this.btnUpdateOutputBrowse = new System.Windows.Forms.Button();
-            this.label7 = new System.Windows.Forms.Label();
-            this.txtUpdateOutput = new System.Windows.Forms.TextBox();
-            this.txtUpdateInstallerProjectDir = new System.Windows.Forms.TextBox();
-            this.btnUpdateCreate = new System.Windows.Forms.Button();
-            this.label5 = new System.Windows.Forms.Label();
             this.tabPage5 = new System.Windows.Forms.TabPage();
             this.listPrimaries = new System.Windows.Forms.ListBox();
             this.txtOutputPath = new System.Windows.Forms.TextBox();
@@ -82,7 +72,6 @@ namespace pylorak.TinyWall
             this.tabControl1.SuspendLayout();
             this.tabPage1.SuspendLayout();
             this.tabPage2.SuspendLayout();
-            this.tabPage4.SuspendLayout();
             this.tabPage5.SuspendLayout();
             this.tabPage6.SuspendLayout();
             this.SuspendLayout();
@@ -169,7 +158,6 @@ namespace pylorak.TinyWall
             // 
             this.tabControl1.Controls.Add(this.tabPage1);
             this.tabControl1.Controls.Add(this.tabPage2);
-            this.tabControl1.Controls.Add(this.tabPage4);
             this.tabControl1.Controls.Add(this.tabPage5);
             this.tabControl1.Controls.Add(this.tabPage6);
             this.tabControl1.Location = new System.Drawing.Point(12, 12);
@@ -255,105 +243,6 @@ namespace pylorak.TinyWall
             this.tabPage2.TabIndex = 1;
             this.tabPage2.Text = "Database creator";
             this.tabPage2.UseVisualStyleBackColor = true;
-            // 
-            // tabPage4
-            // 
-            this.tabPage4.Controls.Add(this.btnUpdateInstallerBrowse);
-            this.tabPage4.Controls.Add(this.txtUpdateURL);
-            this.tabPage4.Controls.Add(this.label8);
-            this.tabPage4.Controls.Add(this.btnUpdateOutputBrowse);
-            this.tabPage4.Controls.Add(this.label7);
-            this.tabPage4.Controls.Add(this.txtUpdateOutput);
-            this.tabPage4.Controls.Add(this.txtUpdateInstallerProjectDir);
-            this.tabPage4.Controls.Add(this.btnUpdateCreate);
-            this.tabPage4.Controls.Add(this.label5);
-            this.tabPage4.Location = new System.Drawing.Point(4, 22);
-            this.tabPage4.Name = "tabPage4";
-            this.tabPage4.Size = new System.Drawing.Size(764, 323);
-            this.tabPage4.TabIndex = 3;
-            this.tabPage4.Text = "Update creator";
-            this.tabPage4.UseVisualStyleBackColor = true;
-            // 
-            // btnUpdateInstallerBrowse
-            // 
-            this.btnUpdateInstallerBrowse.Location = new System.Drawing.Point(446, 79);
-            this.btnUpdateInstallerBrowse.Name = "btnUpdateInstallerBrowse";
-            this.btnUpdateInstallerBrowse.Size = new System.Drawing.Size(75, 23);
-            this.btnUpdateInstallerBrowse.TabIndex = 25;
-            this.btnUpdateInstallerBrowse.Text = "Browse...";
-            this.btnUpdateInstallerBrowse.UseVisualStyleBackColor = true;
-            this.btnUpdateInstallerBrowse.Click += new System.EventHandler(this.btnUpdateInstallerBrowse_Click);
-            // 
-            // txtUpdateURL
-            // 
-            this.txtUpdateURL.Location = new System.Drawing.Point(17, 34);
-            this.txtUpdateURL.Name = "txtUpdateURL";
-            this.txtUpdateURL.Size = new System.Drawing.Size(423, 20);
-            this.txtUpdateURL.TabIndex = 23;
-            this.txtUpdateURL.Text = "";
-            // 
-            // label8
-            // 
-            this.label8.AutoSize = true;
-            this.label8.Location = new System.Drawing.Point(14, 18);
-            this.label8.Name = "label8";
-            this.label8.Size = new System.Drawing.Size(96, 13);
-            this.label8.TabIndex = 24;
-            this.label8.Text = "Update base URL:";
-            // 
-            // btnUpdateOutputBrowse
-            // 
-            this.btnUpdateOutputBrowse.Location = new System.Drawing.Point(446, 120);
-            this.btnUpdateOutputBrowse.Name = "btnUpdateOutputBrowse";
-            this.btnUpdateOutputBrowse.Size = new System.Drawing.Size(75, 23);
-            this.btnUpdateOutputBrowse.TabIndex = 22;
-            this.btnUpdateOutputBrowse.Text = "Browse...";
-            this.btnUpdateOutputBrowse.UseVisualStyleBackColor = true;
-            this.btnUpdateOutputBrowse.Click += new System.EventHandler(this.btnUpdateOutputBrowse_Click);
-            // 
-            // label7
-            // 
-            this.label7.AutoSize = true;
-            this.label7.Location = new System.Drawing.Point(14, 107);
-            this.label7.Name = "label7";
-            this.label7.Size = new System.Drawing.Size(71, 13);
-            this.label7.TabIndex = 20;
-            this.label7.Text = "Output folder:";
-            // 
-            // txtUpdateOutput
-            // 
-            this.txtUpdateOutput.Location = new System.Drawing.Point(17, 123);
-            this.txtUpdateOutput.Name = "txtUpdateOutput";
-            this.txtUpdateOutput.Size = new System.Drawing.Size(423, 20);
-            this.txtUpdateOutput.TabIndex = 19;
-            this.txtUpdateOutput.Text = "C:\\data\\Nextcloud\\SecureWall\\OnlineUpdate";
-            // 
-            // txtUpdateInstallerProjectDir
-            // 
-            this.txtUpdateInstallerProjectDir.Location = new System.Drawing.Point(17, 79);
-            this.txtUpdateInstallerProjectDir.Name = "txtUpdateInstallerProjectDir";
-            this.txtUpdateInstallerProjectDir.Size = new System.Drawing.Size(423, 20);
-            this.txtUpdateInstallerProjectDir.TabIndex = 12;
-            this.txtUpdateInstallerProjectDir.Text = "C:\\data\\Nextcloud\\SecureWall\\SecureWall3\\MsiSetup";
-            // 
-            // btnUpdateCreate
-            // 
-            this.btnUpdateCreate.Location = new System.Drawing.Point(574, 79);
-            this.btnUpdateCreate.Name = "btnUpdateCreate";
-            this.btnUpdateCreate.Size = new System.Drawing.Size(109, 59);
-            this.btnUpdateCreate.TabIndex = 11;
-            this.btnUpdateCreate.Text = "Create";
-            this.btnUpdateCreate.UseVisualStyleBackColor = true;
-            this.btnUpdateCreate.Click += new System.EventHandler(this.btnUpdateCreate_Click);
-            // 
-            // label5
-            // 
-            this.label5.AutoSize = true;
-            this.label5.Location = new System.Drawing.Point(14, 63);
-            this.label5.Name = "label5";
-            this.label5.Size = new System.Drawing.Size(167, 13);
-            this.label5.TabIndex = 13;
-            this.label5.Text = "SecureWall installer project directory:";
             // 
             // tabPage5
             // 
@@ -601,8 +490,6 @@ namespace pylorak.TinyWall
             this.tabPage1.PerformLayout();
             this.tabPage2.ResumeLayout(false);
             this.tabPage2.PerformLayout();
-            this.tabPage4.ResumeLayout(false);
-            this.tabPage4.PerformLayout();
             this.tabPage5.ResumeLayout(false);
             this.tabPage5.PerformLayout();
             this.tabPage6.ResumeLayout(false);
@@ -631,16 +518,6 @@ namespace pylorak.TinyWall
         private System.Windows.Forms.TextBox txtAssocExePath;
         private System.Windows.Forms.TextBox txtAssocResult;
         private System.Windows.Forms.TabPage tabPage2;
-        private System.Windows.Forms.TabPage tabPage4;
-        private System.Windows.Forms.Button btnUpdateOutputBrowse;
-        private System.Windows.Forms.Label label7;
-        private System.Windows.Forms.TextBox txtUpdateOutput;
-        private System.Windows.Forms.TextBox txtUpdateInstallerProjectDir;
-        private System.Windows.Forms.Button btnUpdateCreate;
-        private System.Windows.Forms.Label label5;
-        private System.Windows.Forms.TextBox txtUpdateURL;
-        private System.Windows.Forms.Label label8;
-        private System.Windows.Forms.Button btnUpdateInstallerBrowse;
         private System.Windows.Forms.TabPage tabPage5;
         private System.Windows.Forms.ListBox listPrimaries;
         private System.Windows.Forms.TextBox txtOutputPath;

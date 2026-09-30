@@ -132,9 +132,6 @@
   <data name="mnuModeDisabled.Text" xml:space="preserve">
     <value>ファイアウォールを無効化</value>
   </data>
-  <data name="mnuModeLearn.Text" xml:space="preserve">
-    <value>自動記憶</value>
-  </data>
   <data name="mnuMode.Text" xml:space="preserve">
     <value>オペレーションモードを変更</value>
   </data>

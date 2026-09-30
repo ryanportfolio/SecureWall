@@ -270,12 +270,6 @@
   <data name="mnuVirusTotal.Text" xml:space="preserve">
     <value>On VirusTotal</value>
   </data>
-  <data name="mnuProcessLibrary.Size" type="System.Drawing.Size, System.Drawing">
-    <value>220, 22</value>
-  </data>
-  <data name="mnuProcessLibrary.Text" xml:space="preserve">
-    <value>On ProcessLibrary</value>
-  </data>
   <data name="mnuFileNameOnTheWeb.Size" type="System.Drawing.Size, System.Drawing">
     <value>220, 22</value>
   </data>
@@ -543,12 +537,6 @@
   <data name="&gt;&gt;mnuVirusTotal.Type" xml:space="preserve">
     <value>System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
-  <data name="&gt;&gt;mnuProcessLibrary.Name" xml:space="preserve">
-    <value>mnuProcessLibrary</value>
-  </data>
-  <data name="&gt;&gt;mnuProcessLibrary.Type" xml:space="preserve">
-    <value>System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
   <data name="&gt;&gt;mnuFileNameOnTheWeb.Name" xml:space="preserve">
     <value>mnuFileNameOnTheWeb</value>
   </data>
@@ -565,6 +553,30 @@
     <value>mnuCopyRemoteAddress</value>
   </data>
   <data name="&gt;&gt;mnuCopyRemoteAddress.Type" xml:space="preserve">
+    <value>System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;mnuCopyPath.Name" xml:space="preserve">
+    <value>mnuCopyPath</value>
+  </data>
+  <data name="mnuCopyPath.Size" type="System.Drawing.Size, System.Drawing">
+    <value>186, 22</value>
+  </data>
+  <data name="mnuCopyPath.Text" xml:space="preserve">
+    <value>Copy path</value>
+  </data>
+  <data name="&gt;&gt;mnuCopyPath.Type" xml:space="preserve">
+    <value>System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;mnuOpenFolder.Name" xml:space="preserve">
+    <value>mnuOpenFolder</value>
+  </data>
+  <data name="mnuOpenFolder.Size" type="System.Drawing.Size, System.Drawing">
+    <value>186, 22</value>
+  </data>
+  <data name="mnuOpenFolder.Text" xml:space="preserve">
+    <value>Open folder</value>
+  </data>
+  <data name="&gt;&gt;mnuOpenFolder.Type" xml:space="preserve">
     <value>System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
   <data name="&gt;&gt;IconList.Name" xml:space="preserve">

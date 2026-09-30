@@ -322,20 +322,6 @@
   <data name="CannotGetPathOfProcess" xml:space="preserve">
     <value>Не вдалося отримати шлях до процесу.</value>
   </data>
-  <data name="TheFirewallIsNowLearning" xml:space="preserve">
-    <value>Брандмауер тепер у режимі навчання та пропускає весь трафік.</value>
-  </data>
-  <data name="FirewallModeLearn" xml:space="preserve">
-    <value>Автонавічання</value>
-  </data>
-  <data name="YouAreAboutToEnterLearningMode" xml:space="preserve">
-    <value>Ви впевнені, що хочете запустити автоматичне навчання?
-У режимі автоматичного навчання SecureWall дозволятиме весь трафік і запам’ятовуватиме, які програми використовували мережу. Коли ви вийдете з режиму навчання, SecureWall автоматично додасть винятки. Зауважте, що правила не можуть бути вивчені для «Спеціальних винятків» конфігурації.
-
-Перед входом у режим навчання переконайтеся, що ваша система вільна від шкідливого ПЗ. Найкраще запускати режим навчання на свіжовстановлених системах. Рекомендується перевірити комп’ютер на віруси перед використанням цього режиму.
-
-Бажаєте увійти в режим навчання зараз?</value>
-  </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>Ви ініціювали видалення/оновлення SecureWall?</value>
   </data>

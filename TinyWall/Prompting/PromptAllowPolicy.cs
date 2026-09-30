@@ -45,6 +45,21 @@ namespace pylorak.TinyWall.Prompting
                 refusalReason = "The identity is ambiguous or missing.";
                 return false;
             }
+            if (identity.AllowBlocker == PromptAllowBlocker.ServiceSidUnavailable)
+            {
+                refusalReason = "Service " + identity.ServiceName + " has no service SID, so a service rule could not match it.";
+                return false;
+            }
+            if (identity.AllowBlocker == PromptAllowBlocker.ServiceSidUnverified)
+            {
+                refusalReason = "The service SID type of " + identity.ServiceName + " could not be read, so a service rule could not be verified to match it.";
+                return false;
+            }
+            if (!identity.CanAllow)
+            {
+                refusalReason = "The service inventory could not confirm whether " + identity.ExecutablePath + " is a registered service.";
+                return false;
+            }
             if (identity.Kind != PromptIdentityKind.Package)
             {
                 if (string.IsNullOrWhiteSpace(identity.ExecutablePath))

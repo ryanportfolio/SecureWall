@@ -27,7 +27,7 @@ namespace pylorak.TinyWall
             InitializeComponent();
             Utils.SetRightToLeft(this);
             if (Utils.IsDarkModeActive(ActiveConfig.Controller))
-                this.DarkMode = new(this) { ColorMode = DarkModeCS.DisplayMode.DarkMode };
+                this.DarkMode = new(this, false) { ColorMode = DarkModeCS.DisplayMode.DarkMode };
 
             try
             {
@@ -337,6 +337,19 @@ namespace pylorak.TinyWall
             {
                 var pol = new UnrestrictedPolicy() { LocalNetworkOnly = chkRestrictToLocalNetwork.Checked };
                 TmpExceptionSettings[0].Policy = pol;
+            }
+
+            // SecureWall.exe is also the LocalSystem service image; a path rule for it covers the service.
+            if (TmpExceptionSettings[0].Subject is ExecutableSubject ownSubject
+                && Prompting.AiExplainEgressPolicy.RequiresOwnImageWarning(radBlock.Checked, ownSubject.ExecutablePath, Utils.ExecutablePath)
+                && Utils.ShowMessageBox(
+                    Prompting.AiExplainEgressPolicy.OwnImageExceptionWarning,
+                    Resources.Messages.TinyWall,
+                    TaskDialogCommonButtons.Yes | TaskDialogCommonButtons.No,
+                    TaskDialogIcon.Warning,
+                    this) != DialogResult.Yes)
+            {
+                return;
             }
 
             this.TmpExceptionSettings[0].CreationDate = DateTime.Now;

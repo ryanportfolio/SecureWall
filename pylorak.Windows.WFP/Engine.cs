@@ -197,17 +197,31 @@ namespace pylorak.Windows.WFP
 
         public FilterEnumerator EnumerateFilters(bool getFilterConditions, Guid provider, Guid layer)
         {
-            var providerGuidHandle = SafeHGlobalHandle.FromStruct(provider);
             var template = new Interop.FWPM_FILTER_ENUM_TEMPLATE0
             {
-                providerKey = providerGuidHandle.DangerousGetHandle(),
+                providerKey = IntPtr.Zero,  // filled in by FilterEnumeratorBase
                 layerKey = layer,
                 flags = Interop.FilterEnumTemplateFlags.FWP_FILTER_ENUM_FLAG_INCLUDE_BOOTTIME | Interop.FilterEnumTemplateFlags.FWP_FILTER_ENUM_FLAG_INCLUDE_DISABLED,
                 numFilterConditions = 0,
                 actionMask = 0xFFFFFFFFu,
             };
 
-            return new FilterEnumerator(this, template, getFilterConditions, providerGuidHandle);
+            return new FilterEnumerator(this, template, getFilterConditions, provider);
+        }
+
+        // Every provider's filters in one layer, including boot-time and disabled filters.
+        public FilterOwnershipEnumerator EnumerateFilterOwnership(Guid layer)
+        {
+            var template = new Interop.FWPM_FILTER_ENUM_TEMPLATE0
+            {
+                providerKey = IntPtr.Zero,
+                layerKey = layer,
+                flags = Interop.FilterEnumTemplateFlags.FWP_FILTER_ENUM_FLAG_INCLUDE_BOOTTIME | Interop.FilterEnumTemplateFlags.FWP_FILTER_ENUM_FLAG_INCLUDE_DISABLED,
+                numFilterConditions = 0,
+                actionMask = 0xFFFFFFFFu,
+            };
+
+            return new FilterOwnershipEnumerator(this, template);
         }
 
         public FilterKeyEnumerator EnumerateFilterKeys()
@@ -217,17 +231,16 @@ namespace pylorak.Windows.WFP
 
         public FilterKeyEnumerator EnumerateFilterKeys(Guid provider, Guid layer)
         {
-            var providerGuidHandle = SafeHGlobalHandle.FromStruct(provider);
             var template = new Interop.FWPM_FILTER_ENUM_TEMPLATE0
             {
-                providerKey = providerGuidHandle.DangerousGetHandle(),
+                providerKey = IntPtr.Zero,  // filled in by FilterEnumeratorBase
                 layerKey = layer,
                 flags = Interop.FilterEnumTemplateFlags.FWP_FILTER_ENUM_FLAG_INCLUDE_BOOTTIME | Interop.FilterEnumTemplateFlags.FWP_FILTER_ENUM_FLAG_INCLUDE_DISABLED,
                 numFilterConditions = 0,
                 actionMask = 0xFFFFFFFFu,
             };
 
-            return new FilterKeyEnumerator(this, template, providerGuidHandle);
+            return new FilterKeyEnumerator(this, template, provider);
         }
 
         public Guid RegisterProvider(ref Interop.FWPM_PROVIDER0 provider)

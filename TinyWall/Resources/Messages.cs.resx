@@ -299,20 +299,6 @@ Zvolte Navýšit v tray menu a akci zkuste znovu.</value>
   <data name="CannotGetPathOfProcess" xml:space="preserve">
     <value>Nemohu nalézt cestu procesu.</value>
   </data>
-  <data name="TheFirewallIsNowLearning" xml:space="preserve">
-    <value>Firewall se nyní učí pravidla a propouští veškerou komunikaci.</value>
-  </data>
-  <data name="FirewallModeLearn" xml:space="preserve">
-    <value>Autotrénink</value>
-  </data>
-  <data name="YouAreAboutToEnterLearningMode" xml:space="preserve">
-    <value>Opravdu chcete spustit automatický trénink?
-V tomto módu SecureWall povolí veškerou komunikaci a zapamatuje si, které aplikace využívaly připojení k internetu. Po ukončení automaticky přidá vyjímky pro všechny zapamatované programy. Tento režim nefunguje pro speciální vyjímky.
-
-Před vstupem do tréninkového módu se ujistěte, že se ve vašem systému nenachází aktivní malware. Nejlepší je spuštění tréninkového módu na čistě instalovaném systému a je doporučeno zkontrolovat svůj počítač na malware před použitím tohoto módu.
-
-Chcete nyní přejít do tréninkového módu?</value>
-  </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>Vyvolal jste odinstalaci/aktualizaci aplikace SecureWall?</value>
   </data>

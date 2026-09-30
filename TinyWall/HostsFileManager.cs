@@ -73,14 +73,41 @@ namespace pylorak.TinyWall
                 {
                     if (ExistsChecked(HOSTS_BACKUP)) RequireLock(HOSTS_BACKUP);
                     if (HasOriginalBackup()) RequireLock(HOSTS_ORIGINAL);
-                    if (value)
+                    if (!value)
+                        FileLocker.Unlock(HOSTS_PATH);
+                    else if (ExistsChecked(HOSTS_PATH))
                         RequireLock(HOSTS_PATH);
                     else
-                        FileLocker.Unlock(HOSTS_PATH);
+                        // Windows runs without a hosts file. Do not create one to lock it;
+                        // a later hosts install relocks the file it writes.
+                        Report(RuntimeEvent.hosts_protection, RuntimeResult.absent);
                     _EnableProtection = value;
                 });
                 Report(RuntimeEvent.hosts_protection, value ? RuntimeResult.enabled : RuntimeResult.disabled);
             }
+        }
+
+        // Service entry point. Hosts protection is best-effort: it must never gate WFP
+        // enforcement, so failures are returned for logging and a controller warning.
+        internal bool TryApplyProtection(bool value, out Exception? error)
+        {
+            error = null;
+            try
+            {
+                EnableProtection = value;
+            }
+            catch (Exception failure)
+            {
+                error = failure;
+                if (!value)
+                {
+                    // Turning protection off still releases the hosts file when a
+                    // backup lock failed first.
+                    FileLocker.Unlock(HOSTS_PATH);
+                    _EnableProtection = false;
+                }
+            }
+            return error == null;
         }
 
         private void CreateOriginalBackup()
@@ -91,29 +118,6 @@ namespace pylorak.TinyWall
                 WriteAndRelock(() => AtomicFileWriter.CopyFrom(HOSTS_ORIGINAL, HOSTS_PATH),
                     () => { if (HasOriginalBackup()) RequireLock(HOSTS_ORIGINAL); });
             });
-        }
-
-        public void UpdateHostsFile(Stream newHostsStream)
-        {
-            // We keep a copy of the hosts file for ourself, so that
-            // we can re-install it any time without a net connection.
-            // The new content arrives as a stream so it never sits in a
-            // world-accessible temp folder before landing next to the target.
-            Observe(RuntimeEvent.hosts_update, () =>
-            {
-                FileLocker.Unlock(HOSTS_BACKUP);
-                WriteAndRelock(() => AtomicFileWriter.WriteFrom(HOSTS_BACKUP, newHostsStream),
-                    () => RequireLock(HOSTS_BACKUP));
-            });
-        }
-
-        public static string GetHostsHash()
-        {
-            string HOSTS_BACKUP = Path.Combine(Utils.AppDataPath, "hosts.bck");
-            if (File.Exists(HOSTS_BACKUP))
-                return Hasher.HashFile(HOSTS_BACKUP);
-            else
-                return string.Empty;
         }
 
         public bool EnableHostsFile()
@@ -225,13 +229,24 @@ namespace pylorak.TinyWall
                 FileLocker.Unlock(HOSTS_PATH);
                 // Opening the source must throw if missing or unreadable.
                 AtomicFileWriter.CopyFrom(HOSTS_PATH, sourcePath);
-            }, () =>
+            }, RelockHosts);
+        }
+
+        private void RelockHosts()
+        {
+            if (!_EnableProtection)
             {
-                if (_EnableProtection)
-                    RequireLock(HOSTS_PATH);
-                else
-                    FileLocker.Unlock(HOSTS_PATH);
-            });
+                FileLocker.Unlock(HOSTS_PATH);
+                return;
+            }
+            try { RequireLock(HOSTS_PATH); }
+            catch (Exception error)
+            {
+                // The hosts content operation decides success. Losing the lock only
+                // clears EnableProtection, which the service reports as a warning.
+                _EnableProtection = false;
+                Report(RuntimeEvent.hosts_protection, RuntimeResult.failure, error.HResult);
+            }
         }
 
         private static void WriteAndRelock(Action write, Action relock)

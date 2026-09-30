@@ -1,4 +1,5 @@
 ﻿using System;
+using pylorak.TinyWall.Prompting;
 
 namespace pylorak.TinyWall
 {
@@ -38,6 +39,7 @@ namespace pylorak.TinyWall
         public string? AppPath;
         public string? PackageId;
         public ulong FilterRuntimeId;
+        public FilterGroup FilterGroup;
 
         public int GetHashCode(bool includeTimestamp)
         {
@@ -64,6 +66,7 @@ namespace pylorak.TinyWall
                 if (PackageId is not null)
                     hash = (hash ^ PackageId.GetHashCode()) * FNV_PRIME;
                 hash = (hash ^ FilterRuntimeId.GetHashCode()) * FNV_PRIME;
+                hash = (hash ^ FilterGroup.GetHashCode()) * FNV_PRIME;
 
                 return hash;
             }
@@ -91,7 +94,8 @@ namespace pylorak.TinyWall
                 (RemotePort == obj.RemotePort) &&
                 string.Equals(AppPath, obj.AppPath) &&
                 string.Equals(PackageId, obj.PackageId) &&
-                (FilterRuntimeId == obj.FilterRuntimeId);
+                (FilterRuntimeId == obj.FilterRuntimeId) &&
+                (FilterGroup == obj.FilterGroup);
         }
 
         public bool Equals(FirewallLogEntry? other)

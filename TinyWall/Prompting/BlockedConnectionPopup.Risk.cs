@@ -8,7 +8,8 @@ namespace pylorak.TinyWall.Prompting
     // Warning lines about the blocked executable (unsigned, user-writable folder, changed
     // recently). The facts are gathered off the UI thread in the controller process when
     // the prompt is shown; the label appears between the notice and the status line and
-    // grows the popup by its own height. Advisory only: it never changes what Allow does.
+    // grows the popup by its own height. Advisory only: it never changes what Allow does,
+    // but Allow stays disabled until the probe has finished (see PromptAllowArming).
     internal sealed partial class BlockedConnectionPopup
     {
         // Logical (96 dpi) pixels; scaled with LogicalToDeviceUnits at apply time.
@@ -65,6 +66,9 @@ namespace pylorak.TinyWall.Prompting
                     return;
                 ExecutableRiskFlags? flags = task.Status == TaskStatus.RanToCompletion ? task.Result : null;
                 ApplyRiskFlags(flags ?? ExecutableRiskFlags.None);
+                // Allow arms only after the warnings (or their absence) are on screen.
+                _arming.NoteRiskReady();
+                UpdateAllowButton();
             }, System.Threading.Tasks.TaskScheduler.FromCurrentSynchronizationContext());
         }
 

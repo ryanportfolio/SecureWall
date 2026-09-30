@@ -224,5 +224,30 @@ namespace pylorak.TinyWall
                     () => { journal.DeleteValue(NotificationValue); journal.Flush(); });
             }
         }
+
+        // Failed-install rollback asks this after RestoreOwnedState failed. True
+        // only on positive evidence that no allow-all compatibility rule remains:
+        // MpsSvc stopped with no ownership record, or a rule inventory without
+        // SecureWall's reserved rules. Any error or name collision reports false.
+        internal static bool OwnedRulesAbsent()
+        {
+            try
+            {
+                lock (Sync)
+                {
+                    using var machine = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
+                    using var existingJournal = machine.OpenSubKey(RecoveryKey);
+                    using var service = new ServiceController("MpsSvc");
+                    if (FirewallRecoveryPolicy.CanSkipStoppedServiceRecovery(
+                        service.Status == ServiceControllerStatus.Stopped,
+                        existingJournal?.GetValue(NotificationValue) != null)) return true;
+                    return FirewallRecoveryPolicy.OwnedRuleNames(ReadRuleIdentities(GetFwPolicy2())).Length == 0;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
     }
 }

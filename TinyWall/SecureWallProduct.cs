@@ -6,6 +6,5 @@ namespace pylorak.TinyWall
         internal const string AppDataFolderName = "SecureWall";
         internal const string ControllerPipeName = "SecureWallController";
         internal const string ServiceMutexName = @"Global\SecureWallService";
-        internal const bool UpdateFeedEnabled = false;
     }
 }

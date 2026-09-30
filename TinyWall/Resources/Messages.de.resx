@@ -285,19 +285,6 @@
   <data name="CannotGetPathOfProcess" xml:space="preserve">
     <value>Kann den Pfad zum Process nicht finden.</value>
   </data>
-  <data name="TheFirewallIsNowLearning" xml:space="preserve">
-    <value>Die Firewall befindet sich im Lernmodus und lässt währenddessen den gesamten Datenverkehr durch.</value>
-  </data>
-  <data name="FirewallModeLearn" xml:space="preserve">
-    <value>Lernmodus</value>
-  </data>
-  <data name="YouAreAboutToEnterLearningMode" xml:space="preserve">
-    <value>Sind Sie sich sicher, dass Sie zum Lernmodus wechseln wollen? In Lernmodus wird SecureWall jeglichen Datenverkehr erlauben und sich merken, welche Anwendungen das Netzwerk benutzt haben. Wenn Sie dann den Lernmodus beenden, wird SecureWall die Anwendungen automatisch zu den Ausnahmen hinzufügen. Merke: Regeln für spezielle Ausnahmen können nicht erlernt werden.
-
-Bevor Sie zum Lernmodus wechseln, sollten Sie sicherstellen, dass ihr System frei von Malware ist. Es ist am besten den Lernmodus auf ein frisch installiertes System zu benutzen und es wird empfohlen den Computer vorher auf Viren zu prüfen bevor Sie diesen Modus benutzen.
-
-Wollen Sie in den Lernmodus wechseln?</value>
-  </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>Haben Sie die Deinstallation/Aktualisierung von SecureWall gestartet?</value>
   </data>

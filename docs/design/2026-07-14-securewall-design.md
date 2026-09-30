@@ -118,10 +118,11 @@ When full, the queue drops the newest prompt and continues blocking. No queue co
 
 ### 5. Controller protocol
 
-Three typed messages extend the existing JSON-over-named-pipe protocol:
+Four typed messages extend the existing JSON-over-named-pipe protocol:
 
 - `READ_PENDING_PROMPTS`: read-only; returns deliverable prompts.
 - `DISMISS_PROMPT`: consumes a token and begins cooldown; changes no firewall policy.
+- `DISMISS_PROMPT_TIMEOUT`: the same effect as `DISMISS_PROMPT`, sent when the popup times out; it never extends the password unlock window.
 - `ALLOW_PROMPT`: privileged; consumes a token and applies the stored subject as an outbound TCP/UDP exception.
 
 The service owns the token-to-subject mapping. Tokens are random GUIDs, expire, and are single use. Unknown, expired, already-consumed, ambiguous, or non-promptable tokens return an error and leave traffic blocked.

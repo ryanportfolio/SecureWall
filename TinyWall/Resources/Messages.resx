@@ -325,19 +325,8 @@ Select Elevate from the tray menu and try again.</value>
   <data name="CannotGetPathOfProcess" xml:space="preserve">
     <value>Cannot get path of process.</value>
   </data>
-  <data name="TheFirewallIsNowLearning" xml:space="preserve">
-    <value>The firewall is now learning while letting all traffic through.</value>
-  </data>
-  <data name="FirewallModeLearn" xml:space="preserve">
-    <value>Autolearn</value>
-  </data>
-  <data name="YouAreAboutToEnterLearningMode" xml:space="preserve">
-    <value>Are you sure you want to start automatic learning?
-In its automatic learning mode SecureWall will allow all traffic and remember which applications have used the network. When you exit learning mode, SecureWall will add exceptions for you automatically. Note however, that rules cannot be learned for "Special Exceptions" of the configuration.
-
-Before entering learning mode, make sure that your system is free of any malware. It is best to run learning mode on freshly installed systems and it is recommended that you check your computer for viruses before using this mode.
-
-Do you want to enter learning mode now?</value>
+  <data name="CouldNotOpenFolder" xml:space="preserve">
+    <value>Could not open the folder. The file or its folder may no longer exist.</value>
   </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>Did you initiate the uninstall/update of SecureWall?</value>

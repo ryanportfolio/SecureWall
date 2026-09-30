@@ -30,8 +30,21 @@ namespace pylorak.TinyWall
     internal static class Utils
     {
         [SuppressUnmanagedCodeSecurity]
+        internal static class UnsafeNativeMethods
+        {
+            internal enum ChangeWindowMessageFilterFlags : uint { Add = 1, Remove = 2 };
+
+            [DllImport("user32.dll", SetLastError = true)]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            internal static extern bool ChangeWindowMessageFilter(uint msg, ChangeWindowMessageFilterFlags flags);
+        }
+
+        [SuppressUnmanagedCodeSecurity]
         internal static class SafeNativeMethods
         {
+            [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+            internal static extern uint RegisterWindowMessage([MarshalAs(UnmanagedType.LPWStr)] string lpString);
+
             [DllImport("user32.dll")]
             internal static extern IntPtr WindowFromPoint(Point pt);
 
@@ -147,6 +160,19 @@ namespace pylorak.TinyWall
         }
 #endif
 
+        /// <summary>
+        /// Lets a registered window message through the UIPI filter when this process runs elevated,
+        /// so broadcasts from the medium-integrity shell (such as TaskbarCreated) still arrive.
+        /// </summary>
+        public static bool DisableMessageUIPI(string msg)
+        {
+            var msgId = SafeNativeMethods.RegisterWindowMessage(msg);
+            if (0 == msgId)
+                return false;
+
+            return UnsafeNativeMethods.ChangeWindowMessageFilter(msgId, UnsafeNativeMethods.ChangeWindowMessageFilterFlags.Add);
+        }
+
         public static T OnlyFirst<T>(IEnumerable<T> items)
         {
             using IEnumerator<T> iter = items.GetEnumerator();
@@ -239,40 +265,16 @@ namespace pylorak.TinyWall
             }
         }
 
-        internal static bool IsDarkModeActive(ControllerSettings settings)
+        // settings is null when a form is shown without controller settings, such as
+        // PasswordForm during a password-locked /uninstall; the system theme applies then.
+        internal static bool IsDarkModeActive(ControllerSettings? settings)
         {
-            if (string.Equals(settings.UiTheme, "dark", StringComparison.InvariantCultureIgnoreCase))
+            if (string.Equals(settings?.UiTheme, "dark", StringComparison.InvariantCultureIgnoreCase))
                 return true;
-            else if (string.Equals(settings.UiTheme, "light", StringComparison.InvariantCultureIgnoreCase))
+            else if (string.Equals(settings?.UiTheme, "light", StringComparison.InvariantCultureIgnoreCase))
                 return false;
             else
                 return !AppsUseLightTheme();
-        }
-
-        internal static void CompressDeflate(string inputFile, string outputFile)
-        {
-            using var inFile = new FileStream(inputFile, FileMode.Open, FileAccess.Read);
-            using var outFile = new FileStream(outputFile, FileMode.Create, FileAccess.Write);
-            using var compressedOutFile = new DeflateStream(outFile, CompressionMode.Compress, true);
-
-            byte[] buffer = new byte[4096];
-            int numRead;
-            while ((numRead = inFile.Read(buffer, 0, buffer.Length)) != 0)
-            {
-                compressedOutFile.Write(buffer, 0, numRead);
-            }
-        }
-
-        internal static void DecompressDeflate(Stream inStream, Stream outStream)
-        {
-            using var decompressor = new DeflateStream(inStream, CompressionMode.Decompress, true);
-
-            byte[] buffer = new byte[4096];
-            int numRead;
-            while ((numRead = decompressor.Read(buffer, 0, buffer.Length)) != 0)
-            {
-                outStream.Write(buffer, 0, numRead);
-            }
         }
 
         internal static string GetPathOfProcessUseTwService(uint pid, Controller controller)
@@ -459,6 +461,11 @@ namespace pylorak.TinyWall
                 psi.WindowStyle = ProcessWindowStyle.Hidden;
 
             return Process.Start(psi);
+        }
+
+        internal static void StartProcessAndForget(string path, string args, bool asAdmin, bool hideWindow = false)
+        {
+            using var _ = StartProcess(path, args, asAdmin, hideWindow);
         }
 
         internal static bool RunningAsAdmin()
@@ -674,16 +681,11 @@ namespace pylorak.TinyWall
                     if (!Directory.Exists(logdir))
                         Directory.CreateDirectory(logdir);
 
-                    // Only log if log file has not yet reached a certain size
-                    if (File.Exists(logfile))
-                    {
-                        var fi = new FileInfo(logfile);
-                        if (fi.Length > 512 * 1024)
-                        {
-                            // Truncate file back to zero
-                            using var fs = new FileStream(logfile, FileMode.Truncate, FileAccess.Write);
-                        }
-                    }
+                    // Past the size limit, keep one previous file instead of truncating,
+                    // so a restart loop cannot erase its first error. A failed rotation
+                    // still appends this entry.
+                    try { Prompting.LogRotationPolicy.RotateIfNeeded(logfile); }
+                    catch { }
 
                     // Do the logging
                     using var sw = new StreamWriter(logfile, true, Encoding.UTF8);

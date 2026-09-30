@@ -303,16 +303,6 @@
   <data name="CannotGetPathOfProcess" xml:space="preserve">
     <value>Пътят до процеса не бе открит.</value>
   </data>
-  <data name="TheFirewallIsNowLearning" xml:space="preserve">
-    <value>Апликацията сега се обучава докато позволява трафик.</value>
-  </data>
-  <data name="YouAreAboutToEnterLearningMode" xml:space="preserve">
-    <value>Сигурни ли сте, че искате режим на авто-обучение? По този начин SecureWall ще позволи целия трафик и запомни кои приложения са използвали мрежата. След излизане от режима, SecureWall ще добавя изкючения автоматично. Забележка: Правила не могат да бъдат добавяни за "Специални Икзлючения".
-
-Преди стартиране на авто-обучаващ режим, убедете се, че нямате вируси. Този режим е най-подходящ за прясно инсталирана ОС. 
-
-Желаете ли да влезете в режим авто-обучение?</value>
-  </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>Започнахте ли деинсталация/ъпдейт на SecureWall?</value>
   </data>

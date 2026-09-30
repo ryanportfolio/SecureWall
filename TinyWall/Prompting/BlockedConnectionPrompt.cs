@@ -35,6 +35,6 @@ namespace pylorak.TinyWall.Prompting
         internal int RemotePort { get; }
         internal byte Protocol { get; }
         internal int OccurrenceCount { get; }
-        internal bool CanAllow => Identity.Kind != PromptIdentityKind.AmbiguousService;
+        internal bool CanAllow => Identity.CanAllow;
     }
 }

@@ -132,9 +132,6 @@
   <data name="mnuModeDisabled.Text" xml:space="preserve">
     <value>Tűzfal letiltása</value>
   </data>
-  <data name="mnuModeLearn.Text" xml:space="preserve">
-    <value>Tanuló mód</value>
-  </data>
   <data name="mnuMode.Text" xml:space="preserve">
     <value>Üzemmód választás</value>
   </data>

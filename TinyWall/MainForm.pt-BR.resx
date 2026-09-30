@@ -132,9 +132,6 @@
   <data name="mnuModeDisabled.Text" xml:space="preserve">
     <value>Desabilitar o firewall</value>
   </data>
-  <data name="mnuModeLearn.Text" xml:space="preserve">
-    <value>Automático (aprendizado)</value>
-  </data>
   <data name="mnuMode.Text" xml:space="preserve">
     <value>Mudar o modo</value>
   </data>

@@ -22,6 +22,7 @@ namespace SecureWall.Core.Tests
                 yield return ("correlated queue capacity deadline and failure remain blocked", CorrelatedBatchBounds);
                 yield return ("batch reset and shutdown revoke stale tokens", CorrelatedBatchInvalidation);
                 yield return ("callbacks never wait for snapshots or policy transitions", CorrelatedBatchConcurrency);
+                yield return ("rebuilt session resumes prompting without publishing pre-stop work", CorrelatedBatchResume);
                 yield return ("configuration defaults require confirmed absence", ConfigurationAbsence);
                 yield return ("environment reload errors revoke stale grants before escaping", EnvironmentalReloadFailure);
                 yield return ("expired inactivity locks directly with a saturated worker queue", SaturatedQueueRelock);
@@ -87,7 +88,7 @@ namespace SecureWall.Core.Tests
                 Action runtime = () => EnvironmentalPolicyReload.Run(() =>
                 {
                     if (enumerate()) installed = true;
-                }, () => revoked = true);
+                }, NeverRetain, NoRetention, () => revoked = true);
                 if (succeeded) runtime(); else Throws<InvalidOperationException>(runtime);
                 Check(read == succeeded && revoked == !succeeded && installed == (succeeded && changed),
                     "Enumeration failure was confused with an unchanged successful snapshot.");
@@ -101,7 +102,7 @@ namespace SecureWall.Core.Tests
             var lifetime = new AuditWatcherLifetime();
             var sender = new object();
             Check(lifetime.Attach(sender), "Subscription attach failed.");
-            object learning = new object();
+            object transition = new object();
             using var callbackEntered = new ManualResetEventSlim();
             using var drainEntered = new ManualResetEventSlim();
             using var callbackDone = new ManualResetEventSlim();
@@ -112,7 +113,7 @@ namespace SecureWall.Core.Tests
                 {
                     Check(lifetime.Accept(sender), "Initial callback rejected.");
                     callbackEntered.Set();
-                    lock (learning) { }
+                    lock (transition) { }
                 }
                 catch (Exception error) { callbackError = error; }
                 finally { callbackDone.Set(); }
@@ -122,13 +123,13 @@ namespace SecureWall.Core.Tests
                 try { lifetime.Stop(() => { }, () => { drainEntered.Set(); Check(callbackDone.Wait(3000), "Drain blocked callback."); }); }
                 catch (Exception error) { stopError = error; }
             }) { IsBackground = true };
-            lock (learning)
+            lock (transition)
             {
                 callback.Start();
                 Check(callbackEntered.Wait(3000), "Callback did not enter.");
                 stopper.Start();
                 Check(drainEntered.Wait(3000), "Stop did not enter drain.");
-                // Same lock order as a policy transition: learning then watcher lifecycle.
+                // A caller holds its own lock, then takes the watcher lifecycle lock.
                 bool entered = Monitor.TryEnter(lifetime.SyncRoot, 1000);
                 try { Check(entered, "Callback drain retained the transition lock."); }
                 finally { if (entered) Monitor.Exit(lifetime.SyncRoot); }
@@ -269,6 +270,31 @@ namespace SecureWall.Core.Tests
             }
         }
 
+        private static readonly Func<bool> NeverRetain = () => false;
+
+        private static void NoRetention(Exception error) =>
+            throw new InvalidOperationException("Unexpected retention", error);
+
+        private static void CorrelatedBatchResume()
+        {
+            var clock = new Clock(); var queue = new PromptQueue(clock);
+            var batch = new CorrelatedDropBatch(queue.SyncRoot, clock);
+            var pair = Matched(clock);
+            batch.TryAdd(pair.Candidate, pair.Audit);
+            long before = batch.Generation;
+            batch.Reset(stop: true);
+            Check(!batch.TryAdd(pair.Candidate, pair.Audit), "Stopped batch accepted work.");
+            batch.Resume();
+            Check(batch.Generation > before + 1, "Resume kept a pre-stop generation.");
+            int published = 0;
+            batch.Publish(before, () => ++published);
+            batch.Process(() => 0, _ => { }, (c, a, s, u) => () => ++published);
+            Check(published == 0, "Work captured before the stop was published after resume.");
+            Check(batch.TryAdd(pair.Candidate, pair.Audit), "Rebuilt session cannot admit new drops.");
+            batch.Process(() => 0, _ => { }, (c, a, s, u) => () => ++published);
+            Check(published == 1, "New work after resume was not published.");
+        }
+
         private static void CorrelatedBatchConcurrency()
         {
             var clock = new Clock(); object guard = new object();
@@ -329,13 +355,13 @@ namespace SecureWall.Core.Tests
                 bool grants = true, response = false;
                 Throws<InvalidOperationException>(() =>
                 {
-                    EnvironmentalPolicyReload.Run(() => throw new InvalidOperationException(boundary), () => grants = false);
+                    EnvironmentalPolicyReload.Run(() => throw new InvalidOperationException(boundary), NeverRetain, NoRetention, () => grants = false);
                     response = true;
                 });
                 Check(!grants && !response, boundary + " retained stale environment grants.");
             }
             bool installed = false;
-            EnvironmentalPolicyReload.Run(() => installed = true, () => throw new InvalidOperationException("Unexpected withdrawal"));
+            EnvironmentalPolicyReload.Run(() => installed = true, NeverRetain, NoRetention, () => throw new InvalidOperationException("Unexpected withdrawal"));
             Check(installed, "Successful reload skipped.");
         }
 
@@ -399,7 +425,7 @@ namespace SecureWall.Core.Tests
                 try { EnvironmentalPolicyReload.Run(() => EnforcementPolicy.NormalizeRules(
                     new[] { new ApplicationRule(@"Z:\app.exe") }, rule => rule.Application,
                     (rule, path) => rule.Application = path, _ => throw failure,
-                    _ => reported = true), () => revoked = true); }
+                    _ => reported = true), NeverRetain, NoRetention, () => revoked = true); }
                 catch (Exception error) { observed = error; }
                 Check(revoked && !reported && ReferenceEquals(observed, failure),
                     "Mapping failure did not reach fail-closed reload boundary unchanged.");
@@ -614,7 +640,7 @@ namespace SecureWall.Core.Tests
 
         private static void RuntimeLifetimes()
         {
-            foreach (string policy in new[] { "Disabled", "Learning", "temporary app", "until reboot", "permanent app", "LAN", "WSL", "inherited app" })
+            foreach (string policy in new[] { "Disabled", "temporary app", "until reboot", "permanent app", "LAN", "WSL", "inherited app" })
             {
                 var lifetimes = new List<WfpFilterLifetime>();
                 var ids = WfpFilterPairRegistration.Register(lifetime => { lifetimes.Add(lifetime); return 42; }, false, runtimeOnly: true);

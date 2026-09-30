@@ -132,9 +132,6 @@
   <data name="mnuModeDisabled.Text" xml:space="preserve">
     <value>禁用防火墙</value>
   </data>
-  <data name="mnuModeLearn.Text" xml:space="preserve">
-    <value>自动学习</value>
-  </data>
   <data name="mnuMode.Text" xml:space="preserve">
     <value>更改模式</value>
   </data>

@@ -90,9 +90,9 @@ namespace pylorak.TinyWall
 
     internal sealed class AuditPolicyLease : IDisposable
     {
-        // Leases on one subcategory nest inside this process (failure auditing plus
-        // learning-mode success auditing). The outermost lease captures the machine's
-        // true original; whichever lease first changes the live policy journals that
+        // Leases on one subcategory may nest inside this process (the service itself
+        // holds only the failure-auditing lease). The outermost lease captures the
+        // machine's true original; whichever lease first changes the live policy journals that
         // true original, so a journal entry exists whenever live differs from it.
         // An inner lease restores to the value it found on acquire; the entry is
         // cleared once a restore puts the true original back. Dispose in LIFO order.

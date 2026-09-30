@@ -10,6 +10,8 @@ using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.Win32.SafeHandles;
 using pylorak.Windows.Services;
+using pylorak.Windows.WFP;
+using pylorak.Windows.WFP.Interop;
 
 namespace pylorak.TinyWall.Installer
 {
@@ -28,6 +30,14 @@ namespace pylorak.TinyWall.Installer
             {
                 foreach (ServiceController service in services) service.Dispose();
             }
+        }
+
+        // Read-only WFP inventory: TinyWall's provider, TinyWall-era sublayers, or another
+        // provider's filters in SecureWall's sublayers refuse installation before mutation.
+        internal static void RequireNoConflictingWfpObjects()
+        {
+            using var wfp = new Engine("SecureWall Install Check", "", FWPM_SESSION_FLAGS.None, 5000);
+            TinyWallServer.RequireWfpCoexistence(wfp, "SecureWall installation");
         }
 
         internal static void RequireProtectedMachineData() => MachineDataGuard.Require(false, true);

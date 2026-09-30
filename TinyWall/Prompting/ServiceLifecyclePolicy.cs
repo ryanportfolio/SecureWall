@@ -12,6 +12,23 @@ namespace pylorak.TinyWall.Prompting
         internal static readonly TimeSpan CleanupGrace = TimeSpan.FromSeconds(30);
         internal static readonly TimeSpan ProcessExitTimeout = TimeSpan.FromSeconds(10);
 
+        // SCM restart actions for a failed service. The last action repeats for later
+        // failures; the count resets after a day without failure.
+        internal static readonly TimeSpan[] RestartDelays =
+        {
+            TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(60)
+        };
+        internal static readonly TimeSpan RestartResetPeriod = TimeSpan.FromDays(1);
+
+        internal const int ERROR_SERVICE_SPECIFIC_ERROR = 1066;
+        internal const int StartupFailedExitCode = 1;
+        internal const int RuntimeRecoveryFailedExitCode = 2;
+
+        // A worker that ends by failure reports a nonzero exit code so non-crash SCM failure
+        // actions restart it. Only a requested stop reports success.
+        internal static (int Win32ExitCode, int ServiceSpecificExitCode) StoppedStatus(bool failed, bool ready) =>
+            failed ? (ERROR_SERVICE_SPECIFIC_ERROR, ready ? RuntimeRecoveryFailedExitCode : StartupFailedExitCode) : (0, 0);
+
         internal static bool WaitUntil(Func<bool> ready, TimeSpan timeout,
             Func<TimeSpan> elapsed, Action<TimeSpan> delay)
         {

@@ -159,9 +159,6 @@
   <data name="mnuVirusTotal.Text" xml:space="preserve">
     <value>A VirusTotal-on</value>
   </data>
-  <data name="mnuProcessLibrary.Text" xml:space="preserve">
-    <value>A ProcessLibrary-n</value>
-  </data>
   <data name="mnuFileNameOnTheWeb.Text" xml:space="preserve">
     <value>Fájl neve a weben</value>
   </data>
@@ -185,5 +182,11 @@
   </data>
   <data name="$this.Text" xml:space="preserve">
     <value>Kapcsolatok - SecureWall</value>
+  </data>
+  <data name="mnuCopyPath.Text" xml:space="preserve">
+    <value>Fájlútvonal másolása</value>
+  </data>
+  <data name="mnuOpenFolder.Text" xml:space="preserve">
+    <value>Mappa megnyitása</value>
   </data>
 </root>

@@ -132,9 +132,6 @@
   <data name="mnuModeDisabled.Text" xml:space="preserve">
     <value>ביטול חומת-האש</value>
   </data>
-  <data name="mnuModeLearn.Text" xml:space="preserve">
-    <value>למידה אוטומטית</value>
-  </data>
   <data name="mnuMode.Text" xml:space="preserve">
     <value>שינוי מצב</value>
   </data>
