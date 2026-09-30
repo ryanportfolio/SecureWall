@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 
 namespace pylorak.TinyWall.Prompting
@@ -26,6 +27,19 @@ namespace pylorak.TinyWall.Prompting
 
         internal static string Unhandled(string mode, Exception error) => OneLine(
             $"SecureWall {mode} failed: {Describe(error)}");
+
+        // The emergency release runs while machine data is rejected, so no text
+        // log is written; these lines name the step instead of a log path.
+        internal static string EmergencyStepFailure(string mode, string step, Exception error) => OneLine(
+            $"SecureWall {mode} emergency release step failed: {step}. {Describe(error)}");
+
+        internal static string EmergencyExitFailure(string mode, int exitCode, IEnumerable<string> failedSteps)
+        {
+            string steps = string.Join(", ", failedSteps);
+            return OneLine($"SecureWall {mode} emergency release failed with exit code {exitCode}. " +
+                (steps.Length == 0 ? "No step reported an exception." : $"Failed steps: {steps}. The preceding SecureWall events give each exception.") +
+                " The rejected data directory was not read or changed.");
+        }
 
         private static string Describe(Exception error)
         {

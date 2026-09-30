@@ -8,6 +8,7 @@ internal static class InstallerDiagnosticsTests
     {
         ("log rotation keeps one previous file past the limit", LogRotationKeepsPrevious),
         ("maintenance failure reports are one bounded line", FailureReportsAreOneLine),
+        ("emergency release reports name the step and no log path", EmergencyReportsNameSteps),
         ("shipped data seeds absent files and replaces stale content", ShippedDataSeedsAndReplaces),
         ("shipped data leaves identical files and user state untouched", ShippedDataPreservesCurrent),
         ("shipped data failures leave the target unchanged", ShippedDataFailuresLeaveTarget),
@@ -81,6 +82,34 @@ internal static class InstallerDiagnosticsTests
         string bounded = MaintenanceFailureReport.OneLine(new string('x', 10000) + "\n" + new string('y', 10));
         AssertEx.Equal(MaintenanceFailureReport.MaxLength, bounded.Length);
         AssertEx.Equal("a b", MaintenanceFailureReport.OneLine("\r\n a \r\n\t b \r\n"));
+    }
+
+    private static void EmergencyReportsNameSteps()
+    {
+        var error = new InvalidOperationException("Windows Firewall rules could not be restored.\r\n\tat frame",
+            new System.Runtime.InteropServices.COMException("The service has not been started."));
+        string step = MaintenanceFailureReport.EmergencyStepFailure("/msi-cleanup", "Windows Firewall compatibility restore", error);
+        AssertEx.Equal("SecureWall /msi-cleanup emergency release step failed: Windows Firewall compatibility restore. " +
+            "InvalidOperationException: Windows Firewall rules could not be restored. at frame " +
+            "(COMException: The service has not been started.)", step);
+
+        string summary = MaintenanceFailureReport.EmergencyExitFailure("/msi-rollback-install", -1,
+            new[] { "audit policy restore", "WFP object removal" });
+        AssertEx.Equal("SecureWall /msi-rollback-install emergency release failed with exit code -1. " +
+            "Failed steps: audit policy restore, WFP object removal. The preceding SecureWall events give each exception. " +
+            "The rejected data directory was not read or changed.", summary);
+        AssertEx.True(MaintenanceFailureReport.EmergencyExitFailure("/msi-cleanup", -1, Array.Empty<string>())
+            .Contains("No step reported an exception."), "empty step list not stated");
+
+        string longStep = MaintenanceFailureReport.EmergencyStepFailure("/msi-cleanup", "WFP object removal",
+            new InvalidOperationException(new string('x', 10000)));
+        AssertEx.Equal(MaintenanceFailureReport.MaxLength, longStep.Length);
+        foreach (string line in new[] { step, summary, longStep })
+        {
+            AssertEx.False(line.Any(char.IsControl), "report contains control characters: " + line);
+            AssertEx.False(line.IndexOf("installer.log", StringComparison.OrdinalIgnoreCase) >= 0, "report points to installer.log: " + line);
+            AssertEx.False(line.IndexOf("ProgramData", StringComparison.OrdinalIgnoreCase) >= 0, "report names the data directory: " + line);
+        }
     }
 
     private static void ShippedDataSeedsAndReplaces()

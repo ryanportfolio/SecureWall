@@ -19,6 +19,7 @@ internal static class ProtectionReleaseTests
         ("failed-install rollback with rejected machine data skips hosts and still cleans up", RollbackWithRejectedMachineData),
         ("controller termination failure stops ordinary removal but not rollback", ControllerTerminationFailure),
         ("baseline provider and emergency entry are wired for start-type independence", AdapterWiring),
+        ("emergency release writes each failed step and a failed result to the event log", EmergencyEventWiring),
     };
 
     private sealed class Run
@@ -188,7 +189,7 @@ internal static class ProtectionReleaseTests
         Check(!Regex.IsMatch(rejected, @"""/(uninstall|service)""\)\)\s*return TinyWallDoctor"));
 
         string doctor = Read("TinyWallDoctor.cs");
-        Check(doctor.Contains("=> CleanupForMsi(failedInstallRollback, false);"));
+        Check(doctor.Contains("int result = CleanupForMsi(failedInstallRollback, false);"));
         int cleanup = doctor.IndexOf("private static int CleanupForMsi(bool failedInstallRollback, bool machineDataTrusted = true)", StringComparison.Ordinal);
         string msi = doctor.Substring(cleanup, doctor.IndexOf("private static void Warn(", cleanup, StringComparison.Ordinal) - cleanup);
         Check(msi.IndexOf("InstallationSafety.RequireSystemMaintenance();", StringComparison.Ordinal) <
@@ -206,5 +207,40 @@ internal static class ProtectionReleaseTests
         int probe = firewall.IndexOf("internal static bool OwnedRulesAbsent()", StringComparison.Ordinal);
         Check(probe > 0 && firewall.IndexOf("return false;", probe, StringComparison.Ordinal) > probe);
         Check(firewall.IndexOf("CanSkipStoppedServiceRecovery", probe, StringComparison.Ordinal) > probe);
+    }
+
+    // Utils.Log drops entries and MSI discards stderr while machine data is
+    // rejected; removing these event writes leaves the failure reason nowhere.
+    private static void EmergencyEventWiring()
+    {
+        DirectoryInfo? root = new DirectoryInfo(AppContext.BaseDirectory);
+        while (root != null && !File.Exists(Path.Combine(root.FullName, "TinyWall", "TinyWallDoctor.cs"))) root = root.Parent;
+        Check(root != null);
+        string doctor = File.ReadAllText(Path.Combine(root!.FullName, "TinyWall", "TinyWallDoctor.cs"));
+        string Body(string signature, string next)
+        {
+            int begin = doctor.IndexOf(signature, StringComparison.Ordinal);
+            Check(begin > 0);
+            return doctor.Substring(begin, doctor.IndexOf(next, begin + signature.Length, StringComparison.Ordinal) - begin);
+        }
+
+        string release = Body("internal static int ReleaseForMsiWithRejectedMachineData(bool failedInstallRollback)", "private static int CleanupForMsi(");
+        Check(release.Contains("emergencyMode = mode;") && release.Contains("emergencyFailedSteps.Clear();"));
+        Check(release.IndexOf("emergencyMode = mode;", StringComparison.Ordinal) < release.IndexOf("CleanupForMsi(failedInstallRollback, false)", StringComparison.Ordinal));
+        Check(Regex.IsMatch(release, @"if \(result != 0\)\s*MaintenanceEventLog\.ReportError\(MaintenanceEventLog\.MaintenanceFailureId,\s*MaintenanceFailureReport\.EmergencyExitFailure\(mode, result, emergencyFailedSteps\)\);"));
+        Check(release.Contains("return result;") && release.Contains("finally { emergencyMode = null; }"));
+
+        string logFailure = Body("private static void LogFailure(Exception exception)", "private static bool ServiceExists()");
+        Check(Regex.IsMatch(logFailure, @"if \(emergencyMode != null\)\s*\{[^}]*emergencyFailedSteps\.Add\(emergencyStep\);\s*MaintenanceEventLog\.ReportError\(MaintenanceEventLog\.MaintenanceFailureId,\s*MaintenanceFailureReport\.EmergencyStepFailure\(emergencyMode, emergencyStep, exception\)\);"));
+
+        foreach (string body in new[] { release, logFailure })
+            Check(!body.Contains("installer.log") && !body.Contains("\".log\"") && !body.Contains("MaintenanceFailureReport.ExitFailure("));
+
+        string teardown = Body("private static int CleanupStoppedInstallation(", "private static void RestoreAuditPolicy()");
+        foreach (string step in new[] { "Windows Firewall compatibility restore", "audit policy restore", "controller termination", "WFP object removal" })
+            Check(teardown.Contains("Staged(\"" + step + "\", "));
+        Check(teardown.Contains("Stage(\"stopped-service check\");"));
+        string registration = Body("private static bool RemoveRegistration()", "internal static bool EnsureHealth(");
+        Check(registration.Contains("Stage(\"scheduled task removal\");") && registration.Contains("Stage(\"service registration removal\");"));
     }
 }
