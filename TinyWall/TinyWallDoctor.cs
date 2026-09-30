@@ -201,13 +201,37 @@ namespace pylorak.TinyWall
         // registration, never reads or repairs the rejected tree, skips the hosts
         // restore whose backup lives there, and restores Windows Firewall and
         // audit state only from their HKLM journals.
+        //
+        // Its text log is dropped and MSI discards stderr, so the first failure
+        // of each step also writes event 1001 naming the step, and a failed
+        // release writes one summary event. Ordinary maintenance gets 1001 from
+        // RunMaintenance.
         internal static int ReleaseForMsiWithRejectedMachineData(bool failedInstallRollback)
-            => CleanupForMsi(failedInstallRollback, false);
+        {
+            var log = new EmergencyFailureLog(failedInstallRollback ? "/msi-rollback-install" : "/msi-cleanup");
+            emergency = log;
+            try
+            {
+                int result = CleanupForMsi(failedInstallRollback, false);
+                if (result != 0)
+                    MaintenanceEventLog.ReportError(MaintenanceEventLog.MaintenanceFailureId, log.Summary(result));
+                return result;
+            }
+            finally { emergency = null; }
+        }
+
+        private static EmergencyFailureLog? emergency;
+        private static string emergencyStep = "";
+
+        // Names the operation that LogFailure reports while the emergency release runs.
+        private static void Stage(string step) => emergencyStep = step;
+        private static Action Staged(string step, Action action) => () => { Stage(step); action(); };
 
         private static int CleanupForMsi(bool failedInstallRollback, bool machineDataTrusted = true)
         {
             try
             {
+                Stage("installation and service registration check");
                 InstallationSafety.RequireSystemMaintenance();
 #if !DEBUG
                 if (machineDataTrusted) InstallationSafety.RequireProtectedMachineData();
@@ -223,10 +247,12 @@ namespace pylorak.TinyWall
                         // above. Suppress queued recovery even if startup exits
                         // naturally during the graceful wait. The deny baseline's
                         // provider names no service, so this does not release it.
+                        Stage("service disable");
                         using var scm = new ServiceControlManager();
                         scm.SetStartupMode(TinyWallService.SERVICE_NAME, ServiceStartMode.Disabled);
                         scm.SetRestartOnFailure(TinyWallService.SERVICE_NAME, false);
                     }
+                    Stage("service stop");
                     using var service = new ServiceController(TinyWallService.SERVICE_NAME);
                     var timer = Stopwatch.StartNew();
                     LifecycleServiceState State()
@@ -243,18 +269,28 @@ namespace pylorak.TinyWall
                         }
                         catch (InvalidOperationException exception)
                         {
-                            LogFailure(exception);
-                            return State() == LifecycleServiceState.Stopped;
+                            // Stop() also throws when the service exits on its own
+                            // first; that is not a failure and writes no Error event.
+                            bool stopped;
+                            try { stopped = State() == LifecycleServiceState.Stopped; }
+                            catch { LogFailure(exception); throw; }
+                            if (stopped) Utils.LogException(exception, Utils.LOG_ID_INSTALLER);
+                            else LogFailure(exception);
+                            return stopped;
                         }
                     }
                     int result = -1;
                     ServiceLifecyclePolicy.Cleanup(failedInstallRollback, StopGracefully,
                         () => {
+                            Stage("service process termination");
                             ValidateRegisteredServiceImage();
                             InstallationSafety.TerminateFailedInstallService();
                         },
-                        () => ServiceLifecyclePolicy.WaitUntil(() => State() == LifecycleServiceState.Stopped,
-                            ServiceLifecyclePolicy.CleanupGrace, () => timer.Elapsed, System.Threading.Thread.Sleep),
+                        () => {
+                            Stage("stopped-service confirmation");
+                            return ServiceLifecyclePolicy.WaitUntil(() => State() == LifecycleServiceState.Stopped,
+                                ServiceLifecyclePolicy.CleanupGrace, () => timer.Elapsed, System.Threading.Thread.Sleep);
+                        },
                         () => result = CleanupStoppedInstallation(failedInstallRollback, machineDataTrusted));
                     return result;
                 }
@@ -285,6 +321,9 @@ namespace pylorak.TinyWall
         {
             Utils.LogException(exception, Utils.LOG_ID_INSTALLER);
             try { Console.Error.WriteLine(exception); } catch { }
+            string? line = emergency?.Record(emergencyStep, exception);
+            if (line != null)
+                MaintenanceEventLog.ReportError(MaintenanceEventLog.MaintenanceFailureId, line);
         }
 
         private static bool ServiceExists()
@@ -326,6 +365,7 @@ namespace pylorak.TinyWall
         {
             try
             {
+                Stage("stopped-service check");
 #if !DEBUG
                 if (machineDataTrusted) InstallationSafety.RequireProtectedMachineData();
 #endif
@@ -348,12 +388,12 @@ namespace pylorak.TinyWall
             // cleanup is independent of service disposal. Keep WFP protection
             // when compatibility restoration fails.
             bool released = ProtectionReleasePolicy.Release(failedInstallRollback, machineDataTrusted,
-                () => { using HostsFileManager hosts = new(); hosts.DisableHostsFile(); },
-                () => WindowsFirewall.RestoreOwnedState(),
-                WindowsFirewall.OwnedRulesAbsent,
-                RestoreAuditPolicy,
-                TerminateInstallationControllers,
-                RemoveWfpObjects,
+                Staged("hosts restore", () => { using HostsFileManager hosts = new(); hosts.DisableHostsFile(); }),
+                Staged("Windows Firewall compatibility restore", () => WindowsFirewall.RestoreOwnedState()),
+                () => { Stage("Windows Firewall compatibility rule check"); return WindowsFirewall.OwnedRulesAbsent(); },
+                Staged("audit policy restore", RestoreAuditPolicy),
+                Staged("controller termination", TerminateInstallationControllers),
+                Staged("WFP object removal", RemoveWfpObjects),
                 RemoveRegistration,
                 Warn, LogFailure);
             return released ? 0 : -1;
@@ -428,6 +468,7 @@ namespace pylorak.TinyWall
         private static bool RemoveRegistration()
         {
             bool succeeded = true;
+            Stage("scheduled task removal");
             try
             {
                 // Disable automatic start of controller
@@ -438,6 +479,7 @@ namespace pylorak.TinyWall
             catch (System.Runtime.InteropServices.COMException e) when (e.HResult == unchecked((int)0x80070002)) { }
             catch (Exception e) { succeeded = false; LogFailure(e); }
 
+            Stage("service registration removal");
             try
             {
                 if (ServiceExists())
