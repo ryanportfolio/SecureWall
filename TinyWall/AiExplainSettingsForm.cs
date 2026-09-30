@@ -24,7 +24,7 @@ namespace pylorak.TinyWall
             StartPosition = FormStartPosition.CenterParent;
             MinimizeBox = false;
             MaximizeBox = false;
-            ClientSize = new Size(460, 330);
+            ClientSize = new Size(460, 370);
 
             var layout = new TableLayoutPanel
             {
@@ -56,10 +56,11 @@ namespace pylorak.TinyWall
             {
                 Text = "Default requests send the file name, unverified publisher, identity type, service name and package SID when present. "
                     + "The key is stored encrypted for your Windows account and never leaves this PC "
-                    + "except in requests you trigger.",
+                    + "except in requests you trigger. Enabling also turns on a SecureWall permit for its own program: "
+                    + "outbound TCP port 443 from signed-in accounts only, never the SecureWall service.",
                 AutoSize = false,
                 Dock = DockStyle.Fill,
-                Height = 90,
+                Height = 130,
             };
             layout.Controls.Add(note);
             layout.SetColumnSpan(note, 2);
@@ -132,8 +133,91 @@ namespace pylorak.TinyWall
                 cfg.AiExplainApiKeyProtected = AiExplainKeyProtection.Protect(typed.Trim());
 
             cfg.Save();
+
+            // The machine-wide permit follows the checkbox so it exists only while the
+            // assistant is enabled. Failure leaves the controller settings saved.
+            if (!TrySetServiceAccess(_enabled.Checked, out string? serviceError))
+            {
+                MessageBox.Show(this,
+                    "Your AI assistant settings were saved, but SecureWall's network permit for the assistant could not be "
+                        + (_enabled.Checked ? "turned on" : "turned off") + ".\n\n" + serviceError,
+                    "AI Assistant", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+
             DialogResult = DialogResult.OK;
             Close();
+        }
+
+        // Sets ServerConfiguration.AiAssistantEgress through the authenticated pipe with the
+        // same PUT_SETTINGS request the settings window uses, so the service password lock and
+        // changeset check apply. The service decides what the flag installs.
+        // The candidate is always built from a fresh GET_SETTINGS reply, never the controller's
+        // cache: after a lost connection the cache can hold default settings with a matching
+        // changeset, and sending that back would replace the saved rules and exceptions.
+        internal static bool TrySetServiceAccess(bool enabled, out string? error)
+        {
+            error = null;
+            MessageType read = TryReadServiceSettings(out ServerConfiguration? current, out Guid changeset);
+            switch (AiExplainEgressPolicy.PlanServiceAccessChange(enabled, current?.AiAssistantEgress))
+            {
+                case AiExplainEgressPolicy.ServiceAccessPlan.NoChange:
+                    return true;
+                case AiExplainEgressPolicy.ServiceAccessPlan.NotConnected:
+                    error = read == MessageType.RESPONSE_LOCKED
+                        ? "SecureWall is locked. Unlock it from the tray icon, then try again."
+                        : "SecureWall's service is not connected, so its settings could not be read.";
+                    return false;
+            }
+
+            Controller pipe = GlobalInstances.Controller;
+            ServerConfiguration candidate = Utils.DeepClone(current!);
+            candidate.AiAssistantEgress = enabled;
+            TwMessage response = pipe.SetServerConfig(candidate, changeset);
+            switch (response.Type)
+            {
+                case MessageType.PUT_SETTINGS:
+                    var args = (TwMessagePutSettings)response;
+                    ActiveConfig.Service = args.Config;
+                    GlobalInstances.ClientChangeset = args.Changeset;
+                    if (args.Warning)
+                    {
+                        error = "SecureWall's settings changed in the meantime. Try again.";
+                        return false;
+                    }
+                    if (ActiveConfig.Service.AiAssistantEgress != enabled)
+                    {
+                        error = "The SecureWall service did not accept the change.";
+                        return false;
+                    }
+                    return true;
+                case MessageType.RESPONSE_LOCKED:
+                    error = "SecureWall is locked. Unlock it from the tray icon, then try again.";
+                    return false;
+                default:
+                    error = "The SecureWall service could not apply the change.";
+                    return false;
+            }
+        }
+
+        // Reads the service's current settings with an empty changeset so the service always
+        // returns them. Does not touch the controller's cache. Returns the reply type; `config`
+        // is null unless the reply carried settings.
+        internal static MessageType TryReadServiceSettings(out ServerConfiguration? config, out Guid changeset)
+        {
+            config = null;
+            changeset = Guid.Empty;
+            Controller? pipe = GlobalInstances.Controller;
+            if (pipe == null)
+                return MessageType.COM_ERROR;
+
+            Guid received = Guid.Empty;
+            MessageType reply = pipe.GetServerConfig(out ServerConfiguration? fresh, out _, ref received);
+            if (reply == MessageType.GET_SETTINGS && fresh != null && received != Guid.Empty)
+            {
+                config = fresh;
+                changeset = received;
+            }
+            return reply;
         }
     }
 }

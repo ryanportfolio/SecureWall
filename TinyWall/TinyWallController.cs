@@ -1073,6 +1073,8 @@ namespace pylorak.TinyWall
             LoadSettingsFromServer();
 
             bool single = (list.Count == 1);
+            // showEditUi is false only after ApplicationExceptionForm already ran its own-image warning.
+            bool editorConfirmed = !showEditUi;
 
             if (single && ActiveConfig.Controller.AskForExceptionDetails && showEditUi)
             {
@@ -1083,6 +1085,20 @@ namespace pylorak.TinyWall
                 list.Clear();
                 list.AddRange(f.ExceptionSettings);
                 single = (list.Count == 1);
+                editorConfirmed = true;
+            }
+
+            // Tray whitelisting by executable, process or window saves without the editor.
+            if (!editorConfirmed
+                && list.Exists(ex => ex.Subject is ExecutableSubject exe && AiExplainEgressPolicy.RequiresOwnImageWarning(
+                    ex.Policy.PolicyType == PolicyType.HardBlock, exe.ExecutablePath, Utils.ExecutablePath))
+                && Utils.ShowMessageBox(
+                    AiExplainEgressPolicy.OwnImageExceptionWarning,
+                    Resources.Messages.TinyWall,
+                    TaskDialogCommonButtons.Yes | TaskDialogCommonButtons.No,
+                    TaskDialogIcon.Warning) != DialogResult.Yes)
+            {
+                return;
             }
 
             ServerConfiguration confCopy = Utils.DeepClone(ActiveConfig.Service);

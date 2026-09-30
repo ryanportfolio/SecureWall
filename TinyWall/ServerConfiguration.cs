@@ -161,6 +161,12 @@ namespace pylorak.TinyWall
         [DataMember(EmitDefaultValue = false)]
         public FirewallMode StartupMode { get; set; } = FirewallMode.Normal;
 
+        // Optional AI assistant. While true, Normal mode adds a permit for SecureWall.exe:
+        // outbound TCP to remote port 443, interactive user tokens only, never the service
+        // accounts (AiExplainEgressPolicy). Set by the controller's AI assistant settings.
+        [DataMember(EmitDefaultValue = false)]
+        public bool AiAssistantEgress { get; set; } = false;
+
         [DataMember(EmitDefaultValue = false)]
         public List<ServerProfileConfiguration> Profiles { get; set; } = new List<ServerProfileConfiguration>();
 

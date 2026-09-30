@@ -401,7 +401,7 @@ internal static class ControllerHardeningTests
         var subject = AiExplainSubject.FromPrompt(prompt, "Claimed Company", false);
         string text = AiExplainComposer.Compose(subject).UserPrompt;
         Check(text.Contains("app.exe") && text.Contains("ExampleService") && text.Contains("S-1-15-2-example"));
-        Check(text.Contains("Claimed publisher (signature and trust unverified): Claimed Company"));
+        Check(text.Contains("Claimed publisher (signature and trust unverified): \"Claimed Company\""));
         Check(!text.Contains("private-user") && !text.Contains("203.0.113.10"));
     }
 

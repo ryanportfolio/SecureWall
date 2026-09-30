@@ -107,6 +107,8 @@ namespace pylorak.TinyWall
         private List<Guid>? PendingRuntimeFilterKeys;
         private ServerConfiguration? ApplyingConfiguration;
         private FirewallMode? ApplyingMode;
+        // Set only while ApplyConfiguration applies an AI-egress-only change (see AiExplainEgressPolicy).
+        private bool PreservePromptTokens;
         private bool BaselineInstalled;
         private ServerConfiguration PolicyConfiguration => ApplyingConfiguration ?? ActiveConfig.Service;
         private FirewallMode PolicyMode => ApplyingMode ?? VisibleState.Mode;
@@ -436,6 +438,7 @@ namespace pylorak.TinyWall
                     List<ulong> newPromptableFilterIds = InstallRules(rules, rawSocketExceptions, false);
                     if (PolicyMode != FirewallMode.Disabled)
                         InstallWsl2Filters(EnforcementPolicy.OptionalPermitEnabled(PolicyMode == FirewallMode.BlockAll, PolicyConfiguration.ActiveProfile.HasSpecialException("WSL_2")));
+                    InstallAiAssistantPermit();
                     trx.Commit();
                     committed = true;
                     LastInstallCommitted = true;
@@ -452,7 +455,7 @@ namespace pylorak.TinyWall
                     RuntimeFilterKeys.AddRange(candidateKeys);
                     lock (BlockedPromptQueue.SyncRoot)
                     {
-                        ResetPromptCandidates();
+                        ResetPromptCandidates(revokeTokens: !PreservePromptTokens);
                         PromptableFilterIds.Replace(PolicyMode == FirewallMode.Normal
                             ? newPromptableFilterIds : Array.Empty<ulong>());
                     }
@@ -980,6 +983,45 @@ namespace pylorak.TinyWall
             f.Conditions.Add(new LocalInterfaceCondition(interfaceLuid));
 
             InstallWfpFilter(f, permit ? FilterGroup.Unknown : FilterGroup.User);
+        }
+
+        // Optional AI assistant egress, full reloads only. SecureWall.exe is also the LocalSystem
+        // service image, so the permit carries a user condition that denies the service
+        // accounts and allows only interactive tokens, plus outbound TCP to remote port 443.
+        // It sits at user-permit weight, so explicit user blocks and blocklists still win.
+        private void InstallAiAssistantPermit()
+        {
+            bool displayOffBlockActive = PolicyConfiguration.ActiveProfile.DisplayOffBlock && !DisplayCurrentlyOn;
+            if (!AiExplainEgressPolicy.ShouldInstallPermit(PolicyConfiguration.AiAssistantEgress,
+                PolicyMode == FirewallMode.Normal, displayOffBlockActive))
+                return;
+
+            string image = PathMapper.Instance.ConvertPath(Utils.ExecutablePath.AsSpan(), PathFormat.NativeNt);
+            InstallAiAssistantPermit(image, LayerKeyEnum.FWPM_LAYER_ALE_AUTH_CONNECT_V4);
+            InstallAiAssistantPermit(image, LayerKeyEnum.FWPM_LAYER_ALE_AUTH_CONNECT_V6);
+        }
+
+        private void InstallAiAssistantPermit(string ntImagePath, LayerKeyEnum layer)
+        {
+            using var f = new Filter(
+                "SecureWall AI assistant",
+                "Outbound TCP 443 for the interactive SecureWall controller only",
+                SECUREWALL_PROVIDER_KEY,
+                FilterActions.FWP_ACTION_PERMIT,
+                (ulong)FilterWeights.UserPermit
+            );
+            f.LayerKey = GetLayerKey(layer);
+            f.SublayerKey = GetSublayerKey(layer);
+            f.Conditions.Add(new AppIdFilterCondition(ntImagePath, false, true));
+            f.Conditions.Add(new UserIdFilterCondition(AiExplainEgressPolicy.AllowedUserSids,
+                AiExplainEgressPolicy.DeniedUserSids, RemoteOrLocal.Local));
+            f.Conditions.Add(new FlagsFilterCondition(ConditionFlags.FWP_CONDITION_FLAG_IS_LOOPBACK, FieldMatchType.FWP_MATCH_FLAGS_NONE_SET));
+            f.Conditions.Add(new ProtocolFilterCondition(AiExplainEgressPolicy.TcpProtocol));
+            f.Conditions.Add(new PortFilterCondition(AiExplainEgressPolicy.RemotePort, AiExplainEgressPolicy.RemotePort, RemoteOrLocal.Remote));
+
+            // Like every rule, a rejected permit fails the whole replacement (fail closed).
+            // Permits never drop traffic, so they carry no block-reason group.
+            InstallWfpFilter(f, FilterGroup.Unknown);
         }
 
         private void InstallRawSocketPermits(List<RuleDef> rawSocketExceptions)
@@ -1657,6 +1699,22 @@ namespace pylorak.TinyWall
             ApplyingMode = mode;
             try
             {
+                PreservePromptTokens = AiExplainEgressPolicy.IsEgressOnlyChange(previous, candidate,
+                    mode == VisibleState.Mode, config => config.AiAssistantEgress, (config, flag) =>
+                    {
+                        ServerConfiguration copy = Utils.DeepClone(config);
+                        copy.AiAssistantEgress = flag;
+                        return SerializationHelper.Serialize(copy);
+                    });
+            }
+            catch (Exception exception)
+            {
+                // Comparison failure only means the normal token revocation applies.
+                PreservePromptTokens = false;
+                Utils.LogException(exception, Utils.LOG_ID_SERVICE);
+            }
+            try
+            {
                 Diagnostics.CommitConfiguration(candidate.EnableDiagnosticLogging, () => PolicyChangeTransaction.Apply(
                     () => Diagnostics.Run(RuntimeEvent.policy_persist, () => candidate.Save(ConfigSavePath)),
                     () =>
@@ -1678,7 +1736,7 @@ namespace pylorak.TinyWall
                         ActiveConfig.Service = candidate;
                         lock (BlockedPromptQueue.SyncRoot)
                         {
-                            ResetPromptCandidates();
+                            ResetPromptCandidates(revokeTokens: !PreservePromptTokens);
                             VisibleState.Mode = mode;
                         }
                         GlobalInstances.ServerChangeset = Guid.NewGuid();
@@ -1692,6 +1750,7 @@ namespace pylorak.TinyWall
             {
                 ApplyingConfiguration = null;
                 ApplyingMode = null;
+                PreservePromptTokens = false;
             }
         }
 

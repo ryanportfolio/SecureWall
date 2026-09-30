@@ -339,6 +339,19 @@ namespace pylorak.TinyWall
                 TmpExceptionSettings[0].Policy = pol;
             }
 
+            // SecureWall.exe is also the LocalSystem service image; a path rule for it covers the service.
+            if (TmpExceptionSettings[0].Subject is ExecutableSubject ownSubject
+                && Prompting.AiExplainEgressPolicy.RequiresOwnImageWarning(radBlock.Checked, ownSubject.ExecutablePath, Utils.ExecutablePath)
+                && Utils.ShowMessageBox(
+                    Prompting.AiExplainEgressPolicy.OwnImageExceptionWarning,
+                    Resources.Messages.TinyWall,
+                    TaskDialogCommonButtons.Yes | TaskDialogCommonButtons.No,
+                    TaskDialogIcon.Warning,
+                    this) != DialogResult.Yes)
+            {
+                return;
+            }
+
             this.TmpExceptionSettings[0].CreationDate = DateTime.Now;
             
             this.DialogResult = System.Windows.Forms.DialogResult.OK;

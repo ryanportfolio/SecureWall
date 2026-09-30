@@ -33,7 +33,11 @@ namespace pylorak.TinyWall
                 throw new ArgumentNullException(nameof(subject));
 
             if (!AiExplainSettings.TryBuildChatCompletionsUri(_baseUrl, out Uri? uri) || uri == null)
-                return AiExplainResult.Fail("The configured base URL is not valid.");
+            {
+                // A URL saved before the port-443 rule reaches here; name the reason.
+                AiExplainSettings.Validate(_baseUrl, _model, out string? invalid);
+                return AiExplainResult.Fail(invalid ?? "The configured base URL is not valid.");
+            }
             if (string.IsNullOrWhiteSpace(_model))
                 return AiExplainResult.Fail("No model is configured.");
             if (string.IsNullOrWhiteSpace(_apiKey))
@@ -42,20 +46,52 @@ namespace pylorak.TinyWall
             AiExplainPrompt prompt = AiExplainComposer.Compose(subject);
             string requestJson = BuildRequestJson(_model, prompt);
 
+            // One deadline covers connect, headers and body. HttpClient.Timeout alone stops at the
+            // headers when the body is read as a stream.
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            deadline.CancelAfter(RequestTimeout);
+            CancellationToken token = deadline.Token;
+
             try
             {
                 using var handler = new HttpClientHandler { AllowAutoRedirect = false };
-                using var http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(30) };
+                using var http = new HttpClient(handler)
+                {
+                    Timeout = RequestTimeout,
+                    MaxResponseContentBufferSize = AiExplainText.MaxResponseBytes,
+                };
                 using var content = new StringContent(requestJson, Encoding.UTF8, "application/json");
                 using var request = new HttpRequestMessage(HttpMethod.Post, uri) { Content = content };
                 request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + _apiKey);
 
-                using HttpResponseMessage response =
-                    await http.SendAsync(request, cancellationToken).ConfigureAwait(false);
-                string body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                using HttpResponseMessage response = await http
+                    .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token)
+                    .ConfigureAwait(false);
+
+                long? declaredLength = response.Content.Headers.ContentLength;
+                if (declaredLength > AiExplainText.MaxResponseBytes)
+                    return TooLarge();
+
+                // A stalled body read may ignore the token on .NET Framework; disposing the
+                // response aborts the connection so the read fails instead of hanging.
+                using CancellationTokenRegistration abort = token.Register(response.Dispose);
+                using Stream stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+                byte[]? bytes = await AiExplainText
+                    .ReadBoundedAsync(stream, AiExplainText.MaxResponseBytes, token)
+                    .ConfigureAwait(false);
+                if (bytes == null)
+                    return TooLarge();
+
+                // RFC 8259 requires UTF-8 for JSON exchanged between systems.
+                string body = Encoding.UTF8.GetString(bytes);
                 return AiExplainResponseParser.Parse((int)response.StatusCode, body);
             }
             catch (OperationCanceledException)
+            {
+                return AiExplainResult.Fail("The AI request was cancelled or timed out.");
+            }
+            catch (Exception exception) when (token.IsCancellationRequested
+                && (exception is ObjectDisposedException || exception is IOException || exception is HttpRequestException))
             {
                 return AiExplainResult.Fail("The AI request was cancelled or timed out.");
             }
@@ -63,7 +99,17 @@ namespace pylorak.TinyWall
             {
                 return AiExplainResult.Fail("Could not reach the AI service: " + exception.Message);
             }
+            catch (IOException exception)
+            {
+                return AiExplainResult.Fail("The AI service connection failed: " + exception.Message);
+            }
         }
+
+        private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(30);
+
+        private static AiExplainResult TooLarge() => AiExplainResult.Fail(
+            "The AI response was larger than " + (AiExplainText.MaxResponseBytes / 1024) +
+            " KiB and was discarded.");
 
         private static string BuildRequestJson(string model, AiExplainPrompt prompt)
         {

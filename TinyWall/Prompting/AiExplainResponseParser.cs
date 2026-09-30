@@ -48,9 +48,11 @@ namespace pylorak.TinyWall.Prompting
                         && message.TryGetProperty("content", out JsonElement content)
                         && content.ValueKind == JsonValueKind.String)
                     {
-                        string? text = content.GetString();
+                        // Capped and cleaned for display; the body itself is already
+                        // limited to AiExplainText.MaxResponseBytes by the client.
+                        string text = AiExplainText.ForDisplay(content.GetString(), AiExplainText.MaxExplanationLength);
                         if (!string.IsNullOrWhiteSpace(text))
-                            return AiExplainResult.Ok(text!.Trim());
+                            return AiExplainResult.Ok(text);
                     }
                 }
 
@@ -91,8 +93,8 @@ namespace pylorak.TinyWall.Prompting
                     && error.TryGetProperty("message", out JsonElement message)
                     && message.ValueKind == JsonValueKind.String)
                 {
-                    string? text = message.GetString();
-                    return string.IsNullOrWhiteSpace(text) ? null : text!.Trim();
+                    // Server-controlled text: single line, no control characters, capped.
+                    return AiExplainText.SanitizeField(message.GetString(), AiExplainText.MaxApiErrorLength);
                 }
             }
             catch (JsonException)

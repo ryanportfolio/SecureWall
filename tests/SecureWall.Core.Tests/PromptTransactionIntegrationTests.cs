@@ -140,10 +140,15 @@ internal static class PromptTransactionIntegrationTests
         int invalidate = service.IndexOf("ResetPromptCandidates(revokeTokens: false);", start, StringComparison.Ordinal);
         int rebuild = service.IndexOf("PathMapper.Instance.RebuildCache();", start, StringComparison.Ordinal);
         int commit = service.IndexOf("trx.Commit();", start, StringComparison.Ordinal);
-        int revoke = service.IndexOf("ResetPromptCandidates();", start, StringComparison.Ordinal);
+        // Revocation is skipped only for an AI-egress-only settings change (AiExplainEgressPolicy).
+        int revoke = service.IndexOf("ResetPromptCandidates(revokeTokens: !PreservePromptTokens);", start, StringComparison.Ordinal);
         AssertEx.True(start < invalidate && invalidate < rebuild && rebuild < commit && commit < revoke);
         AssertEx.True(service.Contains("PromptCandidateLifecycle.Reset(BlockedPromptQueue, CorrelatedDrops, DropCandidates, stop, revokeTokens);"));
-        AssertEx.True(service.Contains("ResetPromptCandidates();\n                            VisibleState.Mode = mode;"));
+        AssertEx.True(service.Contains("ResetPromptCandidates(revokeTokens: !PreservePromptTokens);\n                            VisibleState.Mode = mode;"));
+        AssertEx.Equal(3, service.Split("PreservePromptTokens = ").Length - 1,
+            "PreservePromptTokens is assigned only by the egress-only comparison, its failure path and the finally reset.");
+        AssertEx.True(service.Contains("PreservePromptTokens = AiExplainEgressPolicy.IsEgressOnlyChange(previous, candidate,"));
+        AssertEx.True(service.Contains("ApplyingMode = null;\n                PreservePromptTokens = false;"));
         foreach (string method in new[] { "private void FailClosed()", "public void Dispose()" })
         {
             int at = service.IndexOf(method, StringComparison.Ordinal);
