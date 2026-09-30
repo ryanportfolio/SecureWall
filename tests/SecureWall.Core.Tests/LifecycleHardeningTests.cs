@@ -101,7 +101,7 @@ internal static class LifecycleHardeningTests
         Check(utils.Contains("WindowsIdentity.GetCurrent(true)"));
         Check(utils.Contains("Installer.MachineDataGuard.Require(); return Installer.MachineDataGuard.PathName;"));
         Check(utils.Contains("Environment.SpecialFolder.LocalApplicationData"));
-        Check(utils.Contains("fi.Length > 512 * 1024"));
+        Check(utils.Contains("LogRotationPolicy.RotateIfNeeded(logfile)") && !utils.Contains("FileMode.Truncate"));
         Check(utils.Contains("!Environment.UserInteractive || identity.IsSystem") && utils.Contains("process.SessionId == 0"));
         string program = Read("Program.cs");
         Check(program.Contains("Installer.InstallationSafety.RequireSystemMaintenance();"));

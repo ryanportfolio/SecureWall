@@ -87,7 +87,8 @@ internal static class Program
             .Concat(ServiceAttributionTests.Cases)
             .Concat(ExceptionMergeTests.Cases)
             .Concat(ControllerActivityTests.Cases)
-            .Concat(AiExplainHardeningTests.Cases).ToArray();
+            .Concat(AiExplainHardeningTests.Cases)
+            .Concat(InstallerDiagnosticsTests.Cases).ToArray();
         var failed = 0;
 
         foreach (var (name, test) in tests)
