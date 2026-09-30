@@ -66,6 +66,7 @@ namespace pylorak.TinyWall
         private readonly CoalescedDiagnostic CandidateOverflows = new();
         private readonly CoalescedDiagnostic PromptOverflows = new();
         private readonly CoalescedDiagnostic ServiceSnapshotErrors = new();
+        private readonly CoalescedDiagnostic ServiceSidQueryErrors = new();
         private readonly CoalescedDiagnostic UnavailableVolumeRules = new();
         private readonly ServiceExecutableCatalog ServiceExecutables = new();
 
@@ -2462,15 +2463,15 @@ namespace pylorak.TinyWall
 
             try
             {
-                bool catalogAvailable = ServiceExecutables.TryContains(
-                    candidate.ApplicationPath,
-                    out bool executableIsRegisteredService);
+                ServiceRegistrationStatus registration = ServiceExecutables.Lookup(candidate.ApplicationPath);
                 PromptIdentity identity = ServiceAttribution.Resolve(
                     candidate,
                     auditEvent,
                     serviceNames,
-                    executableIsRegisteredService || !catalogAvailable,
-                    snapshotUncertain);
+                    registration == ServiceRegistrationStatus.Registered,
+                    snapshotUncertain,
+                    registration == ServiceRegistrationStatus.Unknown,
+                    QueryServiceSidType);
                 return () =>
                 {
                     if (RuntimeStopping || VisibleState.Mode != FirewallMode.Normal ||
@@ -2484,6 +2485,26 @@ namespace pylorak.TinyWall
             {
                 Utils.LogException(exception, Utils.LOG_ID_SERVICE);
                 return () => { };
+            }
+        }
+
+        // Null when SCM cannot report the SID type; attribution then keeps Allow disabled.
+        // Runs per drop candidate, so failures are coalesced to one log line per minute.
+        private uint? QueryServiceSidType(string serviceName)
+        {
+            try
+            {
+                using var scm = new ServiceControlManager();
+                return scm.GetServiceSidType(serviceName);
+            }
+            catch (System.ComponentModel.Win32Exception exception)
+            {
+                ServiceSidQueryErrors.Record();
+                if (ServiceSidQueryErrors.TryReport(DateTimeOffset.UtcNow, out long count))
+                    Utils.Log("Could not read the service SID type " + count + " times since the previous report; latest: " +
+                        serviceName + " (error " + exception.NativeErrorCode + "). Those prompts stay non-allowable.",
+                        Utils.LOG_ID_SERVICE);
+                return null;
             }
         }
 

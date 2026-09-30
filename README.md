@@ -33,6 +33,7 @@ SecureWall has no binary update feed. These source changes do not establish that
 - **Allow outgoing** creates a permanent outbound TCP/UDP exception for the service-owned subject represented by the prompt token.
 - **Ignore**, closing the prompt, or prompt expiry leaves policy unchanged.
 - Explicit user blocks, blocklists, inbound drops, and ambiguous shared-service identities are never converted into broad allow rules.
+- A service whose SID type is NONE, or a program the service inventory cannot rule out as a service, is shown with Allow disabled and the reason; see [docs/SECURITY.md](docs/SECURITY.md).
 
 The implementation and verification plan is in [docs/superpowers/plans/2026-07-14-securewall.md](docs/superpowers/plans/2026-07-14-securewall.md). The threat model and architecture are in [docs/design/2026-07-14-securewall-design.md](docs/design/2026-07-14-securewall-design.md).
 

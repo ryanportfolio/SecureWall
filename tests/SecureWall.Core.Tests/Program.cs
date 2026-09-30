@@ -72,7 +72,8 @@ internal static class Program
             .Concat(HostsRestorationTests.Cases)
             .Concat(HostsAdapterTests.Cases)
             .Concat(PromptTransactionIntegrationTests.Cases)
-            .Concat(ExecutableRiskTests.Cases).ToArray();
+            .Concat(ExecutableRiskTests.Cases)
+            .Concat(ServiceAttributionTests.Cases).ToArray();
         tests = tests.Concat(RuntimeJournalTests.Cases).Concat(RuntimeDiagnosticCoverageTests.Cases).ToArray();
         var failed = 0;
 
@@ -616,8 +617,10 @@ internal static class Program
             ServiceImagePath.TryExtractExecutable(
                 "\"C:\\Program Files\\Example Service\\service.exe\" --service",
                 @"C:\Windows"));
-        AssertEx.Equal(
-            @"C:\Program Files\Example Service\service.exe",
+        // Unquoted with spaces: CreateProcess tries C:\Program.exe first, so the executable
+        // depends on the disk and stays unresolved.
+        AssertEx.Equal<string?>(
+            null,
             ServiceImagePath.TryExtractExecutable(
                 @"C:\Program Files\Example Service\service.exe --service",
                 @"C:\Windows"));
