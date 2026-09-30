@@ -44,12 +44,13 @@ namespace pylorak.TinyWall.Prompting
             allowButton.Enabled = prompt.CanAllow;
             noticeLabel.Text = prompt.CanAllow
                 ? "Allow permanently permits this app, package, or service to reach all destinations and ports over TCP/UDP."
-                : BlockedNotice(prompt);
+                : PromptNoticeText.Blocked(prompt.AllowBlocker, prompt.ServiceName);
             toolTip.SetToolTip(
                 allowButton,
                 prompt.CanAllow
                     ? "Permanent outbound TCP/UDP access to all destinations and ports. The shown destination does not limit this rule."
-                    : BlockedTooltip(prompt));
+                    : PromptNoticeText.BlockedTooltip(prompt.AllowBlocker));
+            FitNoticeLabel();
 
             PositionBottomRight();
             timeoutTimer.Start();
@@ -103,25 +104,6 @@ namespace pylorak.TinyWall.Prompting
                     : Path.GetFileName(prompt.ExecutablePath),
             };
         }
-
-        private static string BlockedNotice(PromptWireDto prompt) => prompt.AllowBlocker switch
-        {
-            PromptAllowBlocker.ServiceSidUnavailable =>
-                $"{prompt.ServiceName} has no service SID, so a rule for it cannot match. Admin fix: sc.exe sidtype {prompt.ServiceName} unrestricted, then restart it.",
-            PromptAllowBlocker.ServiceSidUnverified =>
-                $"SecureWall could not read the service SID type of {prompt.ServiceName}, so it cannot verify that a rule would match. Allow is disabled.",
-            PromptAllowBlocker.ServiceRegistrationUnknown =>
-                "SecureWall could not rule out that this program runs as a Windows service, so Allow is disabled. The service log has details.",
-            _ => "SecureWall could not identify one exact service. Allow is disabled to avoid broadly permitting a shared host.",
-        };
-
-        private static string BlockedTooltip(PromptWireDto prompt) => prompt.AllowBlocker switch
-        {
-            PromptAllowBlocker.ServiceSidUnavailable => "Unavailable because the service has no service SID to match.",
-            PromptAllowBlocker.ServiceSidUnverified => "Unavailable because the service SID type could not be read.",
-            PromptAllowBlocker.ServiceRegistrationUnknown => "Unavailable because the service inventory could not confirm this program.",
-            _ => "Unavailable because the service identity is ambiguous.",
-        };
 
         private static string ProtocolText(byte protocol) => protocol switch
         {

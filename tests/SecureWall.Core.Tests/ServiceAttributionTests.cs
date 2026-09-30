@@ -20,6 +20,7 @@ internal static class ServiceAttributionTests
             yield return ("service inventory skips registrations SCM cannot start", InventorySkipsUnusable);
             yield return ("registration uncertainty is not presented as service attribution", RegistrationUncertaintyIsNotServiceAttribution);
             yield return ("allow blocker round trips on the prompt wire DTO", AllowBlockerRoundTrips);
+            yield return ("SID notice quotes the service name in the sc.exe command", SidNoticeQuotesServiceName);
         }
     }
 
@@ -224,6 +225,24 @@ internal static class ServiceAttributionTests
         AssertEx.Equal(PromptAllowBlocker.ServiceSidUnavailable, copy.AllowBlocker);
         AssertEx.Equal(PromptIdentityKind.Service, copy.SubjectKind);
         AssertEx.Equal("updater", copy.ServiceName);
+    }
+
+    private static void SidNoticeQuotesServiceName()
+    {
+        string spaced = PromptNoticeText.Blocked(PromptAllowBlocker.ServiceSidUnavailable, "Steam Client Service");
+        AssertEx.True(spaced.Contains("sc.exe sidtype \"Steam Client Service\" unrestricted, then restart it."), spaced);
+        AssertEx.True(spaced.StartsWith("Steam Client Service has no service SID", StringComparison.Ordinal), spaced);
+        string longName = PromptNoticeText.Blocked(PromptAllowBlocker.ServiceSidUnavailable, "MicrosoftEdgeElevationService");
+        AssertEx.True(longName.Contains("sc.exe sidtype \"MicrosoftEdgeElevationService\" unrestricted"), longName);
+        AssertEx.Equal("sc.exe sidtype \"odd\\\"name\" unrestricted", PromptNoticeText.SidTypeCommand("odd\"name"));
+
+        // Only the NONE notice offers the command; the unverified one never claims "no service SID".
+        string unverified = PromptNoticeText.Blocked(PromptAllowBlocker.ServiceSidUnverified, "Steam Client Service");
+        AssertEx.False(unverified.Contains("sc.exe") || unverified.Contains("has no service SID"), unverified);
+        var texts = new[] { PromptAllowBlocker.AmbiguousService, PromptAllowBlocker.ServiceSidUnavailable,
+            PromptAllowBlocker.ServiceSidUnverified, PromptAllowBlocker.ServiceRegistrationUnknown }
+            .Select(blocker => PromptNoticeText.Blocked(blocker, "svc") + "|" + PromptNoticeText.BlockedTooltip(blocker));
+        AssertEx.Equal(4, texts.Distinct().Count(), "Two blockers share popup wording.");
     }
 
     private static DropCandidate Candidate(string applicationPath) => new(
