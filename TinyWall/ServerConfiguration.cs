@@ -153,9 +153,6 @@ namespace pylorak.TinyWall
         public bool LockHostsFile { get; set; } = true;
 
         [DataMember(EmitDefaultValue = false)]
-        public bool AutoUpdateCheck { get; set; } = false;
-
-        [DataMember(EmitDefaultValue = false)]
         public bool EnableDiagnosticLogging { get; set; } = false;
 
         [DataMember(EmitDefaultValue = false)]

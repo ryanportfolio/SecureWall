@@ -24,7 +24,7 @@ Address renewal and name resolution can fail during this interval. If the cause 
 
 The MSI stores `profiles.json` and `hosts.bck` in `INSTALLDIR/data-defaults`. Its SYSTEM `/install` entry validates the machine-data tree, then copies each default into `%ProgramData%\SecureWall` when it is absent or differs from the shipped file, so a reinstall delivers database updates. Configuration, password and recovery files are left alone. Unsafe ownership, write permissions or reparse paths cause rejection without repairing or overwriting the existing tree. The default Windows Update profile retains the `wuauserv` service exception and removes the executable-wide `svchost.exe` web permission. Windows Update compatibility remains a VM test.
 
-SecureWall has no binary update feed. These source changes do not establish that it is safe to replace an existing firewall.
+SecureWall has no update feed: the TinyWall updater, its Settings button and the `/updatenow` switch were removed, and SecureWall never contacts TinyWall's update server. Install new versions from a trusted MSI. These source changes do not establish that it is safe to replace an existing firewall.
 
 ## Intended prompt behavior
 

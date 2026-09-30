@@ -378,7 +378,6 @@ namespace pylorak.TinyWall
                 opts.ProgramMode = StartUpMode.Controller;
 
             opts.autowhitelist = Utils.StringArrayContains(args, "/autowhitelist");
-            opts.updatenow = Utils.StringArrayContains(args, "/updatenow");
             opts.startup = Utils.StringArrayContains(args, "/startup");
 
 #if !DEBUG

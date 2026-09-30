@@ -17,7 +17,7 @@ The fork is a source snapshot of the pinned commit, not a git branch of it. This
 
 ## Upstream commits since the pin
 
-All 58 upstream commits in `1df71b1..62b088f` are listed once below: 27 backported, 3 equivalent in fork, 1 not backported, 12 not applicable, 15 cosmetic or tooling.
+All 58 upstream commits in `1df71b1..62b088f` are listed once below: 26 backported, 3 equivalent in fork, 1 not backported, 13 not applicable, 15 cosmetic or tooling.
 
 ### Backported
 
@@ -32,10 +32,9 @@ Each entry names the upstream commit or issue and where the change landed in the
 - `d9b5c62`: dark-mode focus highlight alignment (`TinyWall/DarkModeCS.cs`, taken unchanged).
 - `fa57ba0`: `MpCmdRun.exe` added to the Windows Defender special exception (`TinyWall/Database/SpecialApplications/Special Windows Defender.json`) and hand-edited into the shipped `MsiSetup/Sources/CommonAppData/SecureWall/profiles.json`, whose only generator is the develtool GUI. `MpDefenderCoreService.exe` left out, as upstream did. `tests/installer/Test-SecureWallInstaller.ps1` now checks that the payload matches the source profiles. Reaches fresh installs only: `MachineDataGuard.InstallDefaults` seeds `profiles.json` only when it is absent.
 - `7270d96`: `Utils.DisableMessageUIPI("TaskbarCreated")` at the start of `InitController` (`TinyWall/Utils.cs`, `TinyWall/TinyWallController.cs`), so an elevated controller re-adds its tray icon after Explorer restarts.
-- `7fce29c`: `Utils.StartProcessAndForget` disposes the `Process` for the Connections web lookups and `mnuElevate_Click`. The unreachable `UpdateChecker.InstallUpdate` still calls `StartProcess`, as upstream left it.
-- `3448b6b`: backported into currently disabled code. Update downloads (application database, hosts file) are decompressed and hashed in memory instead of through shared temp files (`TinyWall/TinyWallService.cs`, `TinyWall/Utils.cs`, `TinyWall/HostsFileManager.cs`). The only caller, `UpdaterMethod`, returns at once because `SecureWallProduct.UpdateFeedEnabled` is `const false`.
+- `7fce29c`: `Utils.StartProcessAndForget` disposes the `Process` for the Connections web lookups and `mnuElevate_Click`. The updater's `InstallUpdate`, which upstream left on `StartProcess`, is code removed from the fork.
 - `a56488f`: `UserIdFilterCondition` SDDL parenthesis fixed (`pylorak.Windows.WFP/FilterCondition.cs`). Latent: the class has no callers.
-- `63e411a` (password-file part): `SecureTemp.ProtectFile` became `TinyWall/Installer/SecretFileProtection.cs` (`Ensure` replaces the DACL of an existing file, `CreateNew` creates a file already protected). The updater part is not applicable.
+- `63e411a` (password-file part): `SecureTemp.ProtectFile` became `TinyWall/Installer/SecretFileProtection.cs` (`Ensure` replaces the DACL of an existing file, `CreateNew` creates a file already protected). The updater part is code removed from the fork.
 - `3146d95`: `pwd` gets the protected DACL `MachineDataPolicy.SecretFileDacl` (`D:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;0x120080;;;BU)`), set on the temporary file at creation and re-applied to an existing `pwd` at service start and before each write. Adapted: Users keep READ_CONTROL, SYNCHRONIZE and FILE_READ_ATTRIBUTES (no read-data) so a standard-user controller can still run `MachineDataGuard` validation; upstream grants Users nothing. Before this port `pwd` inherited the data directory's BUILTIN\Users read grant (`TinyWall/Installer/MachineDataGuard.cs`), so any local user could copy the hash.
 - `7762731` (password-file part): the service holds `pwd` with `FileShare.None` (`LockPasswordFile` in `TinyWall/TinyWallService.cs`) and unlocks it around `UNLOCK` and `SET_PASSPHRASE`. The database `UserAccess.ReadOnly` part matches the data directory ACL; the `AppPaths` and `FilesystemProtection` renames do not apply.
 - `c4cd972`: `Utils.IsDarkModeActive` accepts a null `ControllerSettings` and falls back to the system theme, so `PasswordForm` works in a standalone `/uninstall` of a locked install. Adapted: null-safe instead of upstream's catch-all. The MSI path (`/msi-cleanup`) never shows a dialog.
@@ -65,19 +64,20 @@ Each entry names the upstream commit or issue and where the change landed in the
 
 ### Not applicable
 
-Dormant updater. `SecureWallProduct.UpdateFeedEnabled` is `const false`, so this code never runs, but it is still compiled in and still points at TinyWall's feed (`UpdateChecker.URL_UPDATE_DESCRIPTOR`, `https://tinywall.pados.hu/updates/UpdVer{0}/update.json`). Delete the updater, or port all five commits and switch to a SecureWall-owned URL before enabling any feed:
+Updater: code removed from the fork. SecureWall never contacts TinyWall's update server. The controller updater (`UpdateChecker.cs`, its four-hour timer, the Settings update button, the `/updatenow` switch), the service's two-day descriptor check with its database and hosts download and replacement path, and the hard-coded `tinywall.pados.hu` descriptor URL were deleted. Settings and imported `.tws` files that still carry `AutoUpdateCheck` load with the field ignored. These commits change only that code:
 
-- `30c1712`: Authenticode check on the downloaded update installer. `UpdateChecker.cs` still runs the MSI from `%TEMP%` unchecked.
-- `72ee63a`: updater as a separate startup command that requires admin. `/updatenow` is still parsed.
-- `bf868d6`: `WebClient` instance rename in the updater.
-- `f264655`: no temp file for the update descriptor. `UpdateChecker.cs` still uses `Path.GetTempFileName()`.
-- `e0e7e22`: ACL on downloaded update installers.
+- `30c1712`: Authenticode check on the downloaded update installer. Code removed from the fork.
+- `72ee63a`: updater as a separate startup command that requires admin. Code removed from the fork, including `/updatenow`.
+- `bf868d6`: `WebClient` instance rename in the updater. Code removed from the fork.
+- `f264655`: no temp file for the update descriptor. Code removed from the fork.
+- `e0e7e22`: ACL on downloaded update installers. Code removed from the fork.
+- `3448b6b`: in-memory decompression and hashing of database and hosts update downloads. Earlier backported into the disabled updater; code removed from the fork.
 
 Other features the fork does not have:
 
-- `a84e08e`: PAD file images. The fork publishes no PAD metadata (`docs/pad_file.xml` still describes TinyWall).
+- `a84e08e`: PAD file images. The fork publishes no PAD metadata; the TinyWall `docs/pad_file.xml` was deleted.
 - `7ed518b`: cleanup of the `temp_secure` folder. The fork has no such folder.
-- `a3418c4`: `SecureTemp` class for the updater's admin-only temp folder. Updater-only; the fork writes temp files beside their targets (`TinyWall/AtomicFileWriter.cs`), and its data directory grants Users read, so this is not an equivalent.
+- `a3418c4`: `SecureTemp` class for the updater's admin-only temp folder. Updater-only, and the updater is code removed from the fork. The fork writes temp files beside their targets (`TinyWall/AtomicFileWriter.cs`), and its data directory grants Users read, so this is not an equivalent.
 - `9cfab8e`: log WFP exceptions during service dispose. The fork does not delete WFP objects on dispose; its dynamic filters disappear when the engine handle closes.
 - `418ff8d`: ideas file update. `UPSTREAM-FUTURE-IDEAS.txt` is a frozen snapshot.
 - `1ba7a3d`: thread-safe `FileLocker`. The fork uses `FileLocker` only on the service worker thread and in dispose.
@@ -114,6 +114,6 @@ SecureWall uses a distinct product name, executable identity, Windows service na
 
 Source-file namespaces and some internal class names remain `pylorak.TinyWall` to keep the fork reviewable and reduce unnecessary divergence. They do not identify the installed product.
 
-SecureWall has no configured binary update feed. It must not install binaries advertised by TinyWall's upstream update service. The dormant updater code still hard-codes TinyWall's feed URL (see "Not applicable" above).
+SecureWall has no update feed and contains no update client. The TinyWall updater and its feed URL were removed (see "Not applicable" above).
 
 SecureWall is not TinyWall and is not endorsed by TinyWall's author.

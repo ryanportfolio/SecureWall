@@ -1,4 +1,3 @@
-using System.Text;
 using pylorak.TinyWall;
 using pylorak.TinyWall.Prompting;
 
@@ -14,8 +13,6 @@ internal static class HostsAdapterTests
         ("hosts protection disable releases hosts after a backup lock failure", DisableAfterBackupLockFailure),
         ("hosts adapter propagates backup and original lock failures", ContendedBackups),
         ("hosts adapter propagates invalid optional backup paths", InvalidBackup),
-        ("hosts adapter updates and relocks downloaded backup", UpdateSuccess),
-        ("hosts adapter preserves primary update error and relock error", UpdateFailure),
         ("hosts adapter failed restore retains original and supports retry", RestoreFailure),
         ("hosts adapter preserves original through enable restore cycle", RestoreCycle),
         ("hosts protection lock error does not enter configuration compensation", ConfigurationFailure),
@@ -124,46 +121,6 @@ internal static class HostsAdapterTests
         Directory.CreateDirectory(f.Original);
         AssertEx.Throws<IOException>(() => f.Manager.EnableProtection = true);
         AssertEx.False(f.Manager.EnableProtection);
-    }
-
-    private static void UpdateSuccess()
-    {
-        using var f = new Fixture();
-        using var source = new MemoryStream(Encoding.UTF8.GetBytes("blocklist"));
-        f.Manager.UpdateHostsFile(source);
-        AssertEx.True(f.Manager.FileLocker.IsLocked(f.Backup));
-        AssertEx.Equal("blocklist", File.ReadAllText(f.Backup));
-    }
-
-    private sealed class FailingStream : MemoryStream
-    {
-        private readonly Action beforeFailure;
-        internal readonly IOException Error = new("primary stream failure");
-        internal FailingStream(Action beforeFailure) { this.beforeFailure = beforeFailure; }
-        public override void CopyTo(Stream destination, int bufferSize)
-        {
-            beforeFailure();
-            throw Error;
-        }
-    }
-
-    private static void UpdateFailure()
-    {
-        using var f = new Fixture();
-        File.WriteAllText(f.Backup, "old blocklist");
-        FileStream? holder = null;
-        using var source = new FailingStream(() => holder = Fixture.Hold(f.Backup));
-        try
-        {
-            IOException error = AssertEx.Throws<IOException>(() => f.Manager.UpdateHostsFile(source));
-            AssertEx.True(ReferenceEquals(source.Error, error));
-            AssertEx.True(error.Data["HostsProtectionFailure"] is IOException);
-        }
-        finally { holder?.Dispose(); }
-        AssertEx.Equal("old blocklist", File.ReadAllText(f.Backup));
-        using var retry = new MemoryStream(Encoding.UTF8.GetBytes("new blocklist"));
-        f.Manager.UpdateHostsFile(retry);
-        AssertEx.True(f.Manager.FileLocker.IsLocked(f.Backup));
     }
 
     private static void RestoreFailure()

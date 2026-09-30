@@ -237,9 +237,6 @@
   <data name="groupBox2.Text" xml:space="preserve">
     <value>情報</value>
   </data>
-  <data name="btnUpdate.Text" xml:space="preserve">
-    <value>アップデート</value>
-  </data>
   <data name="btnWeb.Text" xml:space="preserve">
     <value>ウェブサイトへ</value>
   </data>

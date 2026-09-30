@@ -231,9 +231,6 @@
   <data name="groupBox2.Text" xml:space="preserve">
     <value>За приложението</value>
   </data>
-  <data name="btnUpdate.Text" xml:space="preserve">
-    <value>Обнови</value>
-  </data>
   <data name="btnWeb.Text" xml:space="preserve">
     <value>Посети уеб сайт</value>
   </data>

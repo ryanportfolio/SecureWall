@@ -120,29 +120,6 @@ namespace pylorak.TinyWall
             });
         }
 
-        public void UpdateHostsFile(Stream newHostsStream)
-        {
-            // We keep a copy of the hosts file for ourself, so that
-            // we can re-install it any time without a net connection.
-            // The new content arrives as a stream so it never sits in a
-            // world-accessible temp folder before landing next to the target.
-            Observe(RuntimeEvent.hosts_update, () =>
-            {
-                FileLocker.Unlock(HOSTS_BACKUP);
-                WriteAndRelock(() => AtomicFileWriter.WriteFrom(HOSTS_BACKUP, newHostsStream),
-                    () => RequireLock(HOSTS_BACKUP));
-            });
-        }
-
-        public static string GetHostsHash()
-        {
-            string HOSTS_BACKUP = Path.Combine(Utils.AppDataPath, "hosts.bck");
-            if (File.Exists(HOSTS_BACKUP))
-                return Hasher.HashFile(HOSTS_BACKUP);
-            else
-                return string.Empty;
-        }
-
         public bool EnableHostsFile()
         {
             return HostsRestorationPolicy.Enable(HasOriginalBackup, CreateOriginalBackup,
