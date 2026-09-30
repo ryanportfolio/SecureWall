@@ -964,6 +964,9 @@ internal static class Program
             TimedOut.Add(token);
             return DismissResult;
         }
+
+        public PromptUnlockResult Unlock() => PromptUnlockResult.NotUnlocked;
+        public void Relock() { }
     }
 
     private sealed class FakePromptView : IPromptView

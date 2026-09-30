@@ -15,6 +15,14 @@ internal static class ControllerHardeningTests
         ("stalled automatic dismissal cannot delay local expiry", StalledTimeoutDoesNotDelayExpiry),
         ("late allow completion cannot close a replacement popup", LateAllowCannotChangeReplacement),
         ("AI reading pause cannot extend token validity", ReadingCannotExtendToken),
+        ("allow arms only after one stable second and a finished risk probe", AllowArmingNeedsDelayAndRiskProbe),
+        ("unlock pause holds the popup until token expiry only", UnlockPauseStopsAtTokenExpiry),
+        ("locked allow unlocks retries the same token and relocks", LockedAllowUnlocksAndRelocks),
+        ("cancelled popup unlock keeps the prompt blocked and open", CancelledUnlockKeepsPromptOpen),
+        ("allow after an unlock elsewhere retries without relocking", AlreadyUnlockedRetriesWithoutRelock),
+        ("lost or failed unlock response still relocks", LostUnlockResponseStillRelocks),
+        ("unlock outlasting the token never sends a second allow", UnlockPastExpiryNeverAllows),
+        ("prompt withdrawn during unlock still relocks", WithdrawnDuringUnlockStillRelocks),
         ("AI endpoints require HTTPS and reject credentials query and fragment", AiRejectsUnsafeUrls),
         ("AI default payload identifies all disclosed fields without path or destination", AiPayloadDisclosure),
         ("audit lease ownership cannot mask subscription loss or disposal", AuditHealth),
@@ -184,6 +192,135 @@ internal static class ControllerHardeningTests
         Check(shortToken.ShouldClose(Start.AddSeconds(5)));
     }
 
+    private static void AllowArmingNeedsDelayAndRiskProbe()
+    {
+        TimeSpan At(double seconds) => TimeSpan.FromSeconds(seconds);
+        var arming = new PromptAllowArming();
+        arming.Reset();
+        Check(!arming.IsArmed(At(10)));
+        arming.NoteShownOrMoved(At(0));
+        Check(!arming.IsArmed(At(5)));
+        arming.NoteRiskReady();
+        Check(!arming.IsArmed(At(0.9)));
+        Check(arming.IsArmed(At(1)));
+        arming.NoteShownOrMoved(At(1.5));
+        Check(!arming.IsArmed(At(2.4)) && arming.IsArmed(At(2.5)));
+        Check(!arming.IsArmed(At(1.4)));
+        arming.Reset();
+        Check(!arming.IsArmed(At(60)));
+        arming.NoteRiskReady();
+        Check(!arming.IsArmed(At(60)));
+    }
+
+    private static void UnlockPauseStopsAtTokenExpiry()
+    {
+        var deadline = new PromptDisplayDeadline(Start, Start.AddMinutes(2));
+        deadline.PauseForUnlock();
+        Check(!deadline.ShouldClose(Start.AddSeconds(30)) && !deadline.ShouldClose(Start.AddSeconds(119)));
+        Check(deadline.ShouldClose(Start.AddMinutes(2)));
+    }
+
+    private static (PromptDisplayCoordinator Display, View View, PromptWireDto Prompt) LockedPrompt(
+        Actions actions, Func<DateTimeOffset> now)
+    {
+        var view = new View();
+        var display = new PromptDisplayCoordinator(actions, () => view, now);
+        var prompt = Prompt(Start.AddMinutes(2));
+        display.Reconcile(new[] { prompt });
+        return (display, view, prompt);
+    }
+
+    private static void LockedAllowUnlocksAndRelocks()
+    {
+        var actions = new Actions { UnlockResult = PromptUnlockResult.Unlocked };
+        actions.AllowResults.Enqueue(PromptActionStatus.Locked);
+        var (display, view, prompt) = LockedPrompt(actions, () => Start);
+        using (display)
+        {
+            view.Allow();
+            Check(actions.UnlockCount == 1 && actions.AllowTokens.Count == 2);
+            Check(actions.AllowTokens.All(token => token == prompt.Token));
+            Check(actions.RelockCount == 1 && view.Closed && display.CurrentToken == null);
+            Check(view.Failures.SequenceEqual(new[] { PromptActionStatus.Locked }) && actions.DismissCount == 0);
+        }
+    }
+
+    private static void CancelledUnlockKeepsPromptOpen()
+    {
+        var actions = new Actions { UnlockResult = PromptUnlockResult.NotUnlocked };
+        actions.AllowResults.Enqueue(PromptActionStatus.Locked);
+        var (display, view, prompt) = LockedPrompt(actions, () => Start);
+        using (display)
+        {
+            view.Allow();
+            Check(actions.AllowCount == 1 && actions.RelockCount == 1 && actions.DismissCount == 0);
+            Check(!view.Closed && display.CurrentToken == prompt.Token);
+            Check(view.Failures.Count > 0 && view.Failures.All(status => status == PromptActionStatus.Locked));
+            // The owner can try again from the same popup.
+            actions.AllowResults.Enqueue(PromptActionStatus.Locked);
+            actions.UnlockResult = PromptUnlockResult.Unlocked;
+            view.Allow();
+            Check(actions.UnlockCount == 2 && actions.AllowCount == 3 && actions.RelockCount == 2 && view.Closed);
+        }
+    }
+
+    private static void LostUnlockResponseStillRelocks()
+    {
+        // The service may have applied UNLOCK even though the controller saw a failure.
+        var actions = new Actions { DuringUnlock = () => throw new IOException("pipe lost") };
+        actions.AllowResults.Enqueue(PromptActionStatus.Locked);
+        var (display, view, _) = LockedPrompt(actions, () => Start);
+        using (display)
+        {
+            view.Allow();
+            Check(actions.UnlockCount == 1 && actions.AllowCount == 1 && actions.RelockCount == 1);
+            Check(!view.Closed && view.Failures.All(status => status == PromptActionStatus.Locked));
+        }
+    }
+
+    private static void AlreadyUnlockedRetriesWithoutRelock()
+    {
+        var actions = new Actions { UnlockResult = PromptUnlockResult.AlreadyUnlocked };
+        actions.AllowResults.Enqueue(PromptActionStatus.Locked);
+        var (display, view, _) = LockedPrompt(actions, () => Start);
+        using (display)
+        {
+            view.Allow();
+            Check(actions.AllowCount == 2 && actions.RelockCount == 0 && view.Closed);
+        }
+    }
+
+    private static void UnlockPastExpiryNeverAllows()
+    {
+        var now = Start;
+        var actions = new Actions { UnlockResult = PromptUnlockResult.Unlocked };
+        actions.AllowResults.Enqueue(PromptActionStatus.Locked);
+        actions.DuringUnlock = () => now = Start.AddMinutes(2);
+        var (display, view, _) = LockedPrompt(actions, () => now);
+        using (display)
+        {
+            view.Allow();
+            Check(actions.AllowCount == 1 && actions.RelockCount == 1 && actions.DismissCount == 0);
+            display.Tick();
+            Check(view.Closed && display.CurrentToken == null && actions.DismissCount == 0);
+        }
+    }
+
+    private static void WithdrawnDuringUnlockStillRelocks()
+    {
+        var actions = new Actions { UnlockResult = PromptUnlockResult.Unlocked };
+        actions.AllowResults.Enqueue(PromptActionStatus.Locked);
+        PromptDisplayCoordinator? current = null;
+        actions.DuringUnlock = () => current!.Reconcile(Array.Empty<PromptWireDto>());
+        var (display, view, _) = LockedPrompt(actions, () => Start);
+        current = display;
+        using (display)
+        {
+            view.Allow();
+            Check(actions.AllowCount == 1 && actions.RelockCount == 1 && view.Closed && display.CurrentToken == null);
+        }
+    }
+
     private static void FailedTimeoutClosesOnce()
     {
         var now = Start;
@@ -277,11 +414,22 @@ internal static class ControllerHardeningTests
     private static void Check(bool value) { if (!value) throw new InvalidOperationException("Hardening assertion failed."); }
     private sealed class Actions : IPromptActionClient
     {
-        internal int AllowCount, DismissCount, TimeoutCount;
+        internal int AllowCount, DismissCount, TimeoutCount, UnlockCount, RelockCount;
+        internal readonly List<Guid> AllowTokens = new();
         internal PromptActionStatus DismissResult = PromptActionStatus.Dismissed;
-        public PromptActionStatus Allow(Guid token) { AllowCount++; return PromptActionStatus.Allowed; }
+        internal Queue<PromptActionStatus> AllowResults = new();
+        internal PromptUnlockResult UnlockResult = PromptUnlockResult.NotUnlocked;
+        internal Action? DuringUnlock;
+        public PromptActionStatus Allow(Guid token)
+        {
+            AllowCount++;
+            AllowTokens.Add(token);
+            return AllowResults.Count > 0 ? AllowResults.Dequeue() : PromptActionStatus.Allowed;
+        }
         public PromptActionStatus Dismiss(Guid token) { DismissCount++; return DismissResult; }
         public PromptActionStatus DismissAfterTimeout(Guid token) { TimeoutCount++; return DismissResult; }
+        public PromptUnlockResult Unlock() { UnlockCount++; DuringUnlock?.Invoke(); return UnlockResult; }
+        public void Relock() => RelockCount++;
     }
     private sealed class View : IPromptView
     {
@@ -290,10 +438,11 @@ internal static class ControllerHardeningTests
         public event EventHandler? PromptClosed { add { } remove { } }
         public event EventHandler? PromptTimedOut;
         internal bool Closed;
+        internal readonly List<PromptActionStatus> Failures = new();
         internal void Allow() => AllowRequested?.Invoke(this, EventArgs.Empty);
         internal void Timeout() => PromptTimedOut?.Invoke(this, EventArgs.Empty);
         public void ShowPrompt(PromptWireDto prompt) { }
-        public void ShowActionFailure(PromptActionStatus status) { }
+        public void ShowActionFailure(PromptActionStatus status) => Failures.Add(status);
         public void ClosePrompt() => Closed = true;
         public void Dispose() { }
     }

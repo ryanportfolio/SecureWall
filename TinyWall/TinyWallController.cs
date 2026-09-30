@@ -1157,6 +1157,24 @@ namespace pylorak.TinyWall
             return false;
         }
 
+        // A popup Allow that the service rejected as locked. Same password dialog as the tray;
+        // AlreadyUnlocked means no password was asked for; otherwise the popup relocks.
+        private PromptUnlockResult UnlockForPrompt()
+        {
+            Locked = GlobalInstances.Controller.IsServerLocked;
+            if (!Locked)
+                return PromptUnlockResult.AlreadyUnlocked;
+            return EnsureUnlockedServer() ? PromptUnlockResult.Unlocked : PromptUnlockResult.NotUnlocked;
+        }
+
+        private void RelockAfterPrompt()
+        {
+            MessageType lockResp = GlobalInstances.Controller.LockServer();
+            if ((lockResp == MessageType.LOCK) || (lockResp == MessageType.RESPONSE_LOCKED))
+                this.Locked = true;
+            UpdateDisplay();
+        }
+
         private void mnuLock_Click(object sender, EventArgs e)
         {
             MessageType lockResp = GlobalInstances.Controller.LockServer();
@@ -1356,7 +1374,7 @@ namespace pylorak.TinyWall
                 ApplyControllerSettings();
                 GlobalInstances.InitClient();
                 PromptCoordinator = new PromptDisplayCoordinator(
-                    new ControllerPromptActionClient(GlobalInstances.Controller),
+                    new ControllerPromptActionClient(GlobalInstances.Controller, UnlockForPrompt, RelockAfterPrompt),
                     () => new BlockedConnectionPopup(),
                     performAction: action => Task.Run(action));
                 PromptPollTimer.Enabled = true;
