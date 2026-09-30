@@ -78,7 +78,8 @@ internal static class Program
             .Concat(ControllerUiPortTests.Cases)
             .Concat(BlockReasonTests.Cases).ToArray();
         tests = tests.Concat(RuntimeJournalTests.Cases).Concat(RuntimeDiagnosticCoverageTests.Cases)
-            .Concat(WfpCoexistenceTests.Cases).ToArray();
+            .Concat(WfpCoexistenceTests.Cases)
+            .Concat(ProtectionReleaseTests.Cases).ToArray();
         var failed = 0;
 
         foreach (var (name, test) in tests)

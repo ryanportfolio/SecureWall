@@ -488,7 +488,10 @@ namespace pylorak.TinyWall
             var provider = new FWPM_PROVIDER0();
             provider.displayData.name = "SecureWall";
             provider.displayData.description = "SecureWall Provider";
-            provider.serviceName = TinyWallService.SERVICE_NAME;
+            // No serviceName: BFE loads a service-owned provider's persistent
+            // objects only while that service is set to auto-start, so a Disabled
+            // or Manual SecureWall service would silently drop the deny baseline
+            // after reboot. Only explicit removal under this key releases it.
             provider.flags = FWPM_PROVIDER_FLAGS.FWPM_PROVIDER_FLAG_PERSISTENT;
             provider.providerKey = SECUREWALL_PROVIDER_KEY;
             var providerKey = baseline.RegisterProvider(ref provider);

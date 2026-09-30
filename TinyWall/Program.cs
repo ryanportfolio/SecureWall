@@ -299,8 +299,17 @@ namespace pylorak.TinyWall
             catch (Exception exception)
             {
                 // Do not write diagnostics through an untrusted data path.
-                string diagnostic = Utils.MachineDataRecoveryMessage + Environment.NewLine + exception;
+                string diagnostic = Utils.MachineDataRecoveryMessage + Environment.NewLine +
+                    "To remove SecureWall, uninstall it from Settings > Apps at the local console. MSI removal releases SecureWall's firewall objects without reading this directory." +
+                    Environment.NewLine + exception;
                 Console.Error.WriteLine(diagnostic);
+                // SYSTEM MSI removal and failed-install rollback may still release
+                // SecureWall-owned protection. That path authenticates the
+                // installation and service, and never reads the rejected tree.
+                if (Utils.StringArrayContains(args, "/msi-cleanup"))
+                    return TinyWallDoctor.ReleaseForMsiWithRejectedMachineData(false);
+                if (Utils.StringArrayContains(args, "/msi-rollback-install"))
+                    return TinyWallDoctor.ReleaseForMsiWithRejectedMachineData(true);
                 bool maintenance = Utils.StringArrayContains(args, "/install") ||
                     Utils.StringArrayContains(args, "/uninstall") ||
                     Utils.StringArrayContains(args, "/msi-cleanup") ||

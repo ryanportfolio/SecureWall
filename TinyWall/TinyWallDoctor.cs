@@ -195,22 +195,34 @@ namespace pylorak.TinyWall
         // Only failed first-install rollback may escalate beyond graceful SCM stop.
         internal static int RollbackFailedInstallForMsi() => CleanupForMsi(true);
 
-        private static int CleanupForMsi(bool failedInstallRollback)
+        // Emergency release. Main calls this only for SYSTEM MSI removal or
+        // failed-install rollback after the machine-data guard rejected the tree.
+        // It authenticates the protected installation and LocalSystem service
+        // registration, never reads or repairs the rejected tree, skips the hosts
+        // restore whose backup lives there, and restores Windows Firewall and
+        // audit state only from their HKLM journals.
+        internal static int ReleaseForMsiWithRejectedMachineData(bool failedInstallRollback)
+            => CleanupForMsi(failedInstallRollback, false);
+
+        private static int CleanupForMsi(bool failedInstallRollback, bool machineDataTrusted = true)
         {
             try
             {
                 InstallationSafety.RequireSystemMaintenance();
 #if !DEBUG
-                InstallationSafety.RequireProtectedMachineData();
+                if (machineDataTrusted) InstallationSafety.RequireProtectedMachineData();
 #endif
-                ValidateRegisteredServiceImage();
+                ValidateRegisteredServiceImage(!machineDataTrusted);
+                if (!machineDataTrusted)
+                    Warn("SecureWall machine data was rejected. Running the SYSTEM emergency release: the rejected directory is preserved unread, and only SecureWall-owned firewall objects, compatibility rules, audit journal entries, the scheduled task and the service are removed.");
                 if (ServiceExists())
                 {
-                    if (failedInstallRollback)
+                    if (failedInstallRollback || !machineDataTrusted)
                     {
                         // Registration and protected installation are validated
                         // above. Suppress queued recovery even if startup exits
-                        // naturally during the graceful wait.
+                        // naturally during the graceful wait. The deny baseline's
+                        // provider names no service, so this does not release it.
                         using var scm = new ServiceControlManager();
                         scm.SetStartupMode(TinyWallService.SERVICE_NAME, ServiceStartMode.Disabled);
                         scm.SetRestartOnFailure(TinyWallService.SERVICE_NAME, false);
@@ -231,7 +243,7 @@ namespace pylorak.TinyWall
                         }
                         catch (InvalidOperationException exception)
                         {
-                            Utils.LogException(exception, Utils.LOG_ID_INSTALLER);
+                            LogFailure(exception);
                             return State() == LifecycleServiceState.Stopped;
                         }
                     }
@@ -243,16 +255,36 @@ namespace pylorak.TinyWall
                         },
                         () => ServiceLifecyclePolicy.WaitUntil(() => State() == LifecycleServiceState.Stopped,
                             ServiceLifecyclePolicy.CleanupGrace, () => timer.Elapsed, System.Threading.Thread.Sleep),
-                        () => result = CleanupStoppedInstallation());
+                        () => result = CleanupStoppedInstallation(failedInstallRollback, machineDataTrusted));
                     return result;
                 }
-                return CleanupStoppedInstallation();
+                return CleanupStoppedInstallation(failedInstallRollback, machineDataTrusted);
             }
             catch (Exception exception)
             {
-                Utils.LogException(exception, Utils.LOG_ID_INSTALLER);
+                LogFailure(exception);
                 return -1;
             }
+        }
+
+        // Utils.Log silently drops entries while machine data is rejected, so
+        // maintenance warnings also go to stderr and the Application event log.
+        private static void Warn(string message)
+        {
+            Utils.Log(message, Utils.LOG_ID_INSTALLER);
+            try { Console.Error.WriteLine(message); } catch { }
+            try
+            {
+                if (EventLog.SourceExists(TinyWallService.SERVICE_NAME))
+                    EventLog.WriteEntry(TinyWallService.SERVICE_NAME, message, EventLogEntryType.Warning);
+            }
+            catch { }
+        }
+
+        private static void LogFailure(Exception exception)
+        {
+            Utils.LogException(exception, Utils.LOG_ID_INSTALLER);
+            try { Console.Error.WriteLine(exception); } catch { }
         }
 
         private static bool ServiceExists()
@@ -285,12 +317,17 @@ namespace pylorak.TinyWall
                     service.GetValue("ObjectName") as string ?? "", service.GetValue("Type") is int type ? type : 0);
         }
 
-        private static int CleanupStoppedInstallation()
+        // Ordering and failure handling live in ProtectionReleasePolicy. Ordinary
+        // removal aborts at the first failure and keeps the deny baseline and the
+        // service registration that permits a retry. Failed first-install rollback
+        // continues past hosts and audit failures, always removes the registration,
+        // and removes the baseline once the compatibility rules are gone.
+        private static int CleanupStoppedInstallation(bool failedInstallRollback = false, bool machineDataTrusted = true)
         {
             try
             {
 #if !DEBUG
-                InstallationSafety.RequireProtectedMachineData();
+                if (machineDataTrusted) InstallationSafety.RequireProtectedMachineData();
 #endif
                 ValidateRegisteredServiceImage();
                 if (ServiceExists())
@@ -299,26 +336,36 @@ namespace pylorak.TinyWall
                     if (service.Status != ServiceControllerStatus.Stopped)
                         throw new InvalidOperationException("Service must be stopped before cleanup.");
                 }
-                // Restore hosts before releasing any persistent protection or the
-                // service registration that permits recovery to be retried.
-                using (HostsFileManager hosts = new())
-                    hosts.DisableHostsFile();
-
-                // Crash cleanup is independent of service disposal. Keep WFP
-                // protection when compatibility restoration fails.
-                WindowsFirewall.RestoreOwnedState();
             }
             catch (Exception exception)
             {
-                Utils.LogException(exception, Utils.LOG_ID_INSTALLER);
+                LogFailure(exception);
                 return -1;
             }
 
-            // A healthy journal entry that fails to restore aborts cleanup, like the
-            // firewall-rule journal above: the MSI deletes HKLM\Software\SecureWall on
-            // uninstall and standalone /uninstall removes the service that would retry,
-            // so continuing would leave the audit policy modified with no record.
-            // Malformed records hold no recoverable value and never block uninstall.
+            // Restore hosts before releasing any persistent protection or the
+            // service registration that permits recovery to be retried. Crash
+            // cleanup is independent of service disposal. Keep WFP protection
+            // when compatibility restoration fails.
+            bool released = ProtectionReleasePolicy.Release(failedInstallRollback, machineDataTrusted,
+                () => { using HostsFileManager hosts = new(); hosts.DisableHostsFile(); },
+                () => WindowsFirewall.RestoreOwnedState(),
+                WindowsFirewall.OwnedRulesAbsent,
+                RestoreAuditPolicy,
+                TerminateInstallationControllers,
+                RemoveWfpObjects,
+                RemoveRegistration,
+                Warn, LogFailure);
+            return released ? 0 : -1;
+        }
+
+        // A healthy journal entry that fails to restore aborts ordinary cleanup,
+        // like the firewall-rule journal: the MSI deletes HKLM\Software\SecureWall
+        // on uninstall and standalone /uninstall removes the service that would
+        // retry, so continuing would leave the audit policy modified with no record.
+        // Malformed records hold no recoverable value and never block uninstall.
+        private static void RestoreAuditPolicy()
+        {
             try
             {
                 AuditPolicyRestoreResult restored = FirewallLogWatcher.RestoreAuditPolicyFromJournal();
@@ -327,63 +374,59 @@ namespace pylorak.TinyWall
             }
             catch (AuditPolicyRestoreException exception)
             {
-                Utils.LogException(exception, Utils.LOG_ID_INSTALLER);
                 foreach (Guid subcategory in exception.FailedSubcategories)
-                    Utils.Log("Uninstall aborted: audit policy subcategory " + subcategory.ToString("B") + " could not be restored to its original value. The journal at HKLM\\" + RegistryAuditPolicyJournal.RecoveryKey + " is kept; fix the audit policy write (auditpol /get /subcategory:" + subcategory.ToString("B") + ") and run the uninstall again.", Utils.LOG_ID_INSTALLER);
-                return -1;
+                    Warn("Audit policy subcategory " + subcategory.ToString("B") + " could not be restored to its original value. The journal at HKLM\\" + RegistryAuditPolicyJournal.RecoveryKey + " is kept; fix the audit policy write (auditpol /get /subcategory:" + subcategory.ToString("B") + ") and run the uninstall again.");
+                throw;
             }
-            catch (Exception exception)
+            catch (Exception)
             {
                 // The journal could not even be read: its contents are unknown, so
-                // keep the installation until an operator can inspect it.
-                Utils.LogException(exception, Utils.LOG_ID_INSTALLER);
-                Utils.Log("Uninstall aborted: the audit policy journal at HKLM\\" + RegistryAuditPolicyJournal.RecoveryKey + " could not be read or restored; it is kept in place.", Utils.LOG_ID_INSTALLER);
-                return -1;
+                // keep it until an operator can inspect it.
+                Warn("The audit policy journal at HKLM\\" + RegistryAuditPolicyJournal.RecoveryKey + " could not be read or restored; it is kept in place.");
+                throw;
             }
+        }
 
-            // Terminate only controllers from this exact installation.
-            {
-                using var ownProc = Process.GetCurrentProcess();
-                int ownPid = ownProc.Id;
-                Process[] procs = Process.GetProcesses();
-                try
-                {
-                    foreach (Process p in procs)
-                    {
-                        try
-                        {
-                            if ((p.Id != ownPid) &&
-                                string.Equals(p.ProcessName, Path.GetFileNameWithoutExtension(Utils.ExecutablePath), StringComparison.OrdinalIgnoreCase) &&
-                                string.Equals(p.MainModule?.FileName, Utils.ExecutablePath, StringComparison.OrdinalIgnoreCase))
-                            {
-                                ProcessManager.TerminateProcess(p, 2000);
-                            }
-                        }
-                        catch (Exception e) { Utils.LogException(e, Utils.LOG_ID_INSTALLER); }
-                    }
-                }
-                finally
-                {
-                    foreach (var p in procs)
-                        p.Dispose();
-                }
-            }
-
+        // Terminate only controllers from this exact installation.
+        private static void TerminateInstallationControllers()
+        {
+            using var ownProc = Process.GetCurrentProcess();
+            int ownPid = ownProc.Id;
+            Process[] procs = Process.GetProcesses();
             try
             {
-                // Remove persistent WFP objects
-                using var WfpEngine = new Engine("SecureWall Uninstall Session", "", FWPM_SESSION_FLAGS.None, 5000);
-                using var trx = WfpEngine.BeginTransaction();
-                TinyWallServer.DeleteWfpObjects(WfpEngine, true);
-                trx.Commit();
+                foreach (Process p in procs)
+                {
+                    try
+                    {
+                        if ((p.Id != ownPid) &&
+                            string.Equals(p.ProcessName, Path.GetFileNameWithoutExtension(Utils.ExecutablePath), StringComparison.OrdinalIgnoreCase) &&
+                            string.Equals(p.MainModule?.FileName, Utils.ExecutablePath, StringComparison.OrdinalIgnoreCase))
+                        {
+                            ProcessManager.TerminateProcess(p, 2000);
+                        }
+                    }
+                    catch (Exception e) { Utils.LogException(e, Utils.LOG_ID_INSTALLER); }
+                }
             }
-            catch (Exception e)
+            finally
             {
-                Utils.LogException(e, Utils.LOG_ID_INSTALLER);
-                return -1;
+                foreach (var p in procs)
+                    p.Dispose();
             }
+        }
 
+        // Removes only objects under SecureWall's provider key, in one transaction.
+        private static void RemoveWfpObjects()
+        {
+            using var WfpEngine = new Engine("SecureWall Uninstall Session", "", FWPM_SESSION_FLAGS.None, 5000);
+            using var trx = WfpEngine.BeginTransaction();
+            TinyWallServer.DeleteWfpObjects(WfpEngine, true);
+            trx.Commit();
+        }
 
+        private static bool RemoveRegistration()
+        {
             bool succeeded = true;
             try
             {
@@ -393,7 +436,7 @@ namespace pylorak.TinyWall
                 taskService.GetFolder(@"\").DeleteTask(CONTROLLER_START_TASKSCH_NAME, 0);
             }
             catch (System.Runtime.InteropServices.COMException e) when (e.HResult == unchecked((int)0x80070002)) { }
-            catch (Exception e) { succeeded = false; Utils.LogException(e, Utils.LOG_ID_INSTALLER); }
+            catch (Exception e) { succeeded = false; LogFailure(e); }
 
             try
             {
@@ -401,11 +444,11 @@ namespace pylorak.TinyWall
                     ManagedInstallerClass.InstallHelper(new string[] { "/u", Utils.ExecutablePath });
                 InstallationSafety.EnsureStoppedServiceDeletion();
                 if (ServiceExists())
-                    Utils.Log("SecureWall service deletion was accepted by Windows and is pending open handles. Close Services and other service-management tools, or restart Windows, before installing again.", Utils.LOG_ID_INSTALLER);
+                    Warn("SecureWall service deletion was accepted by Windows and is pending open handles. Close Services and other service-management tools, or restart Windows, before installing again.");
             }
-            catch (Exception e) { succeeded = false; Utils.LogException(e, Utils.LOG_ID_INSTALLER); }
+            catch (Exception e) { succeeded = false; LogFailure(e); }
 
-            return succeeded ? 0 : -1;
+            return succeeded;
         }
 
         internal static void EnsureHealth(string logContext)
