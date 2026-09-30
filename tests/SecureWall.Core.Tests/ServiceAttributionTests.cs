@@ -21,6 +21,8 @@ internal static class ServiceAttributionTests
             yield return ("registration uncertainty is not presented as service attribution", RegistrationUncertaintyIsNotServiceAttribution);
             yield return ("allow blocker round trips on the prompt wire DTO", AllowBlockerRoundTrips);
             yield return ("SID notice quotes the service name in the sc.exe command", SidNoticeQuotesServiceName);
+            yield return ("popup notice and Allow tooltip come from the notice text helper", PopupUsesNoticeText);
+            yield return ("prompt preview has a service SID notice variant", PromptPreviewSidNotice);
         }
     }
 
@@ -225,6 +227,49 @@ internal static class ServiceAttributionTests
         AssertEx.Equal(PromptAllowBlocker.ServiceSidUnavailable, copy.AllowBlocker);
         AssertEx.Equal(PromptIdentityKind.Service, copy.SubjectKind);
         AssertEx.Equal("updater", copy.ServiceName);
+    }
+
+    // The popup is outside the test build, so pin its use of the tested helper: inline
+    // strings would bring back the unquoted command and the clipped notice.
+    private static void PopupUsesNoticeText()
+    {
+        string popup = PromptTransactionIntegrationTests.Source("TinyWall/Prompting/BlockedConnectionPopup.cs");
+        AssertEx.True(popup.Contains("PromptNoticeText.Blocked(prompt.AllowBlocker, prompt.ServiceName)"), "The notice must come from PromptNoticeText.Blocked.");
+        AssertEx.True(popup.Contains("PromptNoticeText.BlockedTooltip(prompt.AllowBlocker)"), "The tooltip must come from PromptNoticeText.BlockedTooltip.");
+        AssertEx.False(popup.Contains("sc.exe") || popup.Contains("sidtype"), "The popup must not build the admin command itself.");
+        AssertEx.True(popup.Contains("FitNoticeLabel();"), "The notice label must be fitted to its text.");
+    }
+
+    // Debug-only /promptpreview variants let the owner check the SID notice layout on a VM
+    // without a real SID-type NONE service.
+    private static void PromptPreviewSidNotice()
+    {
+        var now = DateTimeOffset.UtcNow;
+        PromptWireDto plain = PromptPreviewSamples.Create(new[] { "/promptpreview" }, now);
+        AssertEx.True(plain.CanAllow);
+        AssertEx.Equal(PromptAllowBlocker.None, plain.AllowBlocker);
+
+        PromptWireDto notice = PromptPreviewSamples.Create(new[] { "/promptpreview", "/sidnotice" }, now);
+        AssertEx.False(notice.CanAllow);
+        AssertEx.Equal(PromptAllowBlocker.ServiceSidUnavailable, notice.AllowBlocker);
+        AssertEx.Equal<string?>("MicrosoftEdgeElevationService", notice.ServiceName);
+        AssertEx.Equal(PromptIdentityKind.Service, notice.SubjectKind);
+        AssertEx.True(notice.ExpiresUtc > now);
+
+        PromptWireDto spaced = PromptPreviewSamples.Create(new[] { "/promptpreview", "/SIDNOTICE", "Steam Client Service", "/nowarnings" }, now);
+        AssertEx.Equal<string?>("Steam Client Service", spaced.ServiceName);
+        AssertEx.True(PromptNoticeText.Blocked(spaced.AllowBlocker, spaced.ServiceName)
+            .Contains("sc.exe sidtype \"Steam Client Service\" unrestricted"));
+        AssertEx.Equal<string?>("MicrosoftEdgeElevationService",
+            PromptPreviewSamples.Create(new[] { "/promptpreview", "/sidnotice", "/nowarnings" }, now).ServiceName);
+
+        AssertEx.Equal(ExecutableRiskFlags.None, PromptPreviewSamples.RiskFlags(new[] { "/promptpreview", "/nowarnings" }));
+        AssertEx.Equal(ExecutableRiskFlags.Unsigned | ExecutableRiskFlags.UserWritableLocation | ExecutableRiskFlags.RecentlyModified,
+            PromptPreviewSamples.RiskFlags(new[] { "/promptpreview", "/sidnotice" }));
+
+        string program = PromptTransactionIntegrationTests.Source("TinyWall/Program.cs");
+        AssertEx.True(program.Contains("popup.ShowPrompt(PromptPreviewSamples.Create(args, DateTimeOffset.UtcNow));"));
+        AssertEx.True(program.Contains("popup.RiskProbe = _ => PromptPreviewSamples.RiskFlags(args);"));
     }
 
     private static void SidNoticeQuotesServiceName()

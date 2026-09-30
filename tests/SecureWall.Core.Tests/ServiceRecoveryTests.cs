@@ -22,6 +22,7 @@ internal static class ServiceRecoveryTests
         ("address changes and display-off restriction supersede committed grants", SupersededInputs),
         ("recovery waits are clamped against inconsistent clock readings", ClampedWait),
         ("failed address condition build is rebuilt in full on the next enumeration", AddressConditionRebuild),
+        ("address refresh maps local subnet gateway and dns sets to their own condition lists", AddressConditionIndexMapping),
     };
 
     private static void RetentionMatrix()
@@ -272,6 +273,44 @@ internal static class ServiceRecoveryTests
         string body = service.Substring(enumerate, service.IndexOf("internal static void DeleteWfpObjects", enumerate, StringComparison.Ordinal) - enumerate);
         AssertEx.True(body.Contains("RemoteAddressSets.Update(") && !body.Contains("SetEquals") && !body.Contains("LocalSubnetAddreses = newLocalSubnetAddreses"),
             "Address enumeration bypasses the publish-after-build helper.");
+    }
+
+    // RemoteAddressSets.Update builds list i from set i. The service passes the sets as an
+    // array and picks the condition list with a ternary on the index; both orders must agree,
+    // or LocalSubnet, DefaultGateway and DNS rules would match each other's addresses.
+    private static void AddressConditionIndexMapping()
+    {
+        string service = PromptTransactionIntegrationTests.Source("TinyWall/TinyWallService.cs");
+        int update = service.IndexOf("RemoteAddressSets.Update(", StringComparison.Ordinal);
+        AssertEx.True(update > 0, "Address refresh no longer uses RemoteAddressSets.Update.");
+        string call = service.Substring(update, service.IndexOf("return ipConfigurationChanged;", update, StringComparison.Ordinal) - update);
+
+        var sets = System.Text.RegularExpressions.Regex.Match(call, @"new\[\]\s*\{\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*\}");
+        AssertEx.True(sets.Success, "Address sets are no longer passed as one three-element array.");
+        var lists = System.Text.RegularExpressions.Regex.Match(call,
+            @"\(\s*list\s*==\s*0\s*\?\s*(\w+)\s*:\s*list\s*==\s*1\s*\?\s*(\w+)\s*:\s*(\w+)\s*\)");
+        AssertEx.True(lists.Success, "The index-to-list mapping is no longer a ternary on list 0 and 1.");
+
+        string[] expectedSets = { "newLocalSubnetAddreses", "newGatewayAddresses", "newDnsAddresses" };
+        string[] expectedLists = { "LocalSubnetFilterConditions", "GatewayFilterConditions", "DnsFilterConditions" };
+        for (int i = 0; i < 3; ++i)
+        {
+            AssertEx.Equal(expectedSets[i], sets.Groups[i + 1].Value, $"Address set {i} is out of order.");
+            AssertEx.Equal(expectedLists[i], lists.Groups[i + 1].Value, $"Condition list {i} is out of order.");
+        }
+
+        // The sets come from the adapter enumerator in this order, and rules read the lists by keyword.
+        AssertEx.True(service.Contains("out var unicastList, out var newGatewayAddresses, out var newDnsAddresses"),
+            "Adapter enumeration outputs changed order.");
+        AssertEx.True(System.Text.RegularExpressions.Regex.IsMatch(service,
+            @"RuleDef\.LOCALSUBNET_ID[^\n]*\n\s*\{\s*\n\s*foreach \(var filter in LocalSubnetFilterConditions\)"),
+            "LocalSubnet rules no longer read LocalSubnetFilterConditions.");
+        AssertEx.True(System.Text.RegularExpressions.Regex.IsMatch(service,
+            @"""DefaultGateway""[^\n]*\n\s*\{\s*\n\s*foreach \(var filter in GatewayFilterConditions\)"),
+            "DefaultGateway rules no longer read GatewayFilterConditions.");
+        AssertEx.True(System.Text.RegularExpressions.Regex.IsMatch(service,
+            @"""DNS""[^\n]*\n\s*\{\s*\n\s*foreach \(var filter in DnsFilterConditions\)"),
+            "DNS rules no longer read DnsFilterConditions.");
     }
 
     private static void ServiceWiring()

@@ -17,8 +17,14 @@ namespace pylorak.TinyWall
         internal JsonTypeInfo<UnrestrictedPolicy> UnrestrictedPolicy => throw Forbidden();
         internal JsonTypeInfo<TcpUdpPolicy> TcpUdpPolicy => throw Forbidden();
         internal JsonTypeInfo<RuleListPolicy> RuleListPolicy => throw Forbidden();
+        internal JsonTypeInfo<GlobalSubject> GlobalSubject => throw Forbidden();
+        internal JsonTypeInfo<AppContainerSubject> AppContainerSubject => throw Forbidden();
+        internal JsonTypeInfo<ExecutableSubject> ExecutableSubject => throw Forbidden();
+        internal JsonTypeInfo<ServiceSubject> ServiceSubject => throw Forbidden();
+        internal JsonTypeInfo<FirewallExceptionV3> FirewallExceptionV3 => throw Forbidden();
+        internal JsonTypeInfo<ServerConfiguration> ServerConfiguration => throw Forbidden();
 
         private static InvalidOperationException Forbidden() =>
-            new("Policy serialization is outside the core merge tests.");
+            new("Policy and subject serialization is outside the core merge tests.");
     }
 }

@@ -73,7 +73,7 @@ namespace pylorak.TinyWall
         }
 
 #if DEBUG
-        private static int StartPromptPreview()
+        private static int StartPromptPreview(string[] args)
         {
             System.Windows.Forms.Application.EnableVisualStyles();
             System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
@@ -90,26 +90,9 @@ namespace pylorak.TinyWall
             popup.IgnoreRequested += ExitPreview;
             popup.PromptClosed += ExitPreview;
             popup.PromptTimedOut += ExitPreview;
-            // Sample every warning line regardless of what svchost.exe looks like on disk.
-            popup.RiskProbe = _ =>
-                ExecutableRiskFlags.Unsigned |
-                ExecutableRiskFlags.UserWritableLocation |
-                ExecutableRiskFlags.RecentlyModified;
-            popup.ShowPrompt(new PromptWireDto
-            {
-                Token = Guid.NewGuid(),
-                SubjectKind = PromptIdentityKind.Service,
-                CanAllow = true,
-                ExecutablePath = @"C:\Windows\System32\svchost.exe",
-                ServiceName = "Dnscache",
-                FirstSeenUtc = DateTimeOffset.UtcNow,
-                LastSeenUtc = DateTimeOffset.UtcNow,
-                ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(2),
-                RemoteAddress = "1.1.1.1",
-                RemotePort = 53,
-                Protocol = 17,
-                OccurrenceCount = 1,
-            });
+            // Sample warning lines regardless of what the executable looks like on disk.
+            popup.RiskProbe = _ => PromptPreviewSamples.RiskFlags(args);
+            popup.ShowPrompt(PromptPreviewSamples.Create(args, DateTimeOffset.UtcNow));
             System.Windows.Forms.Application.Run();
             return 0;
         }
@@ -449,7 +432,7 @@ namespace pylorak.TinyWall
                     return StartController(opts);
 #if DEBUG
                 case StartUpMode.PromptPreview:
-                    return StartPromptPreview();
+                    return StartPromptPreview(args);
                 case StartUpMode.ProtocolSelfTest:
                     return RunProtocolSelfTest();
                 case StartUpMode.PipeIntegrationSelfTest:

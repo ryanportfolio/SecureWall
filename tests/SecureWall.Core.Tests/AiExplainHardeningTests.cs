@@ -28,6 +28,7 @@ namespace SecureWall.Core.Tests
                 yield return ("own image warning applies to non-block exceptions only", OwnImageWarningGate);
                 yield return ("ai endpoint must use port 443 like the egress permit", EndpointPortMatchesPermit);
                 yield return ("ai permit change never trusts a cached or failed settings read", ServiceAccessPlanNeedsFreshRead);
+                yield return ("popup ai permit offer reads the service, not the controller cache", PopupOfferReadsServiceSettings);
             }
         }
 
@@ -272,6 +273,18 @@ namespace SecureWall.Core.Tests
             AssertEx.False(sender.Contains("GlobalInstances.ClientChangeset)"), "The cached changeset must not be sent.");
             string reader = form.Substring(end);
             AssertEx.True(reader.Contains("Guid received = Guid.Empty;"), "The read must force a full settings reply.");
+        }
+
+        // The popup decides whether to offer the permit from a fresh GET_SETTINGS read. A stale
+        // cached "on" would skip the offer and let the lookup raise a non-allowable prompt.
+        private static void PopupOfferReadsServiceSettings()
+        {
+            string popup = PromptTransactionIntegrationTests.Source("TinyWall/Prompting/BlockedConnectionPopup.AiExplain.cs");
+            int read = popup.IndexOf("AiExplainSettingsForm.TryReadServiceSettings(out ServerConfiguration? live", StringComparison.Ordinal);
+            int offer = popup.IndexOf("live?.AiAssistantEgress != true && !OfferToEnableServiceAccess()", StringComparison.Ordinal);
+            AssertEx.True(read > 0, "The popup must read the service settings before offering the permit.");
+            AssertEx.True(offer > read, "The offer must use the fresh read.");
+            AssertEx.False(popup.Contains("ActiveConfig.Service"), "The popup must not use the controller's cached service settings.");
         }
 
         // Returns at most 7 bytes per read so the bounded reader must loop.

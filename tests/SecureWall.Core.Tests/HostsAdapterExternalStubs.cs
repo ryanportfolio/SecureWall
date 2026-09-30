@@ -11,5 +11,7 @@ namespace pylorak.TinyWall
     internal static class Hasher
     {
         internal static string HashFile(string path) => throw new InvalidOperationException("Native hosts hash adapter is outside this fixture test.");
+        internal static string HashFileSha1(string path) => throw new InvalidOperationException("Executable hashing is outside the core tests.");
+        internal static string HashString(string text) => throw new InvalidOperationException("Configuration encryption is outside the core tests.");
     }
 }
