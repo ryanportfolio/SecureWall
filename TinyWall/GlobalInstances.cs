@@ -137,19 +137,6 @@ namespace pylorak.TinyWall
         }
 
         [AllowNull]
-        private static Bitmap _UpdateBtnIcon = null;
-        internal static Bitmap UpdateBtnIcon
-        {
-            get
-            {
-                if (null == _UpdateBtnIcon)
-                    _UpdateBtnIcon = Utils.ScaleImage(Resources.Icons.update, Utils.DpiScalingFactor, Utils.DpiScalingFactor);
-
-                return _UpdateBtnIcon;
-            }
-        }
-
-        [AllowNull]
         private static Bitmap _WebBtnIcon = null;
         internal static Bitmap WebBtnIcon
         {

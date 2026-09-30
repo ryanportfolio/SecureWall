@@ -281,7 +281,6 @@ namespace pylorak.TinyWall
         #endregion
 
         private readonly MouseInterceptor MouseInterceptor = new();
-        private readonly System.Threading.Timer UpdateTimer;
         private readonly System.Windows.Forms.Timer ServiceTimer;
         private readonly System.Windows.Forms.Timer PromptPollTimer;
         private readonly DateTime AppStarted = DateTime.Now;
@@ -352,7 +351,6 @@ namespace pylorak.TinyWall
             Utils.SetRightToLeft(TrayMenu);
             MouseInterceptor.MouseLButtonDown += new MouseInterceptor.MouseHookLButtonDown(MouseInterceptor_MouseLButtonDown);
             TrafficTimer = new System.Threading.Timer(TrafficTimerTick, null, Timeout.Infinite, Timeout.Infinite);
-            UpdateTimer = new System.Threading.Timer(UpdateTimerTick, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(240));
             ServiceTimer = new System.Windows.Forms.Timer(components);
             PromptPollTimer = new System.Windows.Forms.Timer(components)
             {
@@ -395,12 +393,6 @@ namespace pylorak.TinyWall
 
                 using (WaitHandle wh = new AutoResetEvent(false))
                 {
-                    UpdateTimer.Dispose(wh);
-                    wh.WaitOne();
-                }
-
-                using (WaitHandle wh = new AutoResetEvent(false))
-                {
                     TrafficTimer.Dispose(wh);
                     wh.WaitOne();
                 }
@@ -411,34 +403,6 @@ namespace pylorak.TinyWall
             }
 
             base.Dispose(disposing);
-        }
-
-        private void UpdateTimerTick(object state)
-        {
-            if (!SecureWallProduct.UpdateFeedEnabled)
-                return;
-
-            // This is an automatic update check in the background.
-            // If we fail (for whatever reason, no internet, server down etc.), do it silently.
-            try
-            {
-                if (ActiveConfig.Service.AutoUpdateCheck)
-                {
-                    UpdateModule? MainAppModule = FirewallState.Update?.GetModule(UpdateDescriptor.MODULE_NAME_MAINBIN);
-                    if (MainAppModule is null)
-                        return;
-
-                    if (new Version(MainAppModule.ComponentVersion) > new Version(Application.ProductVersion))
-                    {
-                        Utils.Invoke(SyncCtx, (SendOrPostCallback)delegate (object o)
-                        {
-                            string prompt = string.Format(CultureInfo.CurrentCulture, pylorak.TinyWall.Resources.Messages.UpdateAvailableBubble, MainAppModule.ComponentVersion);
-                            ShowBalloonTip(prompt, ToolTipIcon.Info, 5000, StartUpdate, MainAppModule.UpdateURL);
-                        });
-                    }
-                }
-            }
-            catch { }
         }
 
         private async void PromptPollTimerTick(object? sender, EventArgs eventArgs)
@@ -564,11 +528,6 @@ namespace pylorak.TinyWall
                     });
                 }
             }
-        }
-
-        private void StartUpdate(object sender, AnyEventArgs e)
-        {
-            Updater.StartUpdate();
         }
 
         private void mnuQuit_Click(object sender, EventArgs e)
@@ -1419,11 +1378,6 @@ namespace pylorak.TinyWall
                 if (StartupOpts.autowhitelist)
                 {
                     AutoWhitelist();
-                }
-
-                if (StartupOpts.updatenow)
-                {
-                    StartUpdate(this, AnyEventArgs.Empty);
                 }
             }
             else

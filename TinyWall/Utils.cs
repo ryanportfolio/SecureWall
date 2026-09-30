@@ -277,32 +277,6 @@ namespace pylorak.TinyWall
                 return !AppsUseLightTheme();
         }
 
-        internal static void CompressDeflate(string inputFile, string outputFile)
-        {
-            using var inFile = new FileStream(inputFile, FileMode.Open, FileAccess.Read);
-            using var outFile = new FileStream(outputFile, FileMode.Create, FileAccess.Write);
-            using var compressedOutFile = new DeflateStream(outFile, CompressionMode.Compress, true);
-
-            byte[] buffer = new byte[4096];
-            int numRead;
-            while ((numRead = inFile.Read(buffer, 0, buffer.Length)) != 0)
-            {
-                compressedOutFile.Write(buffer, 0, numRead);
-            }
-        }
-
-        internal static void DecompressDeflate(Stream inStream, Stream outStream)
-        {
-            using var decompressor = new DeflateStream(inStream, CompressionMode.Decompress, true);
-
-            byte[] buffer = new byte[4096];
-            int numRead;
-            while ((numRead = decompressor.Read(buffer, 0, buffer.Length)) != 0)
-            {
-                outStream.Write(buffer, 0, numRead);
-            }
-        }
-
         internal static string GetPathOfProcessUseTwService(uint pid, Controller controller)
         {
             // Shortcut for special case

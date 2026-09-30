@@ -15,7 +15,7 @@ Source checks must confirm:
 - Allow is in the password-gated message range;
 - GPL and upstream provenance files exist;
 - runtime service, pipe, task, data directory, installer, executable, and WFP provider identities are SecureWall;
-- upstream binary updates are disabled.
+- product sources contain no update client: no TinyWall feed host, update descriptor, `/updatenow` switch or `WebClient` download; legacy `AutoUpdateCheck` settings still load.
 - the MSI declarations cover staging's runtime and localization lists, including `System.IO.Pipelines.dll`; after tooling is available, compare actual packaged files against every assembly emitted by a clean Release build.
 - both defaults target `INSTALLDIR/data-defaults`; only guarded SYSTEM setup writes machine-data defaults, after full-tree validation: an absent `profiles.json` or `hosts.bck` is created, an identical one is left untouched and a different one is replaced; configuration, password, `hosts.orig` and journals are never written, and MSI has no ProgramData writes/deletes.
 - source and packaged Windows_Update entries retain the exact `wuauserv` outbound TCP service rule and contain no executable-wide allow.

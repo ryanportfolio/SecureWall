@@ -65,7 +65,6 @@ namespace pylorak.TinyWall
             this.btnSubmitAssoc.Image = GlobalInstances.SubmitBtnIcon;
             this.btnImport.Image = GlobalInstances.ImportBtnIcon;
             this.btnExport.Image = GlobalInstances.ExportBtnIcon;
-            this.btnUpdate.Image = GlobalInstances.UpdateBtnIcon;
             this.btnWeb.Image = GlobalInstances.WebBtnIcon;
             this.btnDonate.BackgroundImage = Resources.Icons.donate;
 
@@ -153,8 +152,6 @@ namespace pylorak.TinyWall
             {
                 // General page
                 chkEnableDiagnosticLogging.Checked = TmpConfig.Service.EnableDiagnosticLogging;
-                btnUpdate.Enabled = SecureWallProduct.UpdateFeedEnabled;
-                btnUpdate.Visible = SecureWallProduct.UpdateFeedEnabled;
                 btnWeb.Visible = false;
                 btnDonate.Visible = false;
                 label10.Visible = false;
@@ -377,8 +374,6 @@ namespace pylorak.TinyWall
             // Save settings
             TmpConfig.Controller.AskForExceptionDetails = chkAskForExceptionDetails.Checked;
             TmpConfig.Controller.EnableGlobalHotkeys = false;
-            // Retain the legacy import field, but never enable an unavailable update feed.
-            TmpConfig.Service.AutoUpdateCheck = false;
             TmpConfig.Service.EnableDiagnosticLogging = chkEnableDiagnosticLogging.Checked;
             TmpConfig.Controller.SettingsTabIndex = tabControl1.SelectedIndex;
             TmpConfig.Service.LockHostsFile = chkLockHostsFile.Checked;
@@ -500,12 +495,6 @@ namespace pylorak.TinyWall
                 return;
 
             btnAppModify_Click(this, EventArgs.Empty);
-        }
-
-        private void btnUpdate_Click(object sender, EventArgs e)
-        {
-            if (SecureWallProduct.UpdateFeedEnabled)
-                Updater.StartUpdate();
         }
 
         private void btnAppAutoDetect_Click(object sender, EventArgs e)

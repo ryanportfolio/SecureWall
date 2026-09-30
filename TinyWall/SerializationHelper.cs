@@ -57,7 +57,6 @@ namespace pylorak.TinyWall
     [JsonSerializable(typeof(FirewallExceptionV3))]
     [JsonSerializable(typeof(ServerConfiguration))]
     [JsonSerializable(typeof(ControllerSettings))]
-    [JsonSerializable(typeof(UpdateDescriptor))]
     [JsonSerializable(typeof(ConfigContainer))]
     [JsonSerializable(typeof(ServerState))]
     [JsonSerializable(typeof(DatabaseClasses.SubjectIdentity))]
@@ -215,9 +214,6 @@ namespace pylorak.TinyWall
             typeof(RuleDef),
             typeof(List<RuleDef>),
             typeof(FirewallExceptionV3),
-
-            typeof(UpdateModule),
-            typeof(UpdateDescriptor),
         };
         
         [Obsolete("XML serializer kept around for importing pre-3.0 configs.")]

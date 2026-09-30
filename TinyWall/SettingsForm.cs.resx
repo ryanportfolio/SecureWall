@@ -219,9 +219,6 @@
   <data name="groupBox2.Text" xml:space="preserve">
     <value>O aplikaci</value>
   </data>
-  <data name="btnUpdate.Text" xml:space="preserve">
-    <value>Aktualizovat</value>
-  </data>
   <data name="btnWeb.Text" xml:space="preserve">
     <value>Navštívit web</value>
   </data>

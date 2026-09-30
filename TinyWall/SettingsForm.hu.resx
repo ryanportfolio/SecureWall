@@ -234,9 +234,6 @@
   <data name="label6.Text" xml:space="preserve">
     <value>Minden jog fentartva.</value>
   </data>
-  <data name="btnUpdate.Text" xml:space="preserve">
-    <value>Frissítés</value>
-  </data>
   <data name="btnWeb.Text" xml:space="preserve">
     <value>Honlap megtekintése</value>
   </data>
