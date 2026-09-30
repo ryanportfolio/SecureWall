@@ -165,6 +165,72 @@ namespace pylorak.Windows.Services
             }
         }
 
+        private const ServiceConfig2InfoLevel SERVICE_CONFIG_FAILURE_ACTIONS_FLAG = (ServiceConfig2InfoLevel)4;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct SERVICE_FAILURE_ACTIONS_FLAG
+        {
+            internal int fFailureActionsOnNonCrashFailures;
+        }
+
+        /// <summary>
+        /// Restarts the service after each failure, using restartDelays in order and repeating
+        /// the last delay. The failure count resets after resetPeriod without failures. A
+        /// service that reports SERVICE_STOPPED with a nonzero exit code also counts as failed.
+        /// </summary>
+        [SecurityPermission(SecurityAction.LinkDemand, UnmanagedCode = true)]
+        public void SetRestartOnFailure(string serviceName, TimeSpan[] restartDelays, TimeSpan resetPeriod)
+        {
+            if (restartDelays == null || restartDelays.Length == 0)
+                throw new ArgumentException("At least one restart action is required.", nameof(restartDelays));
+            // Zero and INFINITE have special meanings; require an explicit finite period.
+            if (resetPeriod < TimeSpan.FromSeconds(1) || resetPeriod.TotalSeconds >= uint.MaxValue)
+                throw new ArgumentOutOfRangeException(nameof(resetPeriod));
+            int SC_ACTION_SIZE = Marshal.SizeOf<SC_ACTION>();
+
+            using var service = OpenService(
+                serviceName,
+                ServiceAccessRights.SERVICE_CHANGE_CONFIG |
+                ServiceAccessRights.SERVICE_START);
+
+            using var actionPtr = SafeHGlobalHandle.Alloc(SC_ACTION_SIZE * restartDelays.Length);
+            for (int i = 0; i < restartDelays.Length; ++i)
+            {
+                if (restartDelays[i] < TimeSpan.Zero || restartDelays[i].TotalMilliseconds >= uint.MaxValue)
+                    throw new ArgumentOutOfRangeException(nameof(restartDelays));
+                var action = new SC_ACTION { Type = SC_ACTION_TYPE.SC_ACTION_RESTART, Delay = (uint)restartDelays[i].TotalMilliseconds };
+                actionPtr.MarshalFromStruct(action, i * SC_ACTION_SIZE);
+            }
+
+            var failureActions = new SERVICE_FAILURE_ACTIONS
+            {
+                dwResetPeriod = (uint)resetPeriod.TotalSeconds,
+                cActions = (uint)restartDelays.Length,
+                lpsaActions = actionPtr.DangerousGetHandle(),
+                lpRebootMsg = null,
+                lpCommand = null
+            };
+            using var failureActionsPtr = SafeHGlobalHandle.FromManagedStruct(failureActions);
+            if (!NativeMethods.ChangeServiceConfig2(
+                service,
+                ServiceConfig2InfoLevel.SERVICE_CONFIG_FAILURE_ACTIONS,
+                failureActionsPtr.DangerousGetHandle()))
+            {
+                var err_code = Marshal.GetLastWin32Error();
+                throw new Win32Exception(err_code, $"ChangeServiceConfig2 failed with error {err_code}.");
+            }
+
+            using var flagPtr = SafeHGlobalHandle.FromManagedStruct(new SERVICE_FAILURE_ACTIONS_FLAG { fFailureActionsOnNonCrashFailures = 1 });
+            if (!NativeMethods.ChangeServiceConfig2(
+                service,
+                SERVICE_CONFIG_FAILURE_ACTIONS_FLAG,
+                flagPtr.DangerousGetHandle()))
+            {
+                var err_code = Marshal.GetLastWin32Error();
+                throw new Win32Exception(err_code, $"ChangeServiceConfig2 (failure actions flag) failed with error {err_code}.");
+            }
+        }
+
         [SecurityPermission(SecurityAction.LinkDemand, UnmanagedCode = true)]
         public void SetStartupMode(string serviceName, ServiceStartMode mode)
         {

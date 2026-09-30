@@ -475,7 +475,8 @@ namespace pylorak.TinyWall
             {
                 using var scm = new ServiceControlManager();
                 scm.SetStartupMode(TinyWallService.SERVICE_NAME, ServiceStartMode.Automatic);
-                scm.SetRestartOnFailure(TinyWallService.SERVICE_NAME, true);
+                scm.SetRestartOnFailure(TinyWallService.SERVICE_NAME,
+                    ServiceLifecyclePolicy.RestartDelays, ServiceLifecyclePolicy.RestartResetPeriod);
             }
             catch (System.ComponentModel.Win32Exception e)
             {
