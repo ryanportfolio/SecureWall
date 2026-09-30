@@ -67,6 +67,7 @@ internal static class Program
             .Concat(LifecycleHardeningTests.Cases)
             .Concat(ControllerHardeningTests.Cases)
             .Concat(NetEventParsingTests.Cases)
+            .Concat(WfpWrapperTests.Cases)
             .Concat(AtomicFileWriterTests.Cases)
             .Concat(AuditPolicyLeaseTests.Cases)
             .Concat(HostsRestorationTests.Cases)
