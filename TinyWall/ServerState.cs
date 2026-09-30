@@ -65,6 +65,7 @@ namespace pylorak.TinyWall
         public bool AttributionAvailable = false;
         public long DroppedPromptCandidates = 0;
         public long DroppedPrompts = 0;
+        public Prompting.ServiceHealthWarning HealthWarnings = Prompting.ServiceHealthWarning.None;
         public List<MessageType> ClientNotifs = new();
 
         public JsonTypeInfo<ServerState> GetJsonTypeInfo()

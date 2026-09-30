@@ -304,6 +304,7 @@ namespace pylorak.TinyWall
         private PromptDisplayCoordinator? PromptCoordinator;
         private int PromptPollInFlight;
         private readonly AttributionNotificationGate AttributionNotifications = new();
+        private readonly ServiceHealthNotificationGate HealthNotifications = new();
         private bool ControllerDisposing;
 
         private bool m_Locked;
@@ -466,6 +467,9 @@ namespace pylorak.TinyWall
                         FirewallState.DroppedPrompts = poll.State.DroppedPrompts;
                         string? diagnostic = AttributionNotifications.Update(poll.State.AttributionAvailable,
                             poll.State.DroppedPromptCandidates, poll.State.DroppedPrompts, DateTimeOffset.UtcNow);
+                        FirewallState.HealthWarnings = poll.State.HealthWarnings;
+                        // One balloon per poll; a pending health warning shows on the next poll.
+                        if (diagnostic == null) diagnostic = HealthNotifications.Update(poll.State.HealthWarnings);
                         if (diagnostic != null) ShowBalloonTip(diagnostic, ToolTipIcon.Warning, 10000);
                     }
                 }

@@ -80,7 +80,8 @@ internal static class Program
         tests = tests.Concat(RuntimeJournalTests.Cases).Concat(RuntimeDiagnosticCoverageTests.Cases)
             .Concat(WfpCoexistenceTests.Cases)
             .Concat(ProtectionReleaseTests.Cases)
-            .Concat(ServiceRecoveryTests.Cases).ToArray();
+            .Concat(ServiceRecoveryTests.Cases)
+            .Concat(ServiceStartupRobustnessTests.Cases).ToArray();
         var failed = 0;
 
         foreach (var (name, test) in tests)

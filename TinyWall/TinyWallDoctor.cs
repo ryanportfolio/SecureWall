@@ -80,7 +80,7 @@ namespace pylorak.TinyWall
                 {
                     if (!ServiceExists())
                         ManagedInstallerClass.InstallHelper(new string[] { "/i", Utils.ExecutablePath });
-                    EnsureHealth(logContext);
+                    EnsureHealth(logContext, strictGuards: true);
                 }
 
                 // Controllers only start an existing authenticated service.
@@ -451,10 +451,22 @@ namespace pylorak.TinyWall
             return succeeded;
         }
 
-        internal static void EnsureHealth(string logContext)
+        // Install and repair callers pass strictGuards: true and refuse on a guard failure.
+        // The running service passes false after its policy committed: it logs the failure,
+        // skips the privileged repairs below, and returns false so the controller is warned.
+        internal static bool EnsureHealth(string logContext, bool strictGuards)
         {
-            InstallationSafety.RequireNoTinyWall();
-            InstallationSafety.RequireProtectedInstallation();
+            try
+            {
+                InstallationSafety.RequireNoTinyWall();
+                InstallationSafety.RequireProtectedInstallation();
+            }
+            catch (Exception e) when (!strictGuards)
+            {
+                Utils.Log("Installation safety check failed after service start. Enforcement continues with the committed policy; service and controller registration were not refreshed.", logContext);
+                Utils.LogException(e, logContext);
+                return false;
+            }
             // Ensure that TinyWall's dependencies can be started
             try
             {
@@ -524,6 +536,7 @@ namespace pylorak.TinyWall
             {
                 Utils.LogException(e, logContext);
             }
+            return true;
         }
 
         private static void EnsureServiceDependencies()

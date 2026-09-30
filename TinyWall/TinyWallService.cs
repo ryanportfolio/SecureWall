@@ -364,12 +364,10 @@ namespace pylorak.TinyWall
                     }
                 }
 
-                // Built-in protections
+                // Built-in protections. WSL filters belong to the full reload only;
+                // incremental child-rule calls must not add another copy.
                 if (PolicyMode != FirewallMode.Disabled)
-                {
                     InstallRawSocketPermits(rawSocketExceptions);
-                    InstallWsl2Filters(EnforcementPolicy.OptionalPermitEnabled(PolicyMode == FirewallMode.BlockAll, PolicyConfiguration.ActiveProfile.HasSpecialException("WSL_2")));
-                }
 
                 trx?.Commit();
                 if (useTransaction)
@@ -432,6 +430,8 @@ namespace pylorak.TinyWall
                         InstallRawSocketBlocks();
                     }
                     List<ulong> newPromptableFilterIds = InstallRules(rules, rawSocketExceptions, false);
+                    if (PolicyMode != FirewallMode.Disabled)
+                        InstallWsl2Filters(EnforcementPolicy.OptionalPermitEnabled(PolicyMode == FirewallMode.BlockAll, PolicyConfiguration.ActiveProfile.HasSpecialException("WSL_2")));
                     trx.Commit();
                     committed = true;
                     LastInstallCommitted = true;
@@ -906,23 +906,60 @@ namespace pylorak.TinyWall
             InstallWfpFilter(f, FilterGroup.RawSocket);
         }
 
+        private static readonly LayerKeyEnum[] Wsl2Layers =
+        {
+            LayerKeyEnum.FWPM_LAYER_ALE_AUTH_CONNECT_V4,
+            LayerKeyEnum.FWPM_LAYER_ALE_AUTH_CONNECT_V6,
+            LayerKeyEnum.FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4,
+            LayerKeyEnum.FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6,
+            LayerKeyEnum.FWPM_LAYER_OUTBOUND_ICMP_ERROR_V4,
+            LayerKeyEnum.FWPM_LAYER_OUTBOUND_ICMP_ERROR_V6,
+            LayerKeyEnum.FWPM_LAYER_INBOUND_ICMP_ERROR_V4,
+            LayerKeyEnum.FWPM_LAYER_INBOUND_ICMP_ERROR_V6,
+        };
+
+        private string LastWsl2Report = string.Empty;
+
+        // Called once per full reload. Permits are optional and never abort the policy
+        // transaction; block registration failures still do (see Wsl2AdapterPolicy).
         private void InstallWsl2Filters(bool permit)
         {
-            const string ifAlias = "vEthernet (WSL)";
-            if (LocalInterfaceCondition.InterfaceAliasExists(ifAlias))
+            var report = new List<string>();
+            var adapters = new List<(string Alias, ulong Luid)>();
+            try
             {
-                InstallWsl2Filters(permit, ifAlias, LayerKeyEnum.FWPM_LAYER_ALE_AUTH_CONNECT_V4);
-                InstallWsl2Filters(permit, ifAlias, LayerKeyEnum.FWPM_LAYER_ALE_AUTH_CONNECT_V6);
-                InstallWsl2Filters(permit, ifAlias, LayerKeyEnum.FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4);
-                InstallWsl2Filters(permit, ifAlias, LayerKeyEnum.FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6);
-                InstallWsl2Filters(permit, ifAlias, LayerKeyEnum.FWPM_LAYER_OUTBOUND_ICMP_ERROR_V4);
-                InstallWsl2Filters(permit, ifAlias, LayerKeyEnum.FWPM_LAYER_OUTBOUND_ICMP_ERROR_V6);
-                InstallWsl2Filters(permit, ifAlias, LayerKeyEnum.FWPM_LAYER_INBOUND_ICMP_ERROR_V4);
-                InstallWsl2Filters(permit, ifAlias, LayerKeyEnum.FWPM_LAYER_INBOUND_ICMP_ERROR_V6);
+                foreach (var entry in LocalInterfaceCondition.EnumerateInterfaces())
+                {
+                    Wsl2AdapterKind kind = Wsl2AdapterPolicy.Classify(entry.Alias);
+                    if (kind == Wsl2AdapterKind.Wsl)
+                        adapters.Add(entry);
+                    else if (kind == Wsl2AdapterKind.UnrecognizedWsl)
+                        report.Add("Adapter '" + entry.Alias + "' looks like WSL but is not a known WSL 2 NAT adapter; no WSL filters apply to it.");
+                }
+            }
+            catch (Exception exception) when (permit)
+            {
+                report.Add("WSL 2 adapter discovery failed (0x" + exception.HResult.ToString("X8") + "); the WSL_2 permit was not installed.");
+                adapters.Clear();
+            }
+
+            Wsl2AdapterPolicy.Install(adapters, permit,
+                adapter => { foreach (LayerKeyEnum layer in Wsl2Layers) InstallWsl2Filters(permit, adapter.Luid, layer); },
+                (adapter, exception) => report.Add("Could not install the WSL 2 permit for adapter '" + adapter.Alias + "' (0x" + exception.HResult.ToString("X8") + "); WSL traffic on it stays under the remaining policy."));
+            if (permit && adapters.Count == 0 && report.Count == 0)
+                report.Add("The WSL_2 exception is enabled but no WSL 2 NAT adapter was found. WSL may be stopped or using mirrored networking; no WSL permit was installed.");
+
+            // Reloads are frequent; log only when the outcome changes.
+            string summary = string.Join(Environment.NewLine, report);
+            if (summary != LastWsl2Report)
+            {
+                LastWsl2Report = summary;
+                if (summary.Length != 0)
+                    Utils.Log(summary, Utils.LOG_ID_SERVICE);
             }
         }
 
-        private void InstallWsl2Filters(bool permit, string ifAlias, LayerKeyEnum layer)
+        private void InstallWsl2Filters(bool permit, ulong interfaceLuid, LayerKeyEnum layer)
         {
             FilterActions action = permit ? FilterActions.FWP_ACTION_PERMIT : FilterActions.FWP_ACTION_BLOCK;
             ulong weight = (ulong)(permit ? FilterWeights.UserPermit : FilterWeights.UserBlock);
@@ -936,7 +973,7 @@ namespace pylorak.TinyWall
             );
             f.LayerKey = GetLayerKey(layer);
             f.SublayerKey = GetSublayerKey(layer);
-            f.Conditions.Add(new LocalInterfaceCondition(ifAlias));
+            f.Conditions.Add(new LocalInterfaceCondition(interfaceLuid));
 
             InstallWfpFilter(f, permit ? FilterGroup.Unknown : FilterGroup.User);
         }
@@ -1339,12 +1376,22 @@ namespace pylorak.TinyWall
         private void ReapplySettings()
         {
             using var timer = new HierarchicalStopwatch("ReapplySettings()");
-            HostsFileManager.EnableProtection = PolicyConfiguration.LockHostsFile;
+            // Hosts locking is best-effort and must never gate WFP enforcement.
+            bool lockHosts = PolicyConfiguration.LockHostsFile;
+            bool protectionApplied = HostsFileManager.TryApplyProtection(lockHosts, out Exception? protectionError);
+            if (protectionError != null)
+            {
+                Utils.Log("Could not apply hosts file protection. Firewall enforcement continues without it.", Utils.LOG_ID_SERVICE);
+                Utils.LogException(protectionError, Utils.LOG_ID_SERVICE);
+            }
             if (PolicyConfiguration.Blocklists.EnableBlocklists
                 && PolicyConfiguration.Blocklists.EnableHostsBlocklist)
                 HostsFileManager.EnableHostsFile();
             else
                 HostsFileManager.DisableHostsFile();
+            // Hosts content changes relock best-effort; a lost lock clears EnableProtection.
+            VisibleState.HealthWarnings = ServiceHealthPolicy.Set(VisibleState.HealthWarnings, ServiceHealthWarning.HostsProtection,
+                lockHosts && (!protectionApplied || !HostsFileManager.EnableProtection));
             EffectiveHostsBlocklist = PolicyConfiguration.Blocklists.EnableBlocklists && PolicyConfiguration.Blocklists.EnableHostsBlocklist;
             Diagnostics.Emit(RuntimeEvent.hosts_blocklist_state, EffectiveHostsBlocklist ? RuntimeResult.enabled : RuntimeResult.disabled);
         }
@@ -2393,8 +2440,11 @@ namespace pylorak.TinyWall
             Diagnostics.SetAuditAvailable(LogWatcher.AuditEnrichmentAvailable);
             Diagnostics.Emit(RuntimeEvent.service_ready, RuntimeResult.success);
 #if !DEBUG
-            // Basic software health checks
-            TinyWallDoctor.EnsureHealth(Utils.LOG_ID_SERVICE);
+            // Basic software health checks. Policy has committed: a guard failure here is
+            // logged and shown in the controller, never thrown (that would withdraw policy
+            // and stop the service). Start-up and install paths refuse before this point.
+            if (!TinyWallDoctor.EnsureHealth(Utils.LOG_ID_SERVICE, strictGuards: false))
+                VisibleState.HealthWarnings = ServiceHealthPolicy.Set(VisibleState.HealthWarnings, ServiceHealthWarning.InstallationGuard, true);
 #endif
 
             MinuteTimer.Change(60000, 60000);
