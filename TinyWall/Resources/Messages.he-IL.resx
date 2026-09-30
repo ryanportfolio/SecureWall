@@ -193,10 +193,6 @@
     <value>נעילה</value>
     <comment>Tray menu text</comment>
   </data>
-  <data name="UpdateAvailableBubble" xml:space="preserve">
-    <value>גרסה חדשה {0} של SecureWall זמינה להורדה. ניתן ללחוץ כאן לעדכון.</value>
-    <comment>Param0 is version number of new version</comment>
-  </data>
   <data name="TheFirewallIsNowOperatingAsRecommended" xml:space="preserve">
     <value>חומת-האש פועלת כעת באופן המומלץ ביותר.</value>
   </data>

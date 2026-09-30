@@ -183,9 +183,6 @@
   <data name="Lock" xml:space="preserve">
     <value>Sperren</value>
   </data>
-  <data name="UpdateAvailableBubble" xml:space="preserve">
-    <value>Eine neue Version {0} von SecureWall ist verfügbar. Klicken Sie hier um die Aktualisierung zu starten.</value>
-  </data>
   <data name="TheFirewallIsNowOperatingAsRecommended" xml:space="preserve">
     <value>Die Firewall befindet sich im empfohlenen Modus.</value>
   </data>

@@ -191,10 +191,6 @@ Sélectionnez Élever dans le menu et réessayez.</value>
     <value>Verrouiller</value>
     <comment>Tray menu text</comment>
   </data>
-  <data name="UpdateAvailableBubble" xml:space="preserve">
-    <value>Une nouvelle version {0} de SecureWall est disponible. Cliquez sur cette bulle pour démarrer la mise à jour.</value>
-    <comment>Param0 is version number of new version</comment>
-  </data>
   <data name="TheFirewallIsNowOperatingAsRecommended" xml:space="preserve">
     <value>Le pare-feu est désormais configuré avec le mode recommandé.</value>
   </data>

@@ -188,9 +188,6 @@ Zvolte Navýšit v tray menu a akci zkuste znovu.</value>
   <data name="Lock" xml:space="preserve">
     <value>Zamknout</value>
   </data>
-  <data name="UpdateAvailableBubble" xml:space="preserve">
-    <value>Novější verze {0} aplikace SecureWall je dostupná. Klikněte na tuto bublinu pro zahájení aktualizace.</value>
-  </data>
   <data name="TheFirewallIsNowOperatingAsRecommended" xml:space="preserve">
     <value>Firewall nyní běží v doporučeném módu.</value>
   </data>

@@ -191,9 +191,6 @@ Selezionare Eleva dal menu, quindi riprovare.
   <data name="Lock" xml:space="preserve">
     <value>Blocca</value>
   </data>
-  <data name="UpdateAvailableBubble" xml:space="preserve">
-    <value>La versione aggiornata {0} di SecureWall è disponibile, clicca questo fumetto per aggiornare.</value>
-  </data>
   <data name="TheFirewallIsNowOperatingAsRecommended" xml:space="preserve">
     <value>Il firewall sta operando nella configurazione raccomandata.</value>
   </data>

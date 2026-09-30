@@ -193,10 +193,6 @@
     <value>Bloquear</value>
     <comment>Tray menu text</comment>
   </data>
-  <data name="UpdateAvailableBubble" xml:space="preserve">
-    <value>Saiu uma nova versão do SecureWall {0}. Clique neste balão se quiser iniciar a atualização.</value>
-    <comment>Param0 is version number of new version</comment>
-  </data>
   <data name="TheFirewallIsNowOperatingAsRecommended" xml:space="preserve">
     <value>Agora, o firewall está operando no modo recomendado.</value>
   </data>

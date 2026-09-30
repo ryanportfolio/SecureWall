@@ -178,10 +178,6 @@ Kies verhoogde rechten vanuit het tray menu en probeer opnieuw.</value>
     <value>Vrij geven</value>
     <comment>Tray menu text</comment>
   </data>
-  <data name="UpdateAvailableBubble" xml:space="preserve">
-    <value>Een nieuwere versie {0} van SecureWall is beschikbaar. Click deze melding om het update proces op te starten.</value>
-    <comment>Param0 is version number of new version</comment>
-  </data>
   <data name="TheFirewallIsNowOperatingAsRecommended" xml:space="preserve">
     <value>De firewall is nu in aanbevolen modus.</value>
   </data>

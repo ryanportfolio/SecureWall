@@ -276,42 +276,6 @@
   <data name="&gt;&gt;btnAppAutoDetect.ZOrder" xml:space="preserve">
     <value>2</value>
   </data>
-  <data name="btnSubmitAssoc.Anchor" type="System.Windows.Forms.AnchorStyles, System.Windows.Forms">
-    <value>Top, Right</value>
-  </data>
-  <data name="btnSubmitAssoc.Enabled" type="System.Boolean, mscorlib">
-    <value>False</value>
-  </data>
-  <data name="btnSubmitAssoc.FlatStyle" type="System.Windows.Forms.FlatStyle, System.Windows.Forms">
-    <value>Flat</value>
-  </data>
-  <data name="btnSubmitAssoc.ImageAlign" type="System.Drawing.ContentAlignment, System.Drawing">
-    <value>MiddleLeft</value>
-  </data>
-  <data name="btnSubmitAssoc.Location" type="System.Drawing.Point, System.Drawing">
-    <value>566, 290</value>
-  </data>
-  <data name="btnSubmitAssoc.Size" type="System.Drawing.Size, System.Drawing">
-    <value>127, 36</value>
-  </data>
-  <data name="btnSubmitAssoc.TabIndex" type="System.Int32, mscorlib">
-    <value>7</value>
-  </data>
-  <data name="btnSubmitAssoc.Text" xml:space="preserve">
-    <value>Submit</value>
-  </data>
-  <data name="&gt;&gt;btnSubmitAssoc.Name" xml:space="preserve">
-    <value>btnSubmitAssoc</value>
-  </data>
-  <data name="&gt;&gt;btnSubmitAssoc.Type" xml:space="preserve">
-    <value>System.Windows.Forms.Button, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;btnSubmitAssoc.Parent" xml:space="preserve">
-    <value>tabPage3</value>
-  </data>
-  <data name="&gt;&gt;btnSubmitAssoc.ZOrder" xml:space="preserve">
-    <value>3</value>
-  </data>
   <data name="label3.Anchor" type="System.Windows.Forms.AnchorStyles, System.Windows.Forms">
     <value>Top, Left, Right</value>
   </data>
@@ -1379,42 +1343,6 @@
   </data>
   <data name="&gt;&gt;lblLinkAttributions.ZOrder" xml:space="preserve">
     <value>0</value>
-  </data>
-  <data name="btnDonate.AccessibleDescription" xml:space="preserve">
-    <value>Donate</value>
-  </data>
-  <data name="btnDonate.AccessibleName" xml:space="preserve">
-    <value>Donation</value>
-  </data>
-  <data name="btnDonate.Anchor" type="System.Windows.Forms.AnchorStyles, System.Windows.Forms">
-    <value>Top, Bottom, Left, Right</value>
-  </data>
-  <data name="btnDonate.BackgroundImageLayout" type="System.Windows.Forms.ImageLayout, System.Windows.Forms">
-    <value>Zoom</value>
-  </data>
-  <data name="btnDonate.Location" type="System.Drawing.Point, System.Drawing">
-    <value>375, 79</value>
-  </data>
-  <data name="btnDonate.Size" type="System.Drawing.Size, System.Drawing">
-    <value>92, 26</value>
-  </data>
-  <data name="btnDonate.SizeMode" type="System.Windows.Forms.PictureBoxSizeMode, System.Windows.Forms">
-    <value>Zoom</value>
-  </data>
-  <data name="btnDonate.TabIndex" type="System.Int32, mscorlib">
-    <value>8</value>
-  </data>
-  <data name="&gt;&gt;btnDonate.Name" xml:space="preserve">
-    <value>btnDonate</value>
-  </data>
-  <data name="&gt;&gt;btnDonate.Type" xml:space="preserve">
-    <value>System.Windows.Forms.PictureBox, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;btnDonate.Parent" xml:space="preserve">
-    <value>groupBox2</value>
-  </data>
-  <data name="&gt;&gt;btnDonate.ZOrder" xml:space="preserve">
-    <value>1</value>
   </data>
   <data name="lblLinkLicense.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>

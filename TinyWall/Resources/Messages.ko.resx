@@ -195,10 +195,6 @@
     <value>잠금</value>
     <comment>Tray menu text</comment>
   </data>
-  <data name="UpdateAvailableBubble" xml:space="preserve">
-    <value>SecureWall의 새 버전 {0} 사용 가능! 업데이트 작업을 시작하려면 이 버블을 누르세요.</value>
-    <comment>Param0 is version number of new version</comment>
-  </data>
   <data name="TheFirewallIsNowOperatingAsRecommended" xml:space="preserve">
     <value>방화벽이 현재 권장 모드로 작동 중입니다.</value>
   </data>

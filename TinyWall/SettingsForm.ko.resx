@@ -132,9 +132,6 @@
   <data name="btnAppAutoDetect.Text" xml:space="preserve">
     <value>감지</value>
   </data>
-  <data name="btnSubmitAssoc.Text" xml:space="preserve">
-    <value>전송</value>
-  </data>
   <data name="label3.Text" xml:space="preserve">
     <value>이 목록에 추가된 응용 프로그램만 인터넷 통신이 가능합니다. 여기에서 네트워크 액세스 권한을 부여하려는 프로그램을 추가/제거하여 관리합니다. 검색 버튼을 사용하여 SecureWall이 일부 소프트웨어를 자동으로 감지하거나 응용 프로그램들을 수동으로 추가할 수 있습니다. ('유지 관리' 탭에서 설정 백업 가능)</value>
   </data>
@@ -206,9 +203,6 @@
   </data>
   <data name="btnExport.Text" xml:space="preserve">
     <value>설정 내보내기</value>
-  </data>
-  <data name="btnDonate.AccessibleName" xml:space="preserve">
-    <value>기부하기</value>
   </data>
   <data name="lblLinkLicense.Text" xml:space="preserve">
     <value>라이센스</value>

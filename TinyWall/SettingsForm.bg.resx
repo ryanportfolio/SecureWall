@@ -132,9 +132,6 @@
   <data name="btnAppAutoDetect.Text" xml:space="preserve">
     <value>Засечи</value>
   </data>
-  <data name="btnSubmitAssoc.Text" xml:space="preserve">
-    <value>Приеми</value>
-  </data>
   <data name="label3.Text" xml:space="preserve">
     <value>Редактирайте списъка с приложения, на които е разрешен достъп до мрежата. Само приложения в списъка ще могат да комуникират. Използвайте бутона "Засечи" за да позволите на SecureWall да открие даден софтуер или да добавете приложения ръчно.</value>
   </data>
@@ -218,9 +215,6 @@
   </data>
   <data name="lblLinkAttributions.Text" xml:space="preserve">
     <value>Разработчик</value>
-  </data>
-  <data name="btnDonate.AccessibleName" xml:space="preserve">
-    <value>Дарение</value>
   </data>
   <data name="lblLinkLicense.Text" xml:space="preserve">
     <value>Лиценз</value>

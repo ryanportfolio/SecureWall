@@ -64,6 +64,28 @@ namespace pylorak.TinyWall
             [DllImport("User32.dll", SetLastError = true)]
             internal static extern int GetSystemMetrics(int nIndex);
 
+            [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+            internal struct SHSTOCKICONINFO
+            {
+                public uint cbSize;
+                public IntPtr hIcon;
+                public int iSysImageIndex;
+                public int iIcon;
+                [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+                public string szPath;
+            }
+
+            internal const uint SIID_SHIELD = 77;
+            internal const uint SHGSI_ICON = 0x100;
+            internal const uint SHGSI_SMALLICON = 0x1;
+
+            [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+            internal static extern int SHGetStockIconInfo(uint siid, uint uFlags, ref SHSTOCKICONINFO psii);
+
+            [DllImport("user32.dll", SetLastError = true)]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            internal static extern bool DestroyIcon(IntPtr hIcon);
+
             [DllImport("kernel32.dll", SetLastError = true)]
             [return: MarshalAs(UnmanagedType.Bool)]
             internal static extern bool GetNamedPipeClientProcessId(IntPtr Pipe, out ulong ClientProcessId);
@@ -555,6 +577,42 @@ namespace pylorak.TinyWall
                 float scale = Math.Min((float)targetWidth / icon.Width, (float)targetHeight / icon.Height);
                 return Utils.ScaleImage(bmp, (int)Math.Round(scale * icon.Width), (int)Math.Round(scale * icon.Height));
             }
+        }
+
+        // Picks the .ico entry that matches the system small-icon size (16, 20 or 24 px at
+        // 100, 125 or 150% DPI) instead of the 32 px entry a resource Icon defaults to.
+        internal static Icon LoadSmallIcon(Icon source)
+        {
+            using (source)
+                return new Icon(source, SystemInformation.SmallIconSize);
+        }
+
+        internal static Bitmap LoadSmallIconBitmap(Icon source)
+        {
+            using var icon = LoadSmallIcon(source);
+            return icon.ToBitmap();
+        }
+
+        // The Windows UAC shield from the shell at the small-icon size; SystemIcons.Shield as a fallback.
+        internal static Bitmap LoadStockShieldBitmap()
+        {
+            var info = new SafeNativeMethods.SHSTOCKICONINFO();
+            info.cbSize = (uint)Marshal.SizeOf(typeof(SafeNativeMethods.SHSTOCKICONINFO));
+            int hr = SafeNativeMethods.SHGetStockIconInfo(SafeNativeMethods.SIID_SHIELD, SafeNativeMethods.SHGSI_ICON | SafeNativeMethods.SHGSI_SMALLICON, ref info);
+            if ((hr == 0) && (info.hIcon != IntPtr.Zero))
+            {
+                try
+                {
+                    using var icon = Icon.FromHandle(info.hIcon);
+                    return icon.ToBitmap();
+                }
+                finally
+                {
+                    SafeNativeMethods.DestroyIcon(info.hIcon);
+                }
+            }
+
+            return LoadSmallIconBitmap((Icon)SystemIcons.Shield.Clone());
         }
 
         private static float? _DpiScalingFactor;

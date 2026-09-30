@@ -132,9 +132,6 @@
   <data name="btnAppAutoDetect.Text" xml:space="preserve">
     <value>Виявити</value>
   </data>
-  <data name="btnSubmitAssoc.Text" xml:space="preserve">
-    <value>Надіслати</value>
-  </data>
   <data name="label3.Text" xml:space="preserve">
     <value>Редагуйте список програм, яким ви хочете надати доступ до мережі. Лише програми з цього списку зможуть обмінюватися даними. Використовуйте кнопку «Виявити», щоб SecureWall автоматично знайшов деякі програми, або додайте їх вручну.</value>
   </data>
@@ -224,9 +221,6 @@
   </data>
   <data name="lblLinkAttributions.Text" xml:space="preserve">
     <value>Подяки</value>
-  </data>
-  <data name="btnDonate.AccessibleName" xml:space="preserve">
-    <value>Пожертва</value>
   </data>
   <data name="lblLinkLicense.Text" xml:space="preserve">
     <value>Ліцензія</value>

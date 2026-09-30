@@ -190,10 +190,6 @@
     <value>Lezár</value>
     <comment>Tray menu text</comment>
   </data>
-  <data name="UpdateAvailableBubble" xml:space="preserve">
-    <value>A SecureWall egy újabb verziója {0} elérhető. Kattints erre a buborékra a frissítéshez.</value>
-    <comment>Param0 is version number of new version</comment>
-  </data>
   <data name="TheFirewallIsNowOperatingAsRecommended" xml:space="preserve">
     <value>A tűzfal jelenleg az ajánlott módban működik.</value>
   </data>

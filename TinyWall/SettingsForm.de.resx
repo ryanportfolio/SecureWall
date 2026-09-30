@@ -129,9 +129,6 @@
   <data name="btnAppAutoDetect.Text" xml:space="preserve">
     <value>Erkennen</value>
   </data>
-  <data name="btnSubmitAssoc.Text" xml:space="preserve">
-    <value>Senden</value>
-  </data>
   <data name="label3.Text" xml:space="preserve">
     <value>Editieren Sie die Liste der Anwendungen, denen Sie Zugriff zum Netzwerk erlauben. Nur Anwendungen von dieser Liste dürfen im Netzwerk kommunizieren. Benutzen Sie den Erkennen-Knopf, damit SecureWall diese Anwendungen erkennt oder fügen Sie die Anwendungen selber hinzu.</value>
   </data>
@@ -212,9 +209,6 @@
   </data>
   <data name="btnExport.Text" xml:space="preserve">
     <value>Exportieren</value>
-  </data>
-  <data name="btnDonate.AccessibleName" xml:space="preserve">
-    <value>Spende</value>
   </data>
   <data name="lblLinkLicense.Text" xml:space="preserve">
     <value>Lizenz</value>

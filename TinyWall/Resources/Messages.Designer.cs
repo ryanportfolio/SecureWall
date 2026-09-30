@@ -748,15 +748,6 @@ namespace pylorak.TinyWall.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to A newer version {0} of TinyWall is available. Click this bubble to start the update process..
-        /// </summary>
-        internal static string UpdateAvailableBubble {
-            get {
-                return ResourceManager.GetString("UpdateAvailableBubble", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Whitelisting cancelled..
         /// </summary>
         internal static string WhitelistingCancelled {
