@@ -1411,7 +1411,7 @@
     <value>50</value>
   </data>
   <data name="lblAboutHomepageLink.Text" xml:space="preserve">
-    <value>TinyWall upstream source (GPLv3)</value>
+    <value>SecureWall source (GPLv3)</value>
   </data>
   <data name="&gt;&gt;lblAboutHomepageLink.Name" xml:space="preserve">
     <value>lblAboutHomepageLink</value>

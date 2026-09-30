@@ -153,7 +153,7 @@ namespace pylorak.TinyWall
                 chkEnableDiagnosticLogging.Checked = TmpConfig.Service.EnableDiagnosticLogging;
                 btnWeb.Visible = false;
                 label10.Visible = false;
-                lblAboutHomepageLink.Text = "TinyWall upstream source (GPLv3)";
+                lblAboutHomepageLink.Text = "SecureWall source (GPLv3)";
                 chkAskForExceptionDetails.Checked = TmpConfig.Controller.AskForExceptionDetails;
                 comboLanguages.SelectedIndex = 0;
                 for (int i = 0; i < comboLanguages.Items.Count; ++i)
@@ -478,7 +478,7 @@ namespace pylorak.TinyWall
 
         private void btnWeb_Click(object sender, EventArgs e)
         {
-            var psi = new ProcessStartInfo(@"https://github.com/pylorak/TinyWall") { UseShellExecute = true };
+            var psi = new ProcessStartInfo(@"https://github.com/ryanportfolio/SecureWall") { UseShellExecute = true };
             Process.Start(psi)?.Dispose();
         }
 
@@ -686,7 +686,7 @@ namespace pylorak.TinyWall
 
         private void btnGithub_Click(object sender, EventArgs e)
         {
-            var psi = new ProcessStartInfo(@"https://github.com/pylorak/tinywall") { UseShellExecute = true };
+            var psi = new ProcessStartInfo(@"https://github.com/ryanportfolio/SecureWall") { UseShellExecute = true };
             Process.Start(psi)?.Dispose();
         }
     }
