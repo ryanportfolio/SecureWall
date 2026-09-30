@@ -151,15 +151,139 @@ namespace pylorak.TinyWall.Prompting
             return readChanges();
         }
 
-        internal static void Run(Action reload, Action failClosed)
+        // Consecutive retained failures before the committed policy is treated as unprovable.
+        internal const int MaxRetainedFailures = 3;
+
+        // A failed reload may leave the committed policy in force only when no WFP change
+        // committed, the session is still usable, and the candidate would not have withdrawn
+        // a grant the environment already superseded (new addresses, a volume mapping change,
+        // or a pending display-off restriction). A repeating failure can mean the session is
+        // unusable, so retention is bounded and then escalates to revocation.
+        internal static bool MayRetain(bool sessionActive, bool committed, bool grantsSuperseded, int priorFailures) =>
+            sessionActive && !committed && !grantsSuperseded && priorFailures >= 0 && priorFailures < MaxRetainedFailures;
+
+        // Returns false when the failure was retained and a retry is scheduled. Every other
+        // failure withdraws runtime grants before the original exception propagates.
+        internal static bool Run(Action reload, Func<bool> mayRetain, Action<Exception> retained, Action failClosed)
         {
-            try { reload(); }
-            catch
+            try
             {
+                reload();
+                return true;
+            }
+            catch (Exception error)
+            {
+                bool retain;
+                try { retain = mayRetain(); }
+                catch { retain = false; }
+                if (retain)
+                {
+                    try
+                    {
+                        retained(error);
+                        return false;
+                    }
+                    catch { }
+                }
                 failClosed();
                 throw;
             }
         }
+    }
+
+    // Tracks whether committed address-scoped grants (LocalSubnet, DefaultGateway, DNS) still
+    // match a verified adapter enumeration. Enforcement thread only.
+    internal sealed class AddressVerification
+    {
+        private bool changed, unverified;
+
+        internal bool Superseded => changed || unverified;
+
+        // A throwing enumeration leaves the committed grants unverified until an enumeration
+        // succeeds; a commit cannot clear that, because it reuses the unverified sets.
+        internal bool Refresh(Func<bool> enumerateChanged)
+        {
+            unverified = true;
+            bool result = enumerateChanged();
+            unverified = false;
+            changed |= result;
+            return result;
+        }
+
+        // The committed policy was built from the current in-memory address sets.
+        internal void Committed() => changed = false;
+    }
+
+    internal static class DisplayRestriction
+    {
+        // The candidate withdraws grants when display-off blocking applies and the committed
+        // policy was built without it.
+        internal static bool Pending(bool displayOffBlock, bool displayOn, bool committedRestricted) =>
+            displayOffBlock && !displayOn && !committedRestricted;
+    }
+
+    // Bounded retry timing for the enforcement thread. Not thread-safe by design. Times are
+    // readings of a monotonic clock, so a wall-clock change cannot postpone recovery.
+    internal sealed class RecoveryBackoff
+    {
+        internal static readonly TimeSpan[] Delays =
+        {
+            TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(60)
+        };
+        internal static TimeSpan MaxDelay => Delays[Delays.Length - 1];
+
+        internal int Failures { get; private set; }
+        internal TimeSpan? Due { get; private set; }
+
+        internal void RecordFailure(TimeSpan now)
+        {
+            Due = now + Delays[Math.Min(Failures, Delays.Length - 1)];
+            Failures++;
+        }
+
+        internal void Reset()
+        {
+            Failures = 0;
+            Due = null;
+        }
+
+        internal bool IsDue(TimeSpan now) => Due is TimeSpan due && now >= due;
+
+        // Clamped to [0, MaxDelay]: an inconsistent reading can neither wait longer than
+        // the largest backoff step nor produce an invalid BlockingCollection timeout.
+        internal TimeSpan Wait(TimeSpan now)
+        {
+            if (Due is not TimeSpan due) return Timeout.InfiniteTimeSpan;
+            TimeSpan wait = due - now;
+            if (wait < TimeSpan.Zero) return TimeSpan.Zero;
+            return wait > MaxDelay ? MaxDelay : wait;
+        }
+    }
+
+    internal enum RuntimeRecoveryStep { None, RebuildSession, RetryReload }
+
+    // A revoked runtime session is rebuilt in-process while the persistent deny baseline
+    // holds. The first attempt is immediate; later attempts back off. After the last
+    // attempt the service exits with a failure code so SCM recovery takes over.
+    internal static class RuntimeRecovery
+    {
+        internal const int MaxRebuildAttempts = 5;
+
+        internal static RuntimeRecoveryStep Due(bool revoked, RecoveryBackoff rebuild, RecoveryBackoff reload, TimeSpan now)
+        {
+            if (revoked)
+                return rebuild.Failures == 0 || rebuild.IsDue(now) ? RuntimeRecoveryStep.RebuildSession : RuntimeRecoveryStep.None;
+            return reload.IsDue(now) ? RuntimeRecoveryStep.RetryReload : RuntimeRecoveryStep.None;
+        }
+
+        internal static TimeSpan Wait(bool revoked, RecoveryBackoff rebuild, RecoveryBackoff reload, TimeSpan now)
+        {
+            if (revoked)
+                return rebuild.Failures == 0 ? TimeSpan.Zero : rebuild.Wait(now);
+            return reload.Wait(now);
+        }
+
+        internal static bool Exhausted(RecoveryBackoff rebuild) => rebuild.Failures >= MaxRebuildAttempts;
     }
 
     internal static class RuntimeSessionRevocation

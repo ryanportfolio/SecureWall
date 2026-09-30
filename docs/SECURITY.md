@@ -2,7 +2,7 @@
 
 SecureWall is default-deny host firewall software. A defect can either interrupt networking or permit traffic that should have been blocked. Treat install and real-network testing as privileged operations.
 
-The Windows service remains start-pending until its first WFP default-deny transaction commits. If initialization fails, it stops instead of reporting a ready but unenforced state.
+The Windows service remains start-pending until its first WFP default-deny transaction commits. If initialization fails, it stops instead of reporting a ready but unenforced state. A stop caused by failure reports `ERROR_SERVICE_SPECIFIC_ERROR` with service-specific exit code 1 (startup failed) or 2 (runtime recovery failed), never a clean exit. Service health configuration enables SCM failure actions for these non-crash failures: restarts after 5, 30 and 60 seconds, repeating the 60-second restart, with the failure count reset after one day without failure. A persistent cause therefore produces a restart attempt every minute rather than a permanent stop. Microsoft documents that the non-crash failure-actions flag takes effect the next time the system starts. Until the first reboot after installing, or upgrading from a build without the flag, a failure exit may not trigger a restart; the service then stays stopped behind the deny baseline until it is started manually, the controller starts it, or Windows restarts.
 
 ## Enforcement invariants
 
@@ -17,7 +17,9 @@ The Windows service remains start-pending until its first WFP default-deny trans
 
 The persistent and boot-time baseline denies all non-loopback traffic, including DNS and DHCP. It contains no recovery permits. All runtime policy, including saved allows, belongs to the service's dynamic WFP session. Service loss or startup failure withdraws runtime permissions and leaves strict external denial until the service successfully restores policy or explicit removal completes.
 
-Address renewal and name resolution can fail during this interval; recovery requires a local console.
+Withdrawal while running does not stop the service. It closes the dynamic session, then rebuilds a new one in-process: it re-reads adapter addresses and stored policy (including any pending recovery journal) and commits them, first immediately and then after 5, 15, 30 and 60 seconds. Nothing is granted before that commit. A rebuild restores the last runtime mode, except Learning, which returns to the startup mode; like a restart, it expires until-reboot exceptions. Policy changes are refused until the rebuild commits. After five failed attempts the service exits with exit code 2 and SCM restarts it.
+
+Address renewal and name resolution can fail during this interval. When the cause persists, such as a corrupt recovery journal or an unavailable Base Filtering Engine, every automatic attempt fails and recovery requires a local console.
 
 The baseline deny uses `DefaultBlock - 2`, below the runtime default block so committed runtime filter IDs retain prompt authority. Disabled, Learning, LAN and WSL allowances do not survive independently of the dynamic session. BlockAll suppresses optional LAN and WSL permits. Until-reboot exceptions expire on service initialization or reinitialization; timed exceptions retain their absolute expiry.
 
@@ -27,7 +29,7 @@ Configuration changes journal the prior policy, then save and enforce the candid
 
 An unresolved recovery journal must be restored before startup can load stored policy. Defaults are used only on confirmed configuration absence; corruption, decryption errors and access failures stop initialization rather than silently loading defaults.
 
-Required display/network-triggered policy reload failures also withdraw runtime grants. Every filter registration is required; a registration failure aborts replacement. Background reads do not extend the ten-minute password unlock window.
+Environmental reloads (address changes, display power changes, volume changes and the 30-minute housekeeping reload) replace runtime filters in one WFP transaction. If a reload fails before that transaction commits, the previously committed filters remain in force. The service keeps them only when the environment has not already superseded one of their grants: a successful adapter enumeration with no new addresses, no volume or mount change, and no pending display-off restriction. It retries after 5, 15 and 30 seconds. A fourth consecutive failure, a failure after commit, or a failure with a superseded grant withdraws runtime grants and starts the rebuild. An adapter enumeration failure leaves the address-scoped grants (local subnet, gateway, DNS) unverified, so it withdraws runtime grants at once. Only a later successful enumeration clears that state; a commit from a display, mount, settings or expiry change cannot. Rule expiry is never retained: any failure to apply an expiry withdraws runtime grants. Every filter registration is required; a registration failure aborts replacement. Background reads do not extend the ten-minute password unlock window.
 
 Encrypted output is finalized before the underlying file content is flushed with `Flush(true)`. Writers use a temporary file in the target directory, replace or move it into place, then flush the installed file. A post-swap flush failure can leave the candidate on disk even though the write throws.
 

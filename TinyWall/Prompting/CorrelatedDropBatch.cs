@@ -60,6 +60,18 @@ namespace pylorak.TinyWall.Prompting
             }
         }
 
+        // Only the enforcement thread calls this, after a replacement runtime session has
+        // committed policy. The generation change rejects work captured before the stop.
+        internal void Resume()
+        {
+            lock (guard)
+            {
+                ++generation;
+                stopped = false;
+                entries.Clear();
+            }
+        }
+
         internal void Publish(long expectedGeneration, Action publish)
         {
             lock (guard)
