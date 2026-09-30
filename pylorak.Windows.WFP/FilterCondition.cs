@@ -730,6 +730,57 @@ namespace pylorak.Windows.WFP
         {
             [DllImport("Iphlpapi", SetLastError = false, CharSet = CharSet.Unicode)]
             internal static extern int ConvertInterfaceAliasToLuid(string stringSid, [Out] out ulong InterfaceLuid);
+
+            [DllImport("Iphlpapi", SetLastError = false)]
+            internal static extern int GetIfTable2(out IntPtr Table);
+
+            [DllImport("Iphlpapi", SetLastError = false)]
+            internal static extern void FreeMibTable(IntPtr Memory);
+        }
+
+        // Leading fields of MIB_IF_ROW2. Rows are read at the documented native stride.
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct MIB_IF_ROW2_HEAD
+        {
+            public ulong InterfaceLuid;
+            public uint InterfaceIndex;
+            public Guid InterfaceGuid;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 257)]
+            public string Alias;
+        }
+
+        private const int MIB_IF_TABLE2_ROWS_OFFSET = 8;
+        private const int MIB_IF_ROW2_SIZE = 1352;
+        private const int MIB_IF_ROW2_FLAGS_OFFSET = 1152;
+        private const byte FILTER_INTERFACE_FLAG = 0x02;
+
+        // Lists network interfaces by alias and LUID in one snapshot, so the filter
+        // condition uses the LUID that was enumerated rather than a second alias lookup.
+        // NDIS filter-module rows are skipped. Uses GetIfTable2 because
+        // NetworkInterface.GetAllNetworkInterfaces leaks native memory per call.
+        public static System.Collections.Generic.List<(string Alias, ulong Luid)> EnumerateInterfaces()
+        {
+            int err = NativeMethods.GetIfTable2(out IntPtr table);
+            if (err != 0)
+                throw new Win32Exception(err);
+            try
+            {
+                int count = System.Runtime.InteropServices.Marshal.ReadInt32(table);
+                var result = new System.Collections.Generic.List<(string Alias, ulong Luid)>(count);
+                for (int i = 0; i < count; ++i)
+                {
+                    IntPtr row = IntPtr.Add(table, MIB_IF_TABLE2_ROWS_OFFSET + i * MIB_IF_ROW2_SIZE);
+                    if ((System.Runtime.InteropServices.Marshal.ReadByte(row, MIB_IF_ROW2_FLAGS_OFFSET) & FILTER_INTERFACE_FLAG) != 0)
+                        continue;
+                    var head = System.Runtime.InteropServices.Marshal.PtrToStructure<MIB_IF_ROW2_HEAD>(row);
+                    result.Add((head.Alias ?? string.Empty, head.InterfaceLuid));
+                }
+                return result;
+            }
+            finally
+            {
+                NativeMethods.FreeMibTable(table);
+            }
         }
 
         public static bool InterfaceAliasExists(string ifAlias)
@@ -755,7 +806,17 @@ namespace pylorak.Windows.WFP
                 throw new Win32Exception(err);
 
             NativeMem = SafeHGlobalHandle.FromStruct(luid);
+            SetLuidCondition();
+        }
 
+        public LocalInterfaceCondition(ulong interfaceLuid)
+        {
+            NativeMem = SafeHGlobalHandle.FromStruct(interfaceLuid);
+            SetLuidCondition();
+        }
+
+        private void SetLuidCondition()
+        {
             _nativeStruct.matchType = FieldMatchType.FWP_MATCH_EQUAL;
             _nativeStruct.fieldKey = ConditionKeys.FWPM_CONDITION_IP_LOCAL_INTERFACE;
             _nativeStruct.conditionValue.type = Interop.FWP_DATA_TYPE.FWP_UINT64;

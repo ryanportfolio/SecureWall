@@ -73,14 +73,41 @@ namespace pylorak.TinyWall
                 {
                     if (ExistsChecked(HOSTS_BACKUP)) RequireLock(HOSTS_BACKUP);
                     if (HasOriginalBackup()) RequireLock(HOSTS_ORIGINAL);
-                    if (value)
+                    if (!value)
+                        FileLocker.Unlock(HOSTS_PATH);
+                    else if (ExistsChecked(HOSTS_PATH))
                         RequireLock(HOSTS_PATH);
                     else
-                        FileLocker.Unlock(HOSTS_PATH);
+                        // Windows runs without a hosts file. Do not create one to lock it;
+                        // a later hosts install relocks the file it writes.
+                        Report(RuntimeEvent.hosts_protection, RuntimeResult.absent);
                     _EnableProtection = value;
                 });
                 Report(RuntimeEvent.hosts_protection, value ? RuntimeResult.enabled : RuntimeResult.disabled);
             }
+        }
+
+        // Service entry point. Hosts protection is best-effort: it must never gate WFP
+        // enforcement, so failures are returned for logging and a controller warning.
+        internal bool TryApplyProtection(bool value, out Exception? error)
+        {
+            error = null;
+            try
+            {
+                EnableProtection = value;
+            }
+            catch (Exception failure)
+            {
+                error = failure;
+                if (!value)
+                {
+                    // Turning protection off still releases the hosts file when a
+                    // backup lock failed first.
+                    FileLocker.Unlock(HOSTS_PATH);
+                    _EnableProtection = false;
+                }
+            }
+            return error == null;
         }
 
         private void CreateOriginalBackup()
@@ -225,13 +252,24 @@ namespace pylorak.TinyWall
                 FileLocker.Unlock(HOSTS_PATH);
                 // Opening the source must throw if missing or unreadable.
                 AtomicFileWriter.CopyFrom(HOSTS_PATH, sourcePath);
-            }, () =>
+            }, RelockHosts);
+        }
+
+        private void RelockHosts()
+        {
+            if (!_EnableProtection)
             {
-                if (_EnableProtection)
-                    RequireLock(HOSTS_PATH);
-                else
-                    FileLocker.Unlock(HOSTS_PATH);
-            });
+                FileLocker.Unlock(HOSTS_PATH);
+                return;
+            }
+            try { RequireLock(HOSTS_PATH); }
+            catch (Exception error)
+            {
+                // The hosts content operation decides success. Losing the lock only
+                // clears EnableProtection, which the service reports as a warning.
+                _EnableProtection = false;
+                Report(RuntimeEvent.hosts_protection, RuntimeResult.failure, error.HResult);
+            }
         }
 
         private static void WriteAndRelock(Action write, Action relock)

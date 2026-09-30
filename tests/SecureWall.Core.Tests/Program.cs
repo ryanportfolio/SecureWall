@@ -74,6 +74,7 @@ internal static class Program
             .Concat(PromptTransactionIntegrationTests.Cases)
             .Concat(ExecutableRiskTests.Cases).ToArray();
         tests = tests.Concat(RuntimeJournalTests.Cases).Concat(RuntimeDiagnosticCoverageTests.Cases).ToArray();
+        tests = tests.Concat(ServiceStartupRobustnessTests.Cases).ToArray();
         var failed = 0;
 
         foreach (var (name, test) in tests)

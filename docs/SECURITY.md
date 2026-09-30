@@ -19,7 +19,9 @@ The persistent and boot-time baseline denies all non-loopback traffic, including
 
 Address renewal and name resolution can fail during this interval; recovery requires a local console.
 
-The baseline deny uses `DefaultBlock - 2`, below the runtime default block so committed runtime filter IDs retain prompt authority. Disabled, Learning, LAN and WSL allowances do not survive independently of the dynamic session. BlockAll suppresses optional LAN and WSL permits. Until-reboot exceptions expire on service initialization or reinitialization; timed exceptions retain their absolute expiry.
+The baseline deny uses `DefaultBlock - 2`, below the runtime default block so committed runtime filter IDs retain prompt authority. Disabled, Learning, LAN and WSL allowances do not survive independently of the dynamic session. BlockAll suppresses optional LAN and WSL permits.
+
+WSL 2 filters are installed once per full policy reload, on each adapter whose alias is `vEthernet (WSL)` or `vEthernet (WSL (...))`, using the interface LUID from the same enumeration. A WSL permit that cannot be installed is logged and the reload continues; a WSL block that cannot be registered aborts the replacement like any other block filter. Mirrored networking has no such adapter, so the WSL_2 exception installs nothing there; other WSL-named adapters are logged, not filtered. Until-reboot exceptions expire on service initialization or reinitialization; timed exceptions retain their absolute expiry.
 
 The Windows_Update database profile grants outbound TCP to the exact `wuauserv` service at its `svchost.exe` path. It supplies no executable-wide `svchost.exe` permission. Other Windows Update components need their own justified rules; update completion remains unverified.
 
@@ -61,7 +63,9 @@ The consequence is that any process running as the same user can start the insta
 
 Never install SecureWall over RDP, SSH, remote PowerShell, a cloud-only console, or any machine where losing networking prevents recovery. Use an expendable Windows VM with a snapshot and working local/virtual console. Do not install TinyWall and SecureWall together.
 
-The MSI checks TinyWall's registry identity, and shared registration, controller recovery and service startup paths check the Service Control Manager. Activation refuses coexistence. Direct installation additionally requires a protected tree below Program Files, including every executable, DLL and ancestor; extracted bundles are not install locations. Keep TinyWall installed on the real machine until SecureWall completes the isolated VM matrix; then uninstall TinyWall and reboot before a SecureWall installation.
+The MSI checks TinyWall's registry identity, and shared registration, controller recovery and service startup paths check the Service Control Manager. Activation refuses coexistence. Direct installation additionally requires a protected tree below Program Files, including every executable, DLL and ancestor; extracted bundles are not install locations. Keep TinyWall installed on the real machine until SecureWall completes the isolated VM matrix; then uninstall TinyWall and reboot before a SecureWall installation. To go back to TinyWall, uninstall SecureWall first.
+
+The service runs the TinyWall and protected-tree checks before it loads policy and stops if either fails. After its first policy commit it runs them once more. A failure at that point (a TinyWall service registered meanwhile, an ACL change, or a transient read error during the tree walk) is logged and shown as a tray warning. The service keeps enforcing the committed policy, because stopping would withdraw it, and skips its service-restart and controller-task refresh. Install and repair paths still refuse on these checks.
 
 Machine data is guarded separately from executable installation. The MSI places both defaults under protected `INSTALLDIR/data-defaults` and has no ProgramData file creation, write or deletion components.
 
@@ -69,7 +73,7 @@ Before timing, logging or policy access, the Release entry validates machine dat
 
 A disappearing temporary child during atomic replacement is tolerated only after its parent is revalidated; missing or unsafe roots remain errors. Debug synthetic paths do not prove the installed Release guard.
 
-Hosts enable/disable failures propagate into configuration or cleanup failure. A missing original hosts backup is a valid never-enabled case; an unreadable backup is an error. A failed restoration retains its backup and must prevent successful teardown. Verify actual hosts bytes and failure ordering in the VM before accepting removal.
+Hosts enable/disable failures propagate into configuration or cleanup failure. Hosts file locking (`LockHostsFile`) is different: it is best-effort and never blocks WFP policy. A missing hosts file is neither created nor locked. A file another program holds open, or a lock lost after a hosts write, is logged and shown as a tray warning while the policy change proceeds. The lock only denies other writers while the service runs; it is not an ACL. A missing original hosts backup is a valid never-enabled case; an unreadable backup is an error. A failed restoration retains its backup and must prevent successful teardown. Verify actual hosts bytes and failure ordering in the VM before accepting removal.
 
 MSI repair, modification and in-place upgrades are rejected before changing the installation. Use explicit full removal followed by a fresh install. MSI maintenance uses a separate SYSTEM-only, noninteractive cleanup path; interactive removal retains confirmation and password handling. Cleanup must stop the service and restore owned Windows Firewall compatibility state before removing the persistent deny baseline. An administrator can stop the service through SCM; the application password is not an operating-system administrator security boundary.
 
