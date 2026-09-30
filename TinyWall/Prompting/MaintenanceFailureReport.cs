@@ -38,7 +38,7 @@ namespace pylorak.TinyWall.Prompting
             string steps = string.Join(", ", failedSteps);
             return OneLine($"SecureWall {mode} emergency release failed with exit code {exitCode}. " +
                 (steps.Length == 0 ? "No step reported an exception." : $"Failed steps: {steps}. The preceding SecureWall events give each exception.") +
-                " The rejected data directory was not read or changed.");
+                " Emergency release reads no file contents from the rejected data directory and does not repair, move or delete anything in it.");
         }
 
         private static string Describe(Exception error)

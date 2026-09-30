@@ -202,28 +202,26 @@ namespace pylorak.TinyWall
         // restore whose backup lives there, and restores Windows Firewall and
         // audit state only from their HKLM journals.
         //
-        // Its text log is dropped and MSI discards stderr, so each failure also
-        // writes event 1001 naming its step, and a failed release writes one
-        // summary event. Ordinary maintenance gets 1001 from RunMaintenance.
+        // Its text log is dropped and MSI discards stderr, so the first failure
+        // of each step also writes event 1001 naming the step, and a failed
+        // release writes one summary event. Ordinary maintenance gets 1001 from
+        // RunMaintenance.
         internal static int ReleaseForMsiWithRejectedMachineData(bool failedInstallRollback)
         {
-            string mode = failedInstallRollback ? "/msi-rollback-install" : "/msi-cleanup";
-            emergencyMode = mode;
-            emergencyFailedSteps.Clear();
+            var log = new EmergencyFailureLog(failedInstallRollback ? "/msi-rollback-install" : "/msi-cleanup");
+            emergency = log;
             try
             {
                 int result = CleanupForMsi(failedInstallRollback, false);
                 if (result != 0)
-                    MaintenanceEventLog.ReportError(MaintenanceEventLog.MaintenanceFailureId,
-                        MaintenanceFailureReport.EmergencyExitFailure(mode, result, emergencyFailedSteps));
+                    MaintenanceEventLog.ReportError(MaintenanceEventLog.MaintenanceFailureId, log.Summary(result));
                 return result;
             }
-            finally { emergencyMode = null; }
+            finally { emergency = null; }
         }
 
-        private static string? emergencyMode;
+        private static EmergencyFailureLog? emergency;
         private static string emergencyStep = "";
-        private static readonly List<string> emergencyFailedSteps = new();
 
         // Names the operation that LogFailure reports while the emergency release runs.
         private static void Stage(string step) => emergencyStep = step;
@@ -271,8 +269,14 @@ namespace pylorak.TinyWall
                         }
                         catch (InvalidOperationException exception)
                         {
-                            LogFailure(exception);
-                            return State() == LifecycleServiceState.Stopped;
+                            // Stop() also throws when the service exits on its own
+                            // first; that is not a failure and writes no Error event.
+                            bool stopped;
+                            try { stopped = State() == LifecycleServiceState.Stopped; }
+                            catch { LogFailure(exception); throw; }
+                            if (stopped) Utils.LogException(exception, Utils.LOG_ID_INSTALLER);
+                            else LogFailure(exception);
+                            return stopped;
                         }
                     }
                     int result = -1;
@@ -317,12 +321,9 @@ namespace pylorak.TinyWall
         {
             Utils.LogException(exception, Utils.LOG_ID_INSTALLER);
             try { Console.Error.WriteLine(exception); } catch { }
-            if (emergencyMode != null)
-            {
-                if (!emergencyFailedSteps.Contains(emergencyStep)) emergencyFailedSteps.Add(emergencyStep);
-                MaintenanceEventLog.ReportError(MaintenanceEventLog.MaintenanceFailureId,
-                    MaintenanceFailureReport.EmergencyStepFailure(emergencyMode, emergencyStep, exception));
-            }
+            string? line = emergency?.Record(emergencyStep, exception);
+            if (line != null)
+                MaintenanceEventLog.ReportError(MaintenanceEventLog.MaintenanceFailureId, line);
         }
 
         private static bool ServiceExists()

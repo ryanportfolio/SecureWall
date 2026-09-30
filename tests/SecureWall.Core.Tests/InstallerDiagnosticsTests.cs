@@ -97,14 +97,30 @@ internal static class InstallerDiagnosticsTests
             new[] { "audit policy restore", "WFP object removal" });
         AssertEx.Equal("SecureWall /msi-rollback-install emergency release failed with exit code -1. " +
             "Failed steps: audit policy restore, WFP object removal. The preceding SecureWall events give each exception. " +
-            "The rejected data directory was not read or changed.", summary);
+            "Emergency release reads no file contents from the rejected data directory and does not repair, move or delete anything in it.", summary);
+        AssertEx.False(summary.Contains("not read") || summary.Contains("not changed") || summary.Contains("or changed"),
+            "summary claims more than the release guarantees: " + summary);
         AssertEx.True(MaintenanceFailureReport.EmergencyExitFailure("/msi-cleanup", -1, Array.Empty<string>())
             .Contains("No step reported an exception."), "empty step list not stated");
 
         string longStep = MaintenanceFailureReport.EmergencyStepFailure("/msi-cleanup", "WFP object removal",
             new InvalidOperationException(new string('x', 10000)));
         AssertEx.Equal(MaintenanceFailureReport.MaxLength, longStep.Length);
-        foreach (string line in new[] { step, summary, longStep })
+        // One event per failed step: a nested catch or a follow-on deadline
+        // error in the same step adds no second line; the first cause wins.
+        var log = new EmergencyFailureLog("/msi-cleanup");
+        string? first = log.Record("service stop", new InvalidOperationException("Cannot stop SecureWall service."));
+        AssertEx.True(first != null && first.Contains("step failed: service stop. InvalidOperationException: Cannot stop SecureWall service."), first ?? "null");
+        AssertEx.True(log.Record("service stop", new InvalidOperationException("Service did not stop within the maintenance deadline.")) == null,
+            "second failure of one step produced another event");
+        AssertEx.True(log.Record("WFP object removal", new IOException("filter")) != null, "a different step was suppressed");
+        AssertEx.True(log.Record("WFP object removal", new IOException("filter again")) == null, "repeat step failure produced another event");
+        AssertEx.True(log.FailedSteps.SequenceEqual(new[] { "service stop", "WFP object removal" }), string.Join("|", log.FailedSteps));
+        string logged = log.Summary(-1);
+        AssertEx.True(logged.StartsWith("SecureWall /msi-cleanup emergency release failed with exit code -1. Failed steps: service stop, WFP object removal. ", StringComparison.Ordinal), logged);
+        AssertEx.Equal(1, System.Text.RegularExpressions.Regex.Matches(logged, "service stop").Count);
+
+        foreach (string line in new[] { step, summary, longStep, first!, logged })
         {
             AssertEx.False(line.Any(char.IsControl), "report contains control characters: " + line);
             AssertEx.False(line.IndexOf("installer.log", StringComparison.OrdinalIgnoreCase) >= 0, "report points to installer.log: " + line);

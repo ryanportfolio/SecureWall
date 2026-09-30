@@ -225,13 +225,24 @@ internal static class ProtectionReleaseTests
         }
 
         string release = Body("internal static int ReleaseForMsiWithRejectedMachineData(bool failedInstallRollback)", "private static int CleanupForMsi(");
-        Check(release.Contains("emergencyMode = mode;") && release.Contains("emergencyFailedSteps.Clear();"));
-        Check(release.IndexOf("emergencyMode = mode;", StringComparison.Ordinal) < release.IndexOf("CleanupForMsi(failedInstallRollback, false)", StringComparison.Ordinal));
-        Check(Regex.IsMatch(release, @"if \(result != 0\)\s*MaintenanceEventLog\.ReportError\(MaintenanceEventLog\.MaintenanceFailureId,\s*MaintenanceFailureReport\.EmergencyExitFailure\(mode, result, emergencyFailedSteps\)\);"));
-        Check(release.Contains("return result;") && release.Contains("finally { emergencyMode = null; }"));
+        Check(release.Contains("emergency = log;"));
+        Check(release.IndexOf("emergency = log;", StringComparison.Ordinal) < release.IndexOf("CleanupForMsi(failedInstallRollback, false)", StringComparison.Ordinal));
+        Check(Regex.IsMatch(release, @"if \(result != 0\)\s*MaintenanceEventLog\.ReportError\(MaintenanceEventLog\.MaintenanceFailureId, log\.Summary\(result\)\);"));
+        Check(release.Contains("return result;") && release.Contains("finally { emergency = null; }"));
 
+        // Every step event goes through EmergencyFailureLog.Record, which
+        // returns null for a step that already reported; no direct writes.
         string logFailure = Body("private static void LogFailure(Exception exception)", "private static bool ServiceExists()");
-        Check(Regex.IsMatch(logFailure, @"if \(emergencyMode != null\)\s*\{[^}]*emergencyFailedSteps\.Add\(emergencyStep\);\s*MaintenanceEventLog\.ReportError\(MaintenanceEventLog\.MaintenanceFailureId,\s*MaintenanceFailureReport\.EmergencyStepFailure\(emergencyMode, emergencyStep, exception\)\);"));
+        Check(Regex.IsMatch(logFailure, @"string\? line = emergency\?\.Record\(emergencyStep, exception\);\s*if \(line != null\)\s*MaintenanceEventLog\.ReportError\(MaintenanceEventLog\.MaintenanceFailureId, line\);"));
+        Check(!logFailure.Contains("EmergencyStepFailure("));
+        Check(Regex.Matches(doctor, @"EmergencyStepFailure\(|MaintenanceEventLog\.ReportError\(").Count == 2);
+
+        // Stop() throwing while the service stops anyway is not a failure: only
+        // a service that is not Stopped reaches LogFailure (and its Error event).
+        string stop = Body("bool StopGracefully()", "int result = -1;");
+        string stopCatch = stop.Substring(stop.IndexOf("catch (InvalidOperationException exception)", StringComparison.Ordinal));
+        Check(Regex.IsMatch(stopCatch, @"try \{ stopped = State\(\) == LifecycleServiceState\.Stopped; \}\s*catch \{ LogFailure\(exception\); throw; \}\s*if \(stopped\) Utils\.LogException\(exception, Utils\.LOG_ID_INSTALLER\);\s*else LogFailure\(exception\);\s*return stopped;"));
+        Check(Regex.Matches(stopCatch, @"LogFailure\(exception\)").Count == 2);
 
         foreach (string body in new[] { release, logFailure })
             Check(!body.Contains("installer.log") && !body.Contains("\".log\"") && !body.Contains("MaintenanceFailureReport.ExitFailure("));
