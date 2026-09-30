@@ -57,3 +57,7 @@ User controller logs use LocalApplicationData/SecureWall/logs. Actual privileged
 ## 2026-09-30: self-test and preview switches are Debug-only
 
 2026-09-30: `/protocolselftest`, `/pipeintegrationtest` and `/promptpreview` exist only in Debug builds. A Release `SecureWall.exe` given them starts the real controller, shows the machine-data-guard dialog on the desktop and writes Application event 1000. Run them against `bin\Debug` only. From Git Bash, set `MSYS_NO_PATHCONV=1` or the leading `/` is rewritten into a file path and the exe starts with an unknown argument.
+
+## 2026-09-30: core test registration
+
+2026-09-30: the core test harness has no discovery. A new test class runs only after its `Cases` are concatenated in `tests/SecureWall.Core.Tests/Program.cs`, and product sources it exercises need a `Compile Include` link in the test csproj; an unregistered class compiles and is silently skipped. Parallel branches collide in both files: when merging, keep every registration and link, then confirm the passing count equals the sum of both sides.
