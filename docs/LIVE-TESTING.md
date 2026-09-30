@@ -8,6 +8,8 @@ This is an exploratory trial. The owner may choose it while boot/crash packet le
 
 Use the local keyboard and screen, with administrator access available. Save the exact SecureWall MSI and its SHA-256 hash, the previous firewall's installer, and recovery instructions locally so they remain accessible without a network connection. Keep a record of the applications you need to allow. Verify the test build and the collector come from the same reviewed source.
 
+Before removing TinyWall, export its settings to a `.tws` file (TinyWall Settings, Maintenance tab, **Export Settings**) and copy the whole `%ProgramData%\TinyWall` directory to a location outside ProgramData, such as a USB drive. A fresh TinyWall install deletes the contents of `%ProgramData%\TinyWall`, so a later rollback restores your rules only from these copies.
+
 SecureWall refuses coexistence with TinyWall. A switch requires removing TinyWall and rebooting before installing SecureWall through its MSI. Do not run an extracted executable as an installer. Existing SecureWall installations require full removal and a fresh install; in-place repair and upgrades are unsupported. A failed removal or an unsafe legacy data directory needs investigation before proceeding. Do not delete recovery files or change their permissions to force installation.
 
 The baseline blocks external traffic while the service is unavailable, including DNS and DHCP. A service failure may therefore leave the PC offline until recovery succeeds. Keep the console available throughout the trial.
@@ -53,3 +55,15 @@ External boot/crash packet checks, counterfeit-service rejection, hostile ACL te
 Use the local console and collect a report before changing anything. The controller can request a start of an existing validated SecureWall service. Missing registration requires MSI recovery. If removal reports a failure, preserve the error, machine-data directory and recovery files; failed restoration can intentionally retain the deny baseline. Investigate that failure before attempting another installation or manually removing firewall objects.
 
 Return to the previous firewall only after SecureWall removal completes successfully. Do not install both together or bypass an unsafe-tree rejection.
+
+## Rolling back to TinyWall
+
+Installing TinyWall while SecureWall is still present leaves SecureWall's deny baseline enforcing underneath TinyWall. Follow this order from the local console:
+
+1. Confirm you have the `.tws` export and the copy of `%ProgramData%\TinyWall` made before the switch. Without them, TinyWall returns with default rules and no password.
+2. Uninstall SecureWall through its MSI (Windows Apps, or `msiexec /x` with the saved MSI). If removal fails, stop here and follow the previous section.
+3. Reboot.
+4. Confirm the SecureWall service is gone: `sc.exe query SecureWall` must report that the service does not exist (error 1060).
+5. Confirm no SecureWall WFP provider remains: run `netsh wfp show state` from a writable folder, then search the resulting `wfpstate.xml` for `053FC8F9-9052-4B2F-9B24-7DE3A2BED6E0`. There must be no match.
+6. Install TinyWall and reboot if its installer asks.
+7. Import the `.tws` file (TinyWall Settings, Maintenance tab, **Import Settings**) and check that your rules are back. Set a TinyWall password again if you used one and it was not restored. The copied `%ProgramData%\TinyWall` directory is a reference for comparison; restore files from it only if the import fails.

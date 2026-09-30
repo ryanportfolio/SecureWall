@@ -674,16 +674,11 @@ namespace pylorak.TinyWall
                     if (!Directory.Exists(logdir))
                         Directory.CreateDirectory(logdir);
 
-                    // Only log if log file has not yet reached a certain size
-                    if (File.Exists(logfile))
-                    {
-                        var fi = new FileInfo(logfile);
-                        if (fi.Length > 512 * 1024)
-                        {
-                            // Truncate file back to zero
-                            using var fs = new FileStream(logfile, FileMode.Truncate, FileAccess.Write);
-                        }
-                    }
+                    // Past the size limit, keep one previous file instead of truncating,
+                    // so a restart loop cannot erase its first error. A failed rotation
+                    // still appends this entry.
+                    try { Prompting.LogRotationPolicy.RotateIfNeeded(logfile); }
+                    catch { }
 
                     // Do the logging
                     using var sw = new StreamWriter(logfile, true, Encoding.UTF8);

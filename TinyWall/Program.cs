@@ -277,6 +277,25 @@ namespace pylorak.TinyWall
             return TinyWallDoctor.Uninstall();
         }
 
+        // MSI EXE custom actions discard stderr, so a failed maintenance mode also
+        // leaves one line in the Application event log. Exit codes and exceptions are unchanged.
+        private static int RunMaintenance(string mode, Func<int> action)
+        {
+            int result;
+            try { result = action(); }
+            catch (Exception exception)
+            {
+                Installer.MaintenanceEventLog.ReportError(Installer.MaintenanceEventLog.MaintenanceFailureId,
+                    MaintenanceFailureReport.Unhandled(mode, exception));
+                throw;
+            }
+            if (result != 0)
+                Installer.MaintenanceEventLog.ReportError(Installer.MaintenanceEventLog.MaintenanceFailureId,
+                    MaintenanceFailureReport.ExitFailure(mode, result,
+                        Path.Combine(Installer.MachineDataGuard.PathName, "logs", Utils.LOG_ID_INSTALLER + ".log")));
+            return result;
+        }
+
         /// <summary>
         /// Der Haupteinstiegspunkt für die Anwendung.
         /// </summary>
@@ -301,6 +320,10 @@ namespace pylorak.TinyWall
                 // Do not write diagnostics through an untrusted data path.
                 string diagnostic = Utils.MachineDataRecoveryMessage + Environment.NewLine + exception;
                 Console.Error.WriteLine(diagnostic);
+                // stderr is lost in MSI custom actions and services. The event log needs no data path.
+                Installer.MaintenanceEventLog.ReportError(Installer.MaintenanceEventLog.GuardFailureId,
+                    MaintenanceFailureReport.GuardFailure(MaintenanceFailureReport.Mode(args),
+                        Installer.MachineDataGuard.PathName, exception));
                 bool maintenance = Utils.StringArrayContains(args, "/install") ||
                     Utils.StringArrayContains(args, "/uninstall") ||
                     Utils.StringArrayContains(args, "/msi-cleanup") ||
@@ -334,9 +357,9 @@ namespace pylorak.TinyWall
             // Parse comman-line options
             // Explicit maintenance mode overrides the noninteractive service default.
             if (Utils.StringArrayContains(args, "/msi-cleanup"))
-                return TinyWallDoctor.UninstallForMsi();
+                return RunMaintenance("/msi-cleanup", () => TinyWallDoctor.UninstallForMsi());
             if (Utils.StringArrayContains(args, "/msi-rollback-install"))
-                return TinyWallDoctor.RollbackFailedInstallForMsi();
+                return RunMaintenance("/msi-rollback-install", () => TinyWallDoctor.RollbackFailedInstallForMsi());
 
             var opts = new CmdLineArgs();
             if (!Environment.UserInteractive || Utils.StringArrayContains(args, "/service"))
@@ -409,9 +432,9 @@ namespace pylorak.TinyWall
             switch (opts.ProgramMode)
             {
                 case StartUpMode.Install:
-                    return InstallService();
+                    return RunMaintenance("/install", InstallService);
                 case StartUpMode.Uninstall:
-                    return UninstallService();
+                    return RunMaintenance("/uninstall", UninstallService);
                 case StartUpMode.Controller:
                     return StartController(opts);
 #if DEBUG

@@ -37,7 +37,7 @@ unless the user explicitly asks in the current session.
 
 ## 2026-09-12: pre-switch fixes
 
-- MSI defaults are Program Files payload in `data-defaults`; do not reintroduce MSI ProgramData creation, copying or deletion before the shared guard. SYSTEM seeds only absent defaults after validating the full tree. Reject unsafe existing trees without changing them.
+- MSI defaults are Program Files payload in `data-defaults`; do not reintroduce MSI ProgramData creation, copying or deletion before the shared guard. After validating the full tree, SYSTEM brings only the shipped data files (profiles.json, hosts.bck) to the data-defaults content; config, pwd, hosts.orig and journals are never written. Reject unsafe existing trees without changing them.
 - A controller may start while a protected temporary policy file disappears during replacement. Revalidate its parent before tolerating absence; root, ACL and reparse errors must still reject access.
 - A persistent write can replace the file and then throw during the installed-file flush. Compensate on attempted writes, retain recovery evidence on failure, and withdraw runtime grants when recovery fails.
 - Content flushing and process-failure recovery do not prove power-loss ordering of journal rename/delete or physical-media durability. Do not describe these as verified crash-safe filesystem commits.

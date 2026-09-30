@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
-     xmlns:netfx="http://schemas.microsoft.com/wix/NetFxExtension">
+     xmlns:netfx="http://schemas.microsoft.com/wix/NetFxExtension"
+     xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
 
   <!-- String constants -->
   <?define ProductName="SecureWall" ?>
@@ -105,6 +106,7 @@
       <ComponentRef Id='MainExecutableConfig' />
       <ComponentRef Id='ProgramMenuDir' />
       <ComponentRef Id='RegistryKeys' />
+      <ComponentRef Id='EventLogSource' />
       <ComponentRef Id='License' />
       <ComponentRef Id='Attributions' />
       <ComponentRef Id='Database' />
@@ -368,6 +370,14 @@
       <RegistryKey Id='RegInstallDir' Root='HKLM' Key='Software\SecureWall' ForceDeleteOnUninstall='yes'>
         <RegistryValue Type='string' Name='InstallDir' Value='[INSTALLDIR]'/>
       </RegistryKey>
+    </Component>
+
+    <!-- Application event log source for one-line maintenance and data-guard failure
+         reasons. EXE custom actions discard stderr; the source needs no ProgramData path.
+         Registry rows are written before InstallCustom and removed after UninstallCustom. -->
+    <PropertyRef Id="NETFRAMEWORK40FULLINSTALLROOTDIR" />
+    <Component Id="EventLogSource" Guid="*" Directory="INSTALLDIR" Win64="$(var.Win64)">
+      <util:EventSource Name="SecureWall" Log="Application" EventMessageFile="[NETFRAMEWORK40FULLINSTALLROOTDIR]EventLogMessages.dll" KeyPath="yes" />
     </Component>
 
     <!-- Icons -->

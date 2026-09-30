@@ -93,13 +93,13 @@ namespace pylorak.TinyWall.Installer
         {
             Require(true, true);
             string source = Path.Combine(Path.GetDirectoryName(Utils.ExecutablePath)!, "data-defaults");
-            foreach (string name in new[] { "profiles.json", "hosts.bck" })
+            foreach (string name in ShippedDataPolicy.Names)
             {
-                string target = Path.Combine(PathName, name);
                 Require();
-                // Preserve existing state and evidence. The validated protected parent
+                // Shipped program data follows the installed build; configuration, pwd,
+                // hosts.orig and journals are never touched. The validated protected parent
                 // prevents ordinary users from substituting the target after validation.
-                if (!File.Exists(target)) File.Copy(Path.Combine(source, name), target, false);
+                ShippedDataPolicy.Refresh(source, PathName, name);
             }
             Require(false, true);
         }
