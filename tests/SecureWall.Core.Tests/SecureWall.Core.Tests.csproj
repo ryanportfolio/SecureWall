@@ -19,6 +19,9 @@
     <Compile Include="..\..\TinyWall\HostsFileManager.cs" Link="HostsFileManager.cs" />
     <Compile Include="..\..\pylorak.Utilities\FileLocker.cs" Link="FileLocker.cs" />
     <Compile Include="..\..\pylorak.Utilities\Disposable.cs" Link="Disposable.cs" />
+    <Compile Include="..\..\TinyWall\MessageType.cs" Link="MessageType.cs" />
+    <Compile Include="..\..\TinyWall\ExceptionPolicy.cs" Link="ExceptionPolicy.cs" />
+    <Compile Include="..\..\TinyWall\PolymorphicJsonConverter.cs" Link="PolymorphicJsonConverter.cs" />
   </ItemGroup>
 
   <!--

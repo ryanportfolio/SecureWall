@@ -135,6 +135,7 @@ namespace pylorak.TinyWall
             {
                 new TwMessageReadPendingPrompts(new[] { prompt }),
                 TwMessagePromptAction.CreateDismissRequest(token),
+                TwMessagePromptAction.CreateTimeoutDismissRequest(token),
                 TwMessagePromptAction.CreateAllowRequest(token),
             };
 

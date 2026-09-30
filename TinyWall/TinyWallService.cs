@@ -1715,6 +1715,7 @@ namespace pylorak.TinyWall
                         return args.CreateResponse(prompts, Utils.DeepClone(VisibleState));
                     }
                 case MessageType.DISMISS_PROMPT:
+                case MessageType.DISMISS_PROMPT_TIMEOUT:
                     {
                         var args = (TwMessagePromptAction)req;
                         PromptActionResult result = BlockedPromptQueue.Dismiss(args.Token);
@@ -2550,13 +2551,11 @@ namespace pylorak.TinyWall
                 var req = new TwRequest(reqMsg);
                 Q.Add(req);
 
-                // Background reads never extend the password inactivity window.
+                // Background reads, popup timeouts and prompt actions on unknown or expired
+                // tokens never extend the password inactivity window.
                 TwMessage response = req.Response;
-                bool userAction = reqMsg.Type == MessageType.UNLOCK || reqMsg.Type == MessageType.DISMISS_PROMPT ||
-                    reqMsg.Type == MessageType.ALLOW_PROMPT || reqMsg.Type == MessageType.MODE_SWITCH ||
-                    reqMsg.Type == MessageType.PUT_SETTINGS || reqMsg.Type == MessageType.SET_PASSPHRASE;
-                ControllerActivity.Record(userAction && response.Type != MessageType.RESPONSE_ERROR &&
-                    response.Type != MessageType.RESPONSE_LOCKED && response.Type != MessageType.COM_ERROR);
+                ControllerActivity.Record(ControllerActivityPolicy.IsUserActivity(
+                    reqMsg.Type, response.Type, (response as TwMessagePromptAction)?.Status));
                 return response;
             }
         }
