@@ -49,3 +49,7 @@ unless the user explicitly asks in the current session.
 Controller recovery must not call SYSTEM-only `/install`. Only the installing plus LocalSystem path creates registration and configures health; other callers validate the existing protected image, LocalSystem account, dedicated service type and pending-deletion state before start. Nonadmin elevation uses the system directory's sc.exe, then observes Running through SCM. Missing registration requires MSI recovery (full removal and fresh install).
 
 User controller logs use LocalApplicationData/SecureWall/logs. Actual privileged/noninteractive/impersonating context and service/installer roles force guarded machine logs, with no user fallback. Do not use the log label alone as a privilege decision. Legacy writable ProgramData trees are intentionally rejected; preserve them as evidence and require reviewed local-console recovery. MSI stderr diagnostics do not guarantee a specific installer dialog.
+
+## 2026-09-29: no deliberate crash experiments
+
+2026-09-29: reviewers and tests on this machine must never deliberately crash processes (unhandled thread exceptions, FailFast, Debug.Assert) to test exit semantics; Visual Studio is the registered JIT debugger, so each crash opens blocking dialogs on the owner's desktop. Reason from documentation instead.
