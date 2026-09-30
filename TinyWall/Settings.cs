@@ -4,6 +4,7 @@ using System.Text;
 using System.Diagnostics.CodeAnalysis;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
+using System.Security.Cryptography;
 using pylorak.Utilities;
 using System.Text.Json.Serialization.Metadata;
 using pylorak.TinyWall.Prompting;
@@ -154,6 +155,10 @@ namespace pylorak.TinyWall
 
     public static class PasswordLock
     {
+        private const Pbkdf2.HashFunction PBKDF2_ALGO = Pbkdf2.HashFunction.SHA_256;
+        private const int PBKDF2_SALT_LEN = 16;
+        private const int PBKDF2_ITERATIONS = 200_000;
+
         internal static string PasswordFilePath { get; } = Path.Combine(Utils.AppDataPath, "pwd");
 
         private static bool _Locked;
@@ -168,24 +173,35 @@ namespace pylorak.TinyWall
             }
         }
 
+        // The service must not hold PasswordFilePath open while calling this.
         internal static void SetPass(string password)
         {
-            // Construct file path
-            string SettingsFile = PasswordFilePath;
-
             if (password == string.Empty)
+            {
                 // If we have no password, delete password explicitly
-                File.Delete(SettingsFile);
+                File.Delete(PasswordFilePath);
+            }
             else
             {
+                byte[] salt = new byte[PBKDF2_SALT_LEN];
+                using (var rng = RandomNumberGenerator.Create())
+                    rng.GetBytes(salt);
+                string stored = new Pbkdf2(PBKDF2_ALGO, PBKDF2_ITERATIONS, salt, password).ToString(Pbkdf2.StorageFormat.Tw352);
+
+                // File.Replace keeps the replaced file's DACL, so an older user-readable
+                // pwd is protected before replacement. The temporary file is created
+                // protected, so the hash is never user-readable in between.
+                Installer.SecretFileProtection.Ensure(PasswordFilePath);
                 using var fileUpdater = new AtomicFileUpdater(PasswordFilePath);
-                string salt = Utils.RandomString(8);
-                string hash = Pbkdf2.GetHashForStorage(password, salt, 150000, 16);
-                File.WriteAllText(fileUpdater.TemporaryFilePath, hash, Encoding.UTF8);
+                using (var stream = Installer.SecretFileProtection.CreateNew(fileUpdater.TemporaryFilePath))
+                using (var writer = new StreamWriter(stream, Encoding.UTF8))
+                    writer.Write(stored);
                 fileUpdater.Commit();
             }
         }
 
+        // The service must not hold PasswordFilePath open while calling this: a
+        // successful unlock may rewrite a hash stored in an older format.
         internal static bool Unlock(string password)
         {
             if (!HasPassword)
@@ -193,8 +209,20 @@ namespace pylorak.TinyWall
 
             try
             {
-                string storedHash = System.IO.File.ReadAllText(PasswordFilePath, System.Text.Encoding.UTF8);
-                _Locked = !Pbkdf2.CompareHash(storedHash, password);
+                string storedHash = File.ReadAllText(PasswordFilePath, Encoding.UTF8);
+                _Locked = !Pbkdf2.VerifyStored(storedHash, password, PBKDF2_ALGO, PBKDF2_ITERATIONS, out bool needsUpgrade);
+                if (!_Locked && needsUpgrade)
+                {
+                    try
+                    {
+                        SetPass(password);
+                    }
+                    catch (Exception e)
+                    {
+                        // The old hash stays valid; the upgrade is retried on the next unlock.
+                        Utils.LogException(e, Utils.LOG_ID_SERVICE);
+                    }
+                }
             }
             catch { }
 

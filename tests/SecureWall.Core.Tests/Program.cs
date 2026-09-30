@@ -73,7 +73,8 @@ internal static class Program
             .Concat(HostsRestorationTests.Cases)
             .Concat(HostsAdapterTests.Cases)
             .Concat(PromptTransactionIntegrationTests.Cases)
-            .Concat(ExecutableRiskTests.Cases).ToArray();
+            .Concat(ExecutableRiskTests.Cases)
+            .Concat(PasswordStorageTests.Cases).ToArray();
         tests = tests.Concat(RuntimeJournalTests.Cases).Concat(RuntimeDiagnosticCoverageTests.Cases).ToArray();
         var failed = 0;
 

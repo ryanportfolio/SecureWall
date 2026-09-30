@@ -16,6 +16,11 @@ namespace pylorak.TinyWall.Prompting
             { Sid = sid; Rights = rights; Allow = allow; InheritOnly = inheritOnly; }
         }
 
+        // Protected DACL for secret files (pwd): SYSTEM and Administrators full control.
+        // BUILTIN\Users keep only READ_CONTROL, SYNCHRONIZE and FILE_READ_ATTRIBUTES, so an
+        // unprivileged controller can still validate the tree but cannot read the contents.
+        internal const string SecretFileDacl = "D:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;0x120080;;;BU)";
+
         internal static bool Trusted(string sid) => sid == "S-1-5-18" || sid == "S-1-5-32-544" ||
             sid == "S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464";
 

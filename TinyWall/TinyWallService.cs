@@ -1164,6 +1164,22 @@ namespace pylorak.TinyWall
 
         private static string ConfigRecoveryPath => ConfigSavePath + ".recovery";
 
+        // pwd holds the password hash. Replace the Users read it inherits from the data
+        // directory (also on files written by earlier versions), then hold it open without
+        // sharing. Callers reading or writing it through PasswordLock unlock it first.
+        private void LockPasswordFile()
+        {
+            try
+            {
+                Installer.SecretFileProtection.Ensure(PasswordLock.PasswordFilePath);
+            }
+            catch (Exception e)
+            {
+                Utils.LogException(e, Utils.LOG_ID_SERVICE);
+            }
+            FileLocker.Lock(PasswordLock.PasswordFilePath, FileAccess.Read, FileShare.None);
+        }
+
         private void RestoreInterruptedPolicy()
         {
             bool recoveryExists;
@@ -1842,7 +1858,16 @@ namespace pylorak.TinyWall
                 case MessageType.UNLOCK:
                     {
                         var args = (TwMessageUnlock)req;
-                        bool success = PasswordLock.Unlock(args.Password);
+                        bool success;
+                        FileLocker.Unlock(PasswordLock.PasswordFilePath);
+                        try
+                        {
+                            success = PasswordLock.Unlock(args.Password);
+                        }
+                        finally
+                        {
+                            LockPasswordFile();
+                        }
                         if (success)
                             return args.CreateResponse();
                         else
@@ -1879,7 +1904,7 @@ namespace pylorak.TinyWall
                         }
                         finally
                         {
-                            FileLocker.Lock(PasswordLock.PasswordFilePath, FileAccess.Read, FileShare.Read);
+                            LockPasswordFile();
                         }
                     }
                 case MessageType.STOP_SERVICE:
@@ -2062,7 +2087,7 @@ namespace pylorak.TinyWall
             {
                 // Fire up file protections as soon as possible
                 FileLocker.Lock(DatabaseClasses.AppDatabase.DBPath, FileAccess.Read, FileShare.Read);
-                FileLocker.Lock(PasswordLock.PasswordFilePath, FileAccess.Read, FileShare.Read);
+                LockPasswordFile();
 
                 // Lock configuration if we have a password
                 if (PasswordLock.HasPassword)

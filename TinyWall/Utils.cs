@@ -239,11 +239,13 @@ namespace pylorak.TinyWall
             }
         }
 
-        internal static bool IsDarkModeActive(ControllerSettings settings)
+        // settings is null when a form is shown without controller settings, such as
+        // PasswordForm during a password-locked /uninstall; the system theme applies then.
+        internal static bool IsDarkModeActive(ControllerSettings? settings)
         {
-            if (string.Equals(settings.UiTheme, "dark", StringComparison.InvariantCultureIgnoreCase))
+            if (string.Equals(settings?.UiTheme, "dark", StringComparison.InvariantCultureIgnoreCase))
                 return true;
-            else if (string.Equals(settings.UiTheme, "light", StringComparison.InvariantCultureIgnoreCase))
+            else if (string.Equals(settings?.UiTheme, "light", StringComparison.InvariantCultureIgnoreCase))
                 return false;
             else
                 return !AppsUseLightTheme();
