@@ -322,15 +322,6 @@
   <data name="FirewallModeLearn" xml:space="preserve">
     <value>Tanuló mód</value>
   </data>
-  <data name="YouAreAboutToEnterLearningMode" xml:space="preserve">
-    <value>Biztosan engedélyezed az automatikus tanuló módot?
-
-Az automatikus tanulás során a tűzfal átenged minden forgalmat és közben megjegyzi milyen alkalmazásokat használtál a hálózaton. Amikor kilépsz a tanuló módból, a tűzfal automatikusan létrehozza  a kivételeket. Figyelem, a különleges kivételeket nem lehet így megtaníttatni a programmal!
-
-Mielőtt bekapcsolod a tanuló módot, győződj meg róla, hogy a rendszered malware-mentes. Érdemes egy frissen telepített rendszeren futtatni ezt a funkciót, és/vagy egy alapos vírusellenőrzést is végrehajtani előtte.
-
-Engedélyezed az automatikus tanuló módot?</value>
-  </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>Te kezdeményezted a SecureWall eltávolítását vagy frissítését?</value>
   </data>

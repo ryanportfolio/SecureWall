@@ -322,14 +322,6 @@
   <data name="FirewallModeLearn" xml:space="preserve">
     <value>Automático (aprendizado)</value>
   </data>
-  <data name="YouAreAboutToEnterLearningMode" xml:space="preserve">
-    <value>Quer mesmo entrar no modo de configuração automática ("aprendizado")?
-Neste modo, o SecureWall autorizará todo tipo de tráfego e memorizará todos os aplicativos que acessarem a rede. Quando sair desse modo de operação, o SecureWall adicionará exceções para você automaticamente. Note, porém, que regras de controle não podem ser "aprendidas" no caso de "Controle de Tráfego/Exceções Especiais" da configuração.
-
-Antes de entrar neste modo, verifique se seu computador está livre de vírus. É melhor executar o modo de config automática em sistemas recém-instalados, limpos e  executar um antivírus no computador antes de usar este modo.
-
-Gostaria de entrar no modo de config automática agora?</value>
-  </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>Foi você mesmo quem iniciou a desinstalação do SecureWall?</value>
   </data>

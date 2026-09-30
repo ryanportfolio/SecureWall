@@ -307,14 +307,6 @@ El servidor puede estar caído, verificar que SecureWall no tenga bloqueado el a
   <data name="FirewallModeLearn" xml:space="preserve">
     <value>Auto aprendizaje</value>
   </data>
-  <data name="YouAreAboutToEnterLearningMode" xml:space="preserve">
-    <value>¿Comenzar el auto aprendizaje?
-En este modo SecureWall admite todo el tráfico y recuerda qué aplicaciones han utilizado la red. Cuando se cierra el modo de aprendizaje, SecureWall añadirá excepciones al cortafuegos automáticamente. Pero para "Excepciones especiales" las reglas aprendidas no se tendrán en cuenta.
-
-Antes de ejecutar el modo auto aprendizaje, asegurarse de que el sistema está libre de cualquier malware. Es mejor activar este modo en sistemas recientemente instalados y es recomendable examinar su equipo en busca de virus antes de usar este modo.
-
-¿Activar el modo auto aprendizaje ahora?</value>
-  </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>¿Se inició la desinstalación/actualización de SecureWall?</value>
   </data>

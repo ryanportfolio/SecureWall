@@ -313,14 +313,6 @@ Sélectionnez Élever dans le menu et réessayez.</value>
   <data name="FirewallModeLearn" xml:space="preserve">
     <value>Auto-apprentissage</value>
   </data>
-  <data name="YouAreAboutToEnterLearningMode" xml:space="preserve">
-    <value>Êtes-vous sûr de vouloir démarrer l'auto-apprentissage ?
-En mode d'auto-apprentissage SecureWall va autoriser tout le trafic et se souvenir des applications ayant utilisé le réseau. Quand vous quittez le mode d'auto-apprentissage, SecureWall ajoute les exceptions automatiquement. Notez cependant que les règles pour les exceptions spéciales ne sont pas concernées.
-
-Avant d'entrer en mode d'auto-apprentissage assurez-vous qu'il n'y ait pas de malware sur votre ordinateur. Il est recommandé de lancer l'auto-apprentissage après une installation récente du système et il est recommandé de vérifier qu'il n'y a pas de virus auparavant.
-
-Voulez-vous entrer en mode d'auto-apprentissage maintenant ?</value>
-  </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>Souhaitez-vous désinstaller SecureWall ?</value>
   </data>

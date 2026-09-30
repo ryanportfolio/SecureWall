@@ -291,14 +291,6 @@ Kies verhoogde rechten vanuit het tray menu en probeer opnieuw.</value>
   <data name="FirewallModeLearn" xml:space="preserve">
     <value>Auto leren</value>
   </data>
-  <data name="YouAreAboutToEnterLearningMode" xml:space="preserve">
-    <value>Bent u zeker dat u automatisch leren wil inschakelen?
-Bij "automatisch leren" zal de firewall alle verkeer toestaan en onthouden welke toepassingen gebruik maakten van het netwerk. Echter speciale uitzonderingen moeten nog steeds manueel worden toegevoegd.
-
-Vooraleer u de leermodus inschakeld is het aan te raden er zeker van te zijn dat uw systeem vrij is van malware. Ideaal is het om de leermodus te gebruiken bij vers geïnstalleerde systemen. We bevelen steeds aan om uw systeem te controleren op virusen vooraleer automatisch leren te gebruiken.
-
-Wil automatisch leren nu inschakelen?</value>
-  </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>Heeft u de desinstallatie van SecureWall opgestart?</value>
   </data>
