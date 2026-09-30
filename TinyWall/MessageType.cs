@@ -19,6 +19,8 @@
         // Unprivileged write commands (>1023)
         UNLOCK = 1024,
         DISMISS_PROMPT,
+        // Automatic popup timeout. Same queue effect as DISMISS_PROMPT, never user activity.
+        DISMISS_PROMPT_TIMEOUT,
 
         // Privileged write commands (>2047)
         MODE_SWITCH = 2048,

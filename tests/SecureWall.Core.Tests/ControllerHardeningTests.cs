@@ -194,14 +194,14 @@ internal static class ControllerHardeningTests
         display.Reconcile(new[] { prompt });
         now = Start.AddSeconds(30);
         views[0].Timeout();
-        Check(views[0].Closed && display.CurrentToken == null && actions.DismissCount == 1);
+        Check(views[0].Closed && display.CurrentToken == null && actions.TimeoutCount == 1 && actions.DismissCount == 0);
         for (int index = 0; index < 20; index++)
         {
             views[0].Timeout();
             display.Reconcile(new[] { prompt });
             display.Tick();
         }
-        Check(views.Count == 1 && actions.DismissCount == 1 && display.CurrentToken == null);
+        Check(views.Count == 1 && actions.TimeoutCount == 1 && actions.DismissCount == 0 && display.CurrentToken == null);
     }
 
     private static void StalledTimeoutDoesNotDelayExpiry()
@@ -277,10 +277,11 @@ internal static class ControllerHardeningTests
     private static void Check(bool value) { if (!value) throw new InvalidOperationException("Hardening assertion failed."); }
     private sealed class Actions : IPromptActionClient
     {
-        internal int AllowCount, DismissCount;
+        internal int AllowCount, DismissCount, TimeoutCount;
         internal PromptActionStatus DismissResult = PromptActionStatus.Dismissed;
         public PromptActionStatus Allow(Guid token) { AllowCount++; return PromptActionStatus.Allowed; }
         public PromptActionStatus Dismiss(Guid token) { DismissCount++; return DismissResult; }
+        public PromptActionStatus DismissAfterTimeout(Guid token) { TimeoutCount++; return DismissResult; }
     }
     private sealed class View : IPromptView
     {

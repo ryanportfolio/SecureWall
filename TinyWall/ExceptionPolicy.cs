@@ -113,13 +113,19 @@ namespace pylorak.TinyWall
                     // No change to target
                     break;
                 case PolicyType.RuleList:
-                    this.LocalNetworkOnly = false;
+                    // Clearing a LAN-only restriction would widen this policy to every
+                    // remote address. Keep both policies separate instead.
+                    if (this.LocalNetworkOnly)
+                        return false;
                     target = this;
                     break;
                 case PolicyType.TcpUdpOnly:
                 {
                     var other = (TcpUdpPolicy)target;
-                    this.LocalNetworkOnly &= other.LocalNetworkOnly;
+                    // LAN-only full access plus internet TCP/UDP has no single-policy form
+                    // that is not wider than both inputs.
+                    if (this.LocalNetworkOnly && !other.LocalNetworkOnly)
+                        return false;
                     target = this;
                     break;
                 }
@@ -184,7 +190,10 @@ namespace pylorak.TinyWall
                     return MergeRulesTo((TcpUdpPolicy)target);
                 case PolicyType.Unrestricted:
                     var other = (UnrestrictedPolicy)target;
-                    other.LocalNetworkOnly &= this.LocalNetworkOnly;
+                    // Internet TCP/UDP must not turn LAN-only full access into internet
+                    // full access. Keep both policies separate instead.
+                    if (other.LocalNetworkOnly && !this.LocalNetworkOnly)
+                        return false;
                     break;
                 default:
                     throw new NotImplementedException();
@@ -195,7 +204,11 @@ namespace pylorak.TinyWall
 
         private bool MergeRulesTo(TcpUdpPolicy other)
         {
-            other.LocalNetworkOnly &= this.LocalNetworkOnly;
+            // One LocalNetworkOnly flag covers every port list. Merging a LAN-only policy
+            // with an internet policy would expose the LAN-only ports, including inbound
+            // listeners, to every remote address. Keep both policies separate instead.
+            if (other.LocalNetworkOnly != this.LocalNetworkOnly)
+                return false;
             other.AllowedRemoteTcpConnectPorts = MergeStringList(this.AllowedRemoteTcpConnectPorts, other.AllowedRemoteTcpConnectPorts);
             other.AllowedRemoteUdpConnectPorts = MergeStringList(this.AllowedRemoteUdpConnectPorts, other.AllowedRemoteUdpConnectPorts);
             other.AllowedLocalTcpListenerPorts = MergeStringList(this.AllowedLocalTcpListenerPorts, other.AllowedLocalTcpListenerPorts);
@@ -267,8 +280,11 @@ namespace pylorak.TinyWall
                     break;
                 case PolicyType.Unrestricted:
                 {
+                    // Clearing a LAN-only restriction would widen the target to every
+                    // remote address. Keep both policies separate instead.
                     var other = (UnrestrictedPolicy)target;
-                    other.LocalNetworkOnly = false;
+                    if (other.LocalNetworkOnly)
+                        return false;
                     break;
                 }
                 default:

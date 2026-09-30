@@ -22,6 +22,9 @@
     <Compile Include="..\..\pylorak.Utilities\Disposable.cs" Link="Disposable.cs" />
     <Compile Include="..\..\pylorak.Utilities\Pbkdf2.cs" Link="Pbkdf2.cs" />
     <Compile Include="..\..\TinyWall\ProcessPathActions.cs" Link="ProcessPathActions.cs" />
+    <Compile Include="..\..\TinyWall\MessageType.cs" Link="MessageType.cs" />
+    <Compile Include="..\..\TinyWall\ExceptionPolicy.cs" Link="ExceptionPolicy.cs" />
+    <Compile Include="..\..\TinyWall\PolymorphicJsonConverter.cs" Link="PolymorphicJsonConverter.cs" />
   </ItemGroup>
 
   <!--

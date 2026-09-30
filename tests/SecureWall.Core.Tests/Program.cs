@@ -84,7 +84,9 @@ internal static class Program
             .Concat(ServiceStartupRobustnessTests.Cases)
             .Concat(LearningPolicyTests.Cases)
             .Concat(ExceptionMergePolicyTests.Cases)
-            .Concat(ServiceAttributionTests.Cases).ToArray();
+            .Concat(ServiceAttributionTests.Cases)
+            .Concat(ExceptionMergeTests.Cases)
+            .Concat(ControllerActivityTests.Cases).ToArray();
         var failed = 0;
 
         foreach (var (name, test) in tests)
@@ -833,7 +835,10 @@ internal static class Program
         views[0].RaiseClosed();
         views[1].RaiseTimeout();
 
-        AssertEx.SequenceEqual(new[] { first.Token, second.Token }, actions.Dismissed);
+        // Both dismiss the token; only the timeout is sent as automatic, so it cannot
+        // extend the service's password unlock window.
+        AssertEx.SequenceEqual(new[] { first.Token }, actions.Dismissed);
+        AssertEx.SequenceEqual(new[] { second.Token }, actions.TimedOut);
         AssertEx.Equal<Guid?>(null, coordinator.CurrentToken);
     }
 
@@ -949,6 +954,14 @@ internal static class Program
         public PromptActionStatus Dismiss(Guid token)
         {
             Dismissed.Add(token);
+            return DismissResult;
+        }
+
+        internal List<Guid> TimedOut { get; } = new();
+
+        public PromptActionStatus DismissAfterTimeout(Guid token)
+        {
+            TimedOut.Add(token);
             return DismissResult;
         }
     }

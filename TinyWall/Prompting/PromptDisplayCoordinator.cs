@@ -8,6 +8,8 @@ namespace pylorak.TinyWall.Prompting
     {
         PromptActionStatus Allow(Guid token);
         PromptActionStatus Dismiss(Guid token);
+        // Same effect as Dismiss, but marked as automatic so it never extends the unlock window.
+        PromptActionStatus DismissAfterTimeout(Guid token);
     }
 
     internal interface IPromptView : IDisposable
@@ -212,7 +214,7 @@ namespace pylorak.TinyWall.Prompting
             if (!stillValid || !_actionsInFlight.Add(token)) return;
             // Local closure happens first. One best-effort dismissal never delays
             // expiry, retries on the UI timer, or applies a result to another view.
-            await PerformAction(() => _actions.Dismiss(token));
+            await PerformAction(() => _actions.DismissAfterTimeout(token));
             _actionsInFlight.Remove(token);
         }
 
