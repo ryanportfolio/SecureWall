@@ -21,6 +21,7 @@ internal static class ServiceRecoveryTests
         ("unverified addresses survive unrelated commits and force revocation", UnverifiedAddresses),
         ("address changes and display-off restriction supersede committed grants", SupersededInputs),
         ("recovery waits are clamped against inconsistent clock readings", ClampedWait),
+        ("failed address condition build is rebuilt in full on the next enumeration", AddressConditionRebuild),
     };
 
     private static void RetentionMatrix()
@@ -227,6 +228,50 @@ internal static class ServiceRecoveryTests
         string body = service.Substring(recovery, service.IndexOf("private void ExpireRules()", recovery, StringComparison.Ordinal) - recovery);
         AssertEx.True(body.Contains("RecoveryClock.Elapsed") && !body.Contains("DateTimeOffset.UtcNow"), "Recovery uses wall-clock time.");
         AssertEx.True(service.Contains("RuntimeRecovery.Wait(RuntimeSessionRevoked, SessionRebuild, ReloadRetry, RecoveryClock.Elapsed)"));
+    }
+
+    private static void AddressConditionRebuild()
+    {
+        var sets = new AddressConditionSets<string>(3);
+        var lists = new[] { new List<string>(), new List<string>(), new List<string>() };
+        void Clear() { foreach (var list in lists) list.Clear(); }
+        HashSet<string>[] Sets(string subnet, string gateway, string dns) =>
+            new[] { new HashSet<string> { subnet, "255.255.255.255/32" }, new HashSet<string> { gateway }, new HashSet<string> { dns } };
+        bool Complete(HashSet<string>[] expected) =>
+            Enumerable.Range(0, 3).All(i => lists[i].Count == expected[i].Count && expected[i].SetEquals(lists[i]) &&
+                expected[i].SetEquals(sets.Published(i)));
+
+        var home = Sets("192.168.1.0/24", "192.168.1.1/32", "192.168.1.1/32");
+        AssertEx.True(sets.Update(home, Clear, (i, item) => lists[i].Add(item)) && Complete(home));
+        AssertEx.False(sets.Update(Sets("192.168.1.0/24", "192.168.1.1/32", "192.168.1.1/32"), Clear,
+            (_, _) => throw new InvalidOperationException("Unchanged sets rebuilt.")));
+
+        // A condition build fails partway (bad prefix or allocation failure).
+        var office = Sets("10.0.0.0/8", "10.0.0.1/32", "10.0.0.53/32");
+        int built = 0;
+        var failure = new ArgumentOutOfRangeException("prefix");
+        Exception? observed = null;
+        try { sets.Update(office, Clear, (i, item) => { if (++built == 2) throw failure; lists[i].Add(item); }); }
+        catch (Exception error) { observed = error; }
+        AssertEx.True(ReferenceEquals(observed, failure), "Build failure was swallowed or replaced.");
+        AssertEx.True(Enumerable.Range(0, 3).All(i => !sets.Published(i).Any()), "Failed build left published sets.");
+
+        // The same OS data again must count as a change and rebuild every list.
+        int calls = 0;
+        AssertEx.True(sets.Update(Sets("10.0.0.0/8", "10.0.0.1/32", "10.0.0.53/32"), Clear, (i, item) => { ++calls; lists[i].Add(item); }),
+            "Rebuild saw no change and kept partial condition lists.");
+        AssertEx.True(calls == 4 && Complete(office), "Rebuild did not rebuild every list.");
+
+        // A failure after returning to a previously published network must not reuse it either.
+        try { sets.Update(home, Clear, (_, _) => throw new OutOfMemoryException()); } catch (OutOfMemoryException) { }
+        AssertEx.True(sets.Update(Sets("10.0.0.0/8", "10.0.0.1/32", "10.0.0.53/32"), Clear, (i, item) => lists[i].Add(item)) &&
+            Complete(office), "Failed switch left the previous sets published over empty lists.");
+
+        string service = PromptTransactionIntegrationTests.Source("TinyWall/TinyWallService.cs");
+        int enumerate = service.IndexOf("private bool ReenumerateAdresses()", StringComparison.Ordinal);
+        string body = service.Substring(enumerate, service.IndexOf("internal static void DeleteWfpObjects", enumerate, StringComparison.Ordinal) - enumerate);
+        AssertEx.True(body.Contains("RemoteAddressSets.Update(") && !body.Contains("SetEquals") && !body.Contains("LocalSubnetAddreses = newLocalSubnetAddreses"),
+            "Address enumeration bypasses the publish-after-build helper.");
     }
 
     private static void ServiceWiring()

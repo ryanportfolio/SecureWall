@@ -106,9 +106,8 @@ namespace pylorak.TinyWall
         private readonly ManagementEventWatcher ProcessStartWatcher = new(new WqlEventQuery("SELECT * FROM Win32_ProcessStartTrace"));
         private readonly EventMerger RuleReloadEventMerger = new(1000);
 
-        private HashSet<IpAddrMask> LocalSubnetAddreses = new();
-        private HashSet<IpAddrMask> GatewayAddresses = new();
-        private HashSet<IpAddrMask> DnsAddresses = new();
+        // LocalSubnet, DefaultGateway and DNS address sets, in that order.
+        private readonly AddressConditionSets<IpAddrMask> RemoteAddressSets = new(3);
         private readonly FilterConditionList LocalSubnetFilterConditions = new();
         private readonly FilterConditionList GatewayFilterConditions = new();
         private readonly FilterConditionList DnsFilterConditions = new();
@@ -2125,28 +2124,18 @@ namespace pylorak.TinyWall
                 newLocalSubnetAddreses.Add(IpAddrMask.AdminScopedMulticast);
                 newLocalSubnetAddreses.Add(IpAddrMask.IPv6LinkLocalMulticast);
 
-                bool ipConfigurationChanged =
-                    !LocalSubnetAddreses.SetEquals(newLocalSubnetAddreses) ||
-                    !GatewayAddresses.SetEquals(newGatewayAddresses) ||
-                    !DnsAddresses.SetEquals(newDnsAddresses);
-
-                if (ipConfigurationChanged)
-                {
-                    LocalSubnetAddreses = newLocalSubnetAddreses;
-                    GatewayAddresses = newGatewayAddresses;
-                    DnsAddresses = newDnsAddresses;
-
-                    LocalSubnetFilterConditions.Clear();
-                    GatewayFilterConditions.Clear();
-                    DnsFilterConditions.Clear();
-
-                    foreach (var addr in LocalSubnetAddreses)
-                        LocalSubnetFilterConditions.Add(new IpFilterCondition(addr.Address, (byte)addr.PrefixLen, RemoteOrLocal.Remote));
-                    foreach (var addr in GatewayAddresses)
-                        GatewayFilterConditions.Add(new IpFilterCondition(addr.Address, (byte)addr.PrefixLen, RemoteOrLocal.Remote));
-                    foreach (var addr in DnsAddresses)
-                        DnsFilterConditions.Add(new IpFilterCondition(addr.Address, (byte)addr.PrefixLen, RemoteOrLocal.Remote));
-                }
+                // Publishes the sets only after every condition list is rebuilt; a failed build
+                // resets them so the next enumeration rebuilds every list.
+                bool ipConfigurationChanged = RemoteAddressSets.Update(
+                    new[] { newLocalSubnetAddreses, newGatewayAddresses, newDnsAddresses },
+                    () =>
+                    {
+                        LocalSubnetFilterConditions.Clear();
+                        GatewayFilterConditions.Clear();
+                        DnsFilterConditions.Clear();
+                    },
+                    (list, addr) => (list == 0 ? LocalSubnetFilterConditions : list == 1 ? GatewayFilterConditions : DnsFilterConditions)
+                        .Add(new IpFilterCondition(addr.Address, (byte)addr.PrefixLen, RemoteOrLocal.Remote)));
 
                 return ipConfigurationChanged;
             }));

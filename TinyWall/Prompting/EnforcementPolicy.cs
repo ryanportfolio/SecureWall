@@ -214,6 +214,53 @@ namespace pylorak.TinyWall.Prompting
         internal void Committed() => changed = false;
     }
 
+    // Remote-address sets (LocalSubnet, DefaultGateway, DNS) and the filter condition lists
+    // built from them. Sets are published only after every list is rebuilt. A failed build
+    // resets every set to empty, so the next enumeration reports a change and rebuilds every
+    // list instead of reusing partial ones. Enforcement thread only.
+    internal sealed class AddressConditionSets<T>
+    {
+        private HashSet<T>[] published;
+
+        internal AddressConditionSets(int count) => published = Empty(count);
+
+        internal IEnumerable<T> Published(int list) => published[list];
+
+        internal bool Update(HashSet<T>[] next, Action clearLists, Action<int, T> build)
+        {
+            if (next == null || next.Length != published.Length)
+                throw new ArgumentException("One set is required per condition list.", nameof(next));
+            bool changed = false;
+            for (int i = 0; i < next.Length; ++i)
+                changed |= !published[i].SetEquals(next[i]);
+            if (!changed)
+                return false;
+            try
+            {
+                clearLists();
+                for (int i = 0; i < next.Length; ++i)
+                    foreach (T item in next[i])
+                        build(i, item);
+            }
+            catch
+            {
+                published = Empty(published.Length);
+                try { clearLists(); } catch { }
+                throw;
+            }
+            published = next;
+            return true;
+        }
+
+        private static HashSet<T>[] Empty(int count)
+        {
+            var sets = new HashSet<T>[count];
+            for (int i = 0; i < count; ++i)
+                sets[i] = new HashSet<T>();
+            return sets;
+        }
+    }
+
     internal static class DisplayRestriction
     {
         // The candidate withdraws grants when display-off blocking applies and the committed
