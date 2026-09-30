@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Runtime.Serialization;
 using System.Text.Json.Serialization.Metadata;
+using pylorak.TinyWall.Prompting;
 
 namespace pylorak.TinyWall
 {
@@ -80,7 +81,7 @@ namespace pylorak.TinyWall
                         // Two exceptions can have the same IDs if the user just edited one.
                         AppExceptions.Remove(oldEx);
                     }
-                    else if (oldEx.Subject.Equals(newEx.Subject)
+                    else if (ExceptionMergePolicy.SameSubject(oldEx.Subject, newEx.Subject)
                         && (oldEx.Timer == AppExceptionTimer.Permanent)
                         && (newEx.Timer == AppExceptionTimer.Permanent)
                     )
@@ -120,7 +121,7 @@ namespace pylorak.TinyWall
                         var older = app1.CreationDate > app2.CreationDate ? app2 : app1;
                         AppExceptions.Remove(older);
                     }
-                    else if (app1.Subject.Equals(app2.Subject)
+                    else if (ExceptionMergePolicy.SameSubject(app1.Subject, app2.Subject)
                         && (app1.Timer == AppExceptionTimer.Permanent)
                         && (app2.Timer == AppExceptionTimer.Permanent)
                     )
