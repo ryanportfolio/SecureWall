@@ -14,7 +14,7 @@ Filter weights retain upstream order: blocklist, raw-socket permit/block, user b
 
 The persistent and boot-time baseline denies all non-loopback traffic, including DNS and DHCP. It contains no recovery permits. All runtime policy, including saved allows, belongs to the service's dynamic WFP session. Service loss or startup failure withdraws runtime permissions and leaves strict external denial until the service successfully restores policy or explicit removal completes.
 
-Address renewal and name resolution can fail during this interval; recovery requires a local console. The deny is at `DefaultBlock - 2`; runtime default blocks remain promptable. Every filter registration failure aborts replacement.
+Address renewal and name resolution can fail during this interval. A running service rebuilds its dynamic session in-process, and after exhausted rebuilds or a startup failure it exits nonzero for an SCM restart; a local console is needed only when those fail because the cause persists. The deny is at `DefaultBlock - 2`; runtime default blocks remain promptable. Default-block, block and every other filter registration failure aborts replacement; only an optional WSL 2 permit failure is logged and skipped.
 
 Policy changes journal the prior configuration before attempting a candidate write, transact WFP replacement, then publish state. A write that throws after replacement still triggers compensation. Encrypted output finalizes before content flushing, and the installed file is flushed after replacement. This supports process-failure recovery; journal rename/delete ordering under power loss and physical-media guarantees remain unverified.
 

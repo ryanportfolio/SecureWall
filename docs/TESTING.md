@@ -20,7 +20,7 @@ Source checks must confirm:
 - both defaults target `INSTALLDIR/data-defaults`; only guarded SYSTEM setup writes machine-data defaults, after full-tree validation: an absent `profiles.json` or `hosts.bck` is created, an identical one is left untouched and a different one is replaced; configuration, password, `hosts.orig` and journals are never written, and MSI has no ProgramData writes/deletes.
 - source and packaged Windows_Update entries retain the exact `wuauserv` outbound TCP service rule and contain no executable-wide allow.
 - persistent and boot-time filters contain only external denial, including DNS/DHCP; no recovery permits survive service loss.
-- every filter registration failure propagates and rolls back instead of being swallowed;
+- default-block, block and every other filter registration failure propagates and rolls back instead of being swallowed; only an optional WSL 2 permit failure is logged and skipped;
 - Network Activity shows observed allows and blocks, exact TCP states, and local-only listener wording, with one-second refresh.
 
 Build all three MSI packages and `tests\SecureWall.NetworkProbe`, then run `tools\vm\Prepare-SecureWallVmBundle.ps1` to create an ignored, hash-manifested VM bundle. Its guarded runner verifies the selected MSI hash and baseline connectivity, installs that MSI silently, checks the WFP provider, drives separate Allow and Ignore probes, captures 5157/WFP/audit evidence, uninstalls through MSI, and compares service, provider, task, audit policy, firewall rules, notification flags and hosts state. This guided path does not execute every failure case below.
