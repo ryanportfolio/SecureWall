@@ -209,6 +209,21 @@ namespace pylorak.Windows.WFP
             return new FilterEnumerator(this, template, getFilterConditions, provider);
         }
 
+        // Every provider's filters in one layer, including boot-time and disabled filters.
+        public FilterOwnershipEnumerator EnumerateFilterOwnership(Guid layer)
+        {
+            var template = new Interop.FWPM_FILTER_ENUM_TEMPLATE0
+            {
+                providerKey = IntPtr.Zero,
+                layerKey = layer,
+                flags = Interop.FilterEnumTemplateFlags.FWP_FILTER_ENUM_FLAG_INCLUDE_BOOTTIME | Interop.FilterEnumTemplateFlags.FWP_FILTER_ENUM_FLAG_INCLUDE_DISABLED,
+                numFilterConditions = 0,
+                actionMask = 0xFFFFFFFFu,
+            };
+
+            return new FilterOwnershipEnumerator(this, template);
+        }
+
         public FilterKeyEnumerator EnumerateFilterKeys()
         {
             return new FilterKeyEnumerator(this, null);

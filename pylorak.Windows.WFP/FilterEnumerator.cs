@@ -166,4 +166,43 @@ namespace pylorak.Windows.WFP
             Current = native->filterKey;
         }
     }
+
+    public readonly struct FilterOwnership
+    {
+        public FilterOwnership(Guid filterKey, Guid providerKey, Guid layerKey, Guid sublayerKey, string displayName)
+        {
+            FilterKey = filterKey;
+            ProviderKey = providerKey;
+            LayerKey = layerKey;
+            SublayerKey = sublayerKey;
+            DisplayName = displayName;
+        }
+
+        public Guid FilterKey { get; }
+        // Guid.Empty when the filter has no provider.
+        public Guid ProviderKey { get; }
+        public Guid LayerKey { get; }
+        public Guid SublayerKey { get; }
+        public string DisplayName { get; }
+    }
+
+    // Reads only keys and the name. Unlike Filter, it never dereferences the weight,
+    // so filters from other providers with FWP_EMPTY or FWP_UINT8 weights are safe to read.
+    public class FilterOwnershipEnumerator : FilterEnumeratorBase
+    {
+        public FilterOwnershipEnumerator GetEnumerator() => this;
+
+        public FilterOwnership Current { get; private set; }
+
+        public FilterOwnershipEnumerator(Engine engine, Interop.FWPM_FILTER_ENUM_TEMPLATE0? template, Guid? providerKey = null)
+            : base(engine, template, providerKey)
+        { }
+
+        protected override unsafe void SetCurrentItem(Interop.FWPM_FILTER0_NoStrings* native)
+        {
+            Guid provider = native->providerKey == IntPtr.Zero ? Guid.Empty : PInvokeHelper.PtrToStructure<Guid>(native->providerKey);
+            string name = native->displayData.name == IntPtr.Zero ? string.Empty : (Marshal.PtrToStringUni(native->displayData.name) ?? string.Empty);
+            Current = new FilterOwnership(native->filterKey, provider, native->layerKey, native->subLayerKey, name);
+        }
+    }
 }

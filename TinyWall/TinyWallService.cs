@@ -479,6 +479,8 @@ namespace pylorak.TinyWall
                 return;
             using var baseline = new Engine("SecureWall Recovery Baseline", "", FWPM_SESSION_FLAGS.None, 5000);
             using var transaction = baseline.BeginTransaction();
+            // TinyWall leftovers keep enforcing beside SecureWall; refuse before any change.
+            RequireWfpCoexistence(baseline, "SecureWall baseline registration");
             // Atomically replace legacy persisted permits with a restrictive recovery policy.
             DeleteWfpObjects(baseline, true);
 
@@ -2070,28 +2072,76 @@ namespace pylorak.TinyWall
             });
         }
 
+        private const uint FWP_E_PROVIDER_NOT_FOUND = 0x80320005;
+
+        private static Guid[] OwnSublayerKeys() =>
+            ((LayerKeyEnum[])Enum.GetValues(typeof(LayerKeyEnum))).Select(GetSublayerKey).ToArray();
+
+        private static WfpSublayerRecord[] ReadSublayers(Engine wfp) =>
+            wfp.GetSublayers().Select(s => new WfpSublayerRecord(s.SublayerKey, s.ProviderKey)).ToArray();
+
+        // Every provider's filters on the layers SecureWall's sublayers serve.
+        private static List<WfpFilterRecord> ReadFilters(Engine wfp)
+        {
+            var filters = new List<WfpFilterRecord>();
+            foreach (LayerKeyEnum layer in (LayerKeyEnum[])Enum.GetValues(typeof(LayerKeyEnum)))
+            {
+                using var enumerator = wfp.EnumerateFilterOwnership(GetLayerKey(layer));
+                while (enumerator.MoveNext())
+                {
+                    FilterOwnership f = enumerator.Current;
+                    filters.Add(new WfpFilterRecord(f.FilterKey, f.ProviderKey, f.SublayerKey, f.DisplayName));
+                }
+            }
+            return filters;
+        }
+
+        // Refuses activation while TinyWall's provider, a TinyWall-era sublayer, or another
+        // provider's filter in a SecureWall or TinyWall-era sublayer exists.
+        internal static void RequireWfpCoexistence(Engine wfp, string operation)
+        {
+            WfpCoexistenceReport report = WfpCoexistencePolicy.FindActivationConflicts(SECUREWALL_PROVIDER_KEY,
+                wfp.GetProviders().Select(p => p.providerKey), ReadSublayers(wfp), ReadFilters(wfp),
+                OwnSublayerKeys(), WfpSublayerKeys.Legacy);
+            if (!report.Clear)
+                throw new InvalidOperationException(report.Describe(operation));
+        }
+
         internal static void DeleteWfpObjects(Engine wfp, bool removeLayersAndProvider)
         {
             // WARNING! This method is super-slow if not executed inside a WFP transaction!
             using var timer = new HierarchicalStopwatch("DeleteWfpObjects()");
-            var layerKeys = (LayerKeyEnum[])Enum.GetValues(typeof(LayerKeyEnum));
-            foreach (var layer in layerKeys)
+            WfpSublayerRecord[] sublayers = Array.Empty<WfpSublayerRecord>();
+            if (removeLayersAndProvider)
             {
-                Guid layerKey = GetLayerKey(layer);
-                Guid subLayerKey = GetSublayerKey(layer);
-
-                // Remove filters in the sublayer
-                foreach (var filterKey in wfp.EnumerateFilterKeys(SECUREWALL_PROVIDER_KEY, layerKey))
-                    wfp.UnregisterFilter(filterKey);
-
-                // Remove sublayer
-                if (removeLayersAndProvider)
-                    try { wfp.UnregisterSublayer(subLayerKey); } catch { }
+                // Another provider's filter in a SecureWall-owned sublayer makes the sublayer
+                // undeletable. Name it before changing anything; the caller's transaction aborts.
+                sublayers = ReadSublayers(wfp);
+                WfpCoexistenceReport blockers = WfpCoexistencePolicy.FindRemovalConflicts(SECUREWALL_PROVIDER_KEY,
+                    sublayers, ReadFilters(wfp), OwnSublayerKeys(), WfpSublayerKeys.Legacy);
+                if (!blockers.Clear)
+                    throw new InvalidOperationException(blockers.Describe("Removing SecureWall's WFP sublayers"));
             }
 
-            // Remove provider
-            if (removeLayersAndProvider)
-                try { wfp.UnregisterProvider(SECUREWALL_PROVIDER_KEY); } catch { }
+            // Remove SecureWall's filters in every sublayer, current or legacy
+            foreach (var layer in (LayerKeyEnum[])Enum.GetValues(typeof(LayerKeyEnum)))
+            {
+                foreach (var filterKey in wfp.EnumerateFilterKeys(SECUREWALL_PROVIDER_KEY, GetLayerKey(layer)))
+                    wfp.UnregisterFilter(filterKey);
+            }
+
+            if (!removeLayersAndProvider)
+                return;
+
+            // Remove current sublayers, and the TinyWall-keyed sublayers that SecureWall builds
+            // up to v0.3.0 registered, only when SecureWall's provider owns them.
+            // A failure propagates so the enclosing transaction rolls back.
+            foreach (Guid sublayerKey in WfpCoexistencePolicy.SublayersToRemove(SECUREWALL_PROVIDER_KEY,
+                sublayers, OwnSublayerKeys(), WfpSublayerKeys.Legacy))
+                wfp.UnregisterSublayer(sublayerKey);
+
+            try { wfp.UnregisterProvider(SECUREWALL_PROVIDER_KEY); }
+            catch (WfpException e) when (e.ErrorCode == FWP_E_PROVIDER_NOT_FOUND) { }
         }
 
         internal TinyWallServer(ServiceRuntimeDiagnostics diagnostics)

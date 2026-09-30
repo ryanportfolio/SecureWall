@@ -62,6 +62,7 @@ namespace pylorak.TinyWall
                 bool mayInstall = ControllerRepairPolicy.MayInstall(installing, identity.IsSystem);
                 if (installing) InstallationSafety.RequireSystemMaintenance();
                 InstallationSafety.RequireNoTinyWall();
+                if (installing) InstallationSafety.RequireNoConflictingWfpObjects();
                 InstallationSafety.RequireProtectedInstallation();
                 RequireServiceNotPendingDeletion();
                 ControllerRepairPolicy.RequireExistingOrInstaller(ServiceExists(), mayInstall);
