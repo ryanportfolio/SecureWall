@@ -20,6 +20,7 @@ internal static class ControllerHardeningTests
         ("locked allow unlocks retries the same token and relocks", LockedAllowUnlocksAndRelocks),
         ("cancelled popup unlock keeps the prompt blocked and open", CancelledUnlockKeepsPromptOpen),
         ("allow after an unlock elsewhere retries without relocking", AlreadyUnlockedRetriesWithoutRelock),
+        ("lost or failed unlock response still relocks", LostUnlockResponseStillRelocks),
         ("unlock outlasting the token never sends a second allow", UnlockPastExpiryNeverAllows),
         ("prompt withdrawn during unlock still relocks", WithdrawnDuringUnlockStillRelocks),
         ("AI endpoints require HTTPS and reject credentials query and fragment", AiRejectsUnsafeUrls),
@@ -252,14 +253,28 @@ internal static class ControllerHardeningTests
         using (display)
         {
             view.Allow();
-            Check(actions.AllowCount == 1 && actions.RelockCount == 0 && actions.DismissCount == 0);
+            Check(actions.AllowCount == 1 && actions.RelockCount == 1 && actions.DismissCount == 0);
             Check(!view.Closed && display.CurrentToken == prompt.Token);
             Check(view.Failures.Count > 0 && view.Failures.All(status => status == PromptActionStatus.Locked));
             // The owner can try again from the same popup.
             actions.AllowResults.Enqueue(PromptActionStatus.Locked);
             actions.UnlockResult = PromptUnlockResult.Unlocked;
             view.Allow();
-            Check(actions.UnlockCount == 2 && actions.AllowCount == 3 && actions.RelockCount == 1 && view.Closed);
+            Check(actions.UnlockCount == 2 && actions.AllowCount == 3 && actions.RelockCount == 2 && view.Closed);
+        }
+    }
+
+    private static void LostUnlockResponseStillRelocks()
+    {
+        // The service may have applied UNLOCK even though the controller saw a failure.
+        var actions = new Actions { DuringUnlock = () => throw new IOException("pipe lost") };
+        actions.AllowResults.Enqueue(PromptActionStatus.Locked);
+        var (display, view, _) = LockedPrompt(actions, () => Start);
+        using (display)
+        {
+            view.Allow();
+            Check(actions.UnlockCount == 1 && actions.AllowCount == 1 && actions.RelockCount == 1);
+            Check(!view.Closed && view.Failures.All(status => status == PromptActionStatus.Locked));
         }
     }
 

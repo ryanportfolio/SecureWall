@@ -20,7 +20,8 @@ namespace pylorak.TinyWall.Prompting
         // this call performed the unlock; AlreadyUnlocked means no password was needed.
         PromptUnlockResult Unlock();
 
-        // Restores the lock after the one Allow that a popup unlock was for.
+        // Restores the lock after the popup asked for the password (the Allow round trip
+        // ends, or the unlock was cancelled, failed, or its response was lost).
         void Relock();
     }
 
@@ -192,10 +193,13 @@ namespace pylorak.TinyWall.Prompting
             if (status == PromptActionStatus.Locked && IsCurrent(token, view))
             {
                 // The popup's deadline pauses on Locked, so the owner can unlock here and
-                // this same token is retried. An unlock made here lasts for this Allow only.
+                // this same token is retried. The service is unlocked globally for this one
+                // Allow round trip. Relock whenever the password was asked for: a cancelled or
+                // failed unlock may still have been applied if its response was lost, and LOCK
+                // on a locked service is a no-op.
                 view.ShowActionFailure(PromptActionStatus.Locked);
                 PromptUnlockResult unlock = TryUnlock();
-                relock = unlock == PromptUnlockResult.Unlocked;
+                relock = unlock != PromptUnlockResult.AlreadyUnlocked;
                 if (unlock != PromptUnlockResult.NotUnlocked && IsCurrent(token, view) &&
                     _current!.ExpiresUtc > _utcNow())
                 {

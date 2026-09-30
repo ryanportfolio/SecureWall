@@ -53,7 +53,7 @@ Do not run this matrix on the development host. Use an expendable Windows VM wit
 | Single Windows service PID | Prompt identifies exact service and path; Allow scopes to both |
 | Multiple services in one PID | Warning shown; Allow disabled |
 | Registered service executable without 5157/PID enrichment | Warning shown; Allow disabled |
-| Password lock enabled | Ignore works; Allow returns locked and creates no exception |
+| Password lock enabled | Ignore works; Allow opens the password dialog and the popup stays open while it is shown. Cancel or wrong password creates no exception and leaves the popup open. Correct password creates the rule for that prompt and the service is locked again afterwards (see HARDENING-VALIDATION) |
 | Controller exits/restarts | Service keeps enforcing; pending tokens expire; no grant on shutdown |
 | Service restarts/reboot | Strict external deny, including DNS/DHCP, covers the baseline-only interval; saved allows return only after successful startup; audit flags are correct |
 | Audit category initially success-only/failure-only/both/none | SecureWall adds required flags and restores exact original flags on stop |

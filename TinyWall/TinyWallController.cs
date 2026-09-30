@@ -1154,7 +1154,7 @@ namespace pylorak.TinyWall
         }
 
         // A popup Allow that the service rejected as locked. Same password dialog as the tray;
-        // reports whether this call did the unlock so the popup can relock after its Allow.
+        // AlreadyUnlocked means no password was asked for; otherwise the popup relocks.
         private PromptUnlockResult UnlockForPrompt()
         {
             Locked = GlobalInstances.Controller.IsServerLocked;
