@@ -81,7 +81,9 @@ internal static class Program
             .Concat(WfpCoexistenceTests.Cases)
             .Concat(ProtectionReleaseTests.Cases)
             .Concat(ServiceRecoveryTests.Cases)
-            .Concat(ServiceStartupRobustnessTests.Cases).ToArray();
+            .Concat(ServiceStartupRobustnessTests.Cases)
+            .Concat(LearningPolicyTests.Cases)
+            .Concat(ExceptionMergePolicyTests.Cases).ToArray();
         var failed = 0;
 
         foreach (var (name, test) in tests)

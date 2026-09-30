@@ -47,6 +47,18 @@ The service grants authenticated users only process-image query and lifetime-wai
 
 Allow grants the identified executable, package or service permanent outbound TCP/UDP access to all destinations and ports. The displayed connection is an example of blocked traffic, not the scope of that grant. Executable rules follow a path, not a content hash. Publisher text is unverified metadata, not proof of a trusted signature.
 
+## Learning mode
+
+Learning permits all traffic while it runs. When it ends, every recorded subject gets a permanent exception; the confirmation dialog says so and lists the grants below.
+
+- Learning reads only permitted-operation Security events: 5154 (listen), 5156 (connection) and 5158 (bind). Blocked records (5155, 5157, 5159) teach nothing: Learning permits all traffic, so a block there came from a higher-priority block rule such as a user block or blocklist, and TinyWall's practice of learning from those attempts is dropped. Connection records must carry direction and both endpoints; a record missing them is not learned. Only listen and bind records have no remote endpoint.
+- Nothing is learned from traffic where either endpoint is loopback (127.0.0.0/8, `::1`, IPv4-mapped loopback), from inbound connection records, from protocols other than TCP and UDP, or from the kernel `System` pseudo-path. A server bound before Learning started that only talks to local clients therefore gets no exception.
+- An executable in the application database gets its reviewed database profile, unchanged; some profiles include inbound access. Any other executable gets only what was observed: an outbound connection adds outbound TCP/UDP connect access to all destinations and ports (the same scope as a prompt Allow); a TCP listen (5154) or UDP bind (5158) on a non-loopback address adds a listener for that exact local port. TCP binds, ports 49152 and above, and loopback listeners add nothing. At most 16 listener ports per protocol are learned per subject.
+- `svchost.exe` is recognized by file name in any directory; a path whose file name cannot be read is treated the same way. It is never learned as an executable-wide rule. Learning takes a fresh SCM snapshot and creates a service rule (exact path plus service name) only when the event's process hosts exactly one running service, no service in that process is starting or stopping, and the snapshot was taken within two seconds of the event. Otherwise the event is skipped and a coalesced service-log entry records the skip.
+- Other registered service executables keep executable-wide learning, as in TinyWall.
+- Exceptions learned by earlier builds, including an executable-wide `svchost.exe` rule with all TCP/UDP ports, are not detected or removed automatically. Review the exception list after upgrading and delete such rules by hand. Saving a learned service rule never merges it into an executable-wide rule for the same path: an executable-wide block or allow stays executable-wide, and the service rule is kept as a separate entry. Only subjects that are equal in both directions merge.
+- Learning has no timeout and does not mark learned rules.
+
 ## Audit and attribution
 
 WFP net events are authoritative for the drop and filter ID but do not contain a PID. Security event 5157 is parsed by field name and accepted only when filter ID, normalized path, direction, protocol, complete tuple, and timestamp match. SecureWall leases failure auditing by OR-ing it into the existing Filtering Platform Connection flags and restores the exact prior flags on disposal.

@@ -60,6 +60,9 @@ namespace pylorak.TinyWall
         // Context needed for learning mode
         private readonly FirewallLogWatcher LogWatcher;
         private readonly List<FirewallExceptionV3> LearningNewExceptions = new();
+        // Entries of LearningNewExceptions built from observed behavior, not a database profile.
+        private readonly List<FirewallExceptionV3> LearningObservedExceptions = new();
+        private readonly CoalescedDiagnostic LearningServiceHostSkips = new();
 
         // Only runtime IDs belonging to outbound default-block filters may create prompts.
         private readonly PromptableFilterSet PromptableFilterIds = new();
@@ -2795,26 +2798,37 @@ namespace pylorak.TinyWall
 
         private void AutoLearnLogEntry(FirewallLogEntry entry)
         {
-            if (  // IPv4
-                ((string.Equals(entry.RemoteIp, "127.0.0.1", StringComparison.Ordinal)
-                && string.Equals(entry.LocalIp, "127.0.0.1", StringComparison.Ordinal)))
-               || // IPv6
-                ((string.Equals(entry.RemoteIp, "::1", StringComparison.Ordinal)
-                && string.Equals(entry.LocalIp, "::1", StringComparison.Ordinal)))
-               )
+            // Loopback traffic, inbound connections and client-side binds teach nothing.
+            LearningEventKind? kind = LearningEventParser.KindOf((int)entry.Event);
+            ConnectionDirection? direction = entry.Direction switch
             {
-                // Ignore communication within local machine
+                RuleDirection.Out => ConnectionDirection.Outbound,
+                RuleDirection.In => ConnectionDirection.Inbound,
+                _ => null,
+            };
+            if (kind == null || !LearningPolicy.TryGetGrant(kind.Value, direction, (byte)entry.Protocol,
+                    entry.LocalIp, entry.LocalPort, entry.RemoteIp, out LearningGrant grant))
                 return;
-            }
 
             // Certain things we don't want to whitelist
-            if (Utils.IsNullOrEmpty(entry.AppPath)
-                || string.Equals(entry.AppPath, "System", StringComparison.InvariantCultureIgnoreCase)
-                || string.Equals(entry.AppPath, "svchost.exe", StringComparison.InvariantCultureIgnoreCase)
-                )
+            if (!LearningPolicy.IsLearnablePath(entry.AppPath))
+                return;
+            if (RuntimeStopping || VisibleState.Mode != FirewallMode.Learning)
                 return;
 
-            var newSubject = new ExecutableSubject(entry.AppPath);
+            string appPath = entry.AppPath!;
+            ExecutableSubject newSubject;
+            if (LearningPolicy.IsServiceHost(appPath))
+            {
+                // An executable-wide svchost.exe rule would cover every hosted service.
+                if (!TryResolveLearningService(entry, out string? serviceName))
+                    return;
+                newSubject = new ServiceSubject(appPath, serviceName!);
+            }
+            else
+            {
+                newSubject = new ExecutableSubject(appPath);
+            }
 
             lock (LearningNewExceptions)
             {
@@ -2822,16 +2836,69 @@ namespace pylorak.TinyWall
                 // after that transition failed or completed. Trust committed mode here.
                 if (RuntimeStopping || VisibleState.Mode != FirewallMode.Learning)
                     return;
-                for (int j = 0; j < LearningNewExceptions.Count; ++j)
+                // Every commit empties LearningNewExceptions; drop the stale markers then.
+                if (LearningNewExceptions.Count == 0)
+                    LearningObservedExceptions.Clear();
+
+                FirewallExceptionV3? existing = LearningNewExceptions.FirstOrDefault(
+                    item => item.Subject.Equals(newSubject) && newSubject.Equals(item.Subject));
+                if (existing == null)
                 {
-                    if (LearningNewExceptions[j].Subject.Equals(newSubject))
-                        // Already in LearningNewExceptions, nothing to do
-                        return;
+                    bool observed = true;
+                    List<FirewallExceptionV3> exceptions = newSubject is ServiceSubject
+                        ? new List<FirewallExceptionV3> { new FirewallExceptionV3(newSubject, new TcpUdpPolicy()) }
+                        : GlobalInstances.AppDatabase.GetLearningExceptionsForApp(newSubject, out observed);
+                    if (observed)
+                    {
+                        existing = exceptions[0];
+                        LearningObservedExceptions.Add(existing);
+                    }
+                    LearningNewExceptions.AddRange(exceptions);
                 }
 
-                var exceptions = GlobalInstances.AppDatabase.GetExceptionsForApp(newSubject, false, out _);
-                LearningNewExceptions.AddRange(exceptions);
+                // Database profiles stay as reviewed; only observed policies grow.
+                if (existing != null && LearningObservedExceptions.Any(item => ReferenceEquals(item, existing)))
+                    ApplyLearningGrant((TcpUdpPolicy)existing.Policy, grant);
             }
+        }
+
+        private bool TryResolveLearningService(FirewallLogEntry entry, out string? serviceName)
+        {
+            IEnumerable<string>? serviceNames = null;
+            bool uncertain = true;
+            try
+            {
+                var snapshot = new ServicePidMap(requireStableIdentity: true);
+                serviceNames = snapshot.GetServicesInPid(entry.ProcessId);
+                uncertain = snapshot.IsUncertain(entry.ProcessId);
+            }
+            catch (Exception)
+            {
+                // Reported below as a failed snapshot; the event is not learned.
+            }
+
+            TimeSpan age = DateTime.UtcNow - entry.Timestamp.ToUniversalTime();
+            if (LearningPolicy.TryResolveServiceHost(serviceNames, uncertain, age, out serviceName, out string reason))
+                return true;
+
+            LearningServiceHostSkips.Record();
+            if (LearningServiceHostSkips.TryReport(DateTimeOffset.UtcNow, out long count))
+                Utils.Log("Learning skipped " + count + " svchost.exe events without exact service attribution (latest: " +
+                    reason + "). No executable-wide svchost.exe rule was learned.", Utils.LOG_ID_SERVICE);
+            return false;
+        }
+
+        private static void ApplyLearningGrant(TcpUdpPolicy policy, LearningGrant grant)
+        {
+            if (grant.Outbound)
+            {
+                policy.AllowedRemoteTcpConnectPorts = "*";
+                policy.AllowedRemoteUdpConnectPorts = "*";
+            }
+            if (grant.TcpListenerPort is int tcpPort)
+                policy.AllowedLocalTcpListenerPorts = LearningPolicy.AddListenerPort(policy.AllowedLocalTcpListenerPorts, tcpPort);
+            if (grant.UdpListenerPort is int udpPort)
+                policy.AllowedLocalUdpListenerPorts = LearningPolicy.AddListenerPort(policy.AllowedLocalUdpListenerPorts, udpPort);
         }
 
         // Entry point for thread that listens to commands from the controller application.

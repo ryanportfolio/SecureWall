@@ -336,9 +336,15 @@ Select Elevate from the tray menu and try again.</value>
   </data>
   <data name="YouAreAboutToEnterLearningMode" xml:space="preserve">
     <value>Are you sure you want to start automatic learning?
-In its automatic learning mode SecureWall will allow all traffic and remember which applications have used the network. When you exit learning mode, SecureWall will add exceptions for you automatically. Note however, that rules cannot be learned for "Special Exceptions" of the configuration.
+In learning mode SecureWall allows all traffic and records which applications use the network. When you leave learning mode, each recorded application gets a permanent exception that stays until you delete it.
 
-Before entering learning mode, make sure that your system is free of any malware. It is best to run learning mode on freshly installed systems and it is recommended that you check your computer for viruses before using this mode.
+What a learned exception grants:
+- An application listed in SecureWall's application database gets that application's profile, which can include inbound access.
+- Any other application gets outbound TCP and UDP to every address and port. It gets inbound access only on the fixed local ports where it was seen listening.
+- svchost.exe is learned only for one exactly identified Windows service at a time, never for the whole executable.
+- Traffic that stays on this computer (loopback) is not learned. Rules cannot be learned for "Special Exceptions".
+
+Before entering learning mode, make sure that your system is free of any malware: whatever runs during learning keeps its access afterwards. It is best to run learning mode on freshly installed systems and to check your computer for viruses first.
 
 Do you want to enter learning mode now?</value>
   </data>

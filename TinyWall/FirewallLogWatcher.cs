@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.Eventing.Reader;
-using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Xml.Linq;
@@ -170,8 +169,8 @@ namespace pylorak.TinyWall
                     SecurityEvent5157Parser.TryParse(fields, timestamp.ToUniversalTime(), out BlockedConnectionAuditEvent parsed))
                 {
                     BlockedConnectionAuditEvent normalized = Normalize(parsed);
+                    // Blocked connections never teach Learning (LearningEventParser.KindOf).
                     if (_lifetime.Accept(sender) && AuditEnrichmentAvailable) BlockedConnection?.Invoke(this, normalized);
-                    if (_lifetime.Accept(sender) && _learningEnabled) NewLogEntry?.Invoke(this, ToFirewallLogEntry(normalized));
                     return;
                 }
                 if (_lifetime.Accept(sender) && _learningEnabled && TryParseLearningEntry(record.Id, fields, timestamp, out FirewallLogEntry entry))
@@ -221,27 +220,6 @@ namespace pylorak.TinyWall
                 parsed.PackageSid);
         }
 
-        private static FirewallLogEntry ToFirewallLogEntry(BlockedConnectionAuditEvent parsed)
-        {
-            return new FirewallLogEntry
-            {
-                Timestamp = parsed.TimestampUtc.LocalDateTime,
-                Event = EventLogEvent.BLOCKED_CONNECTION,
-                ProcessId = parsed.ProcessId,
-                AppPath = parsed.ApplicationPath,
-                Direction = parsed.Direction == ConnectionDirection.Outbound
-                    ? RuleDirection.Out
-                    : RuleDirection.In,
-                LocalIp = EmptyAddress(parsed.LocalAddress),
-                LocalPort = parsed.LocalPort,
-                RemoteIp = EmptyAddress(parsed.RemoteAddress),
-                RemotePort = parsed.RemotePort,
-                Protocol = (Protocol)parsed.Protocol,
-                PackageId = parsed.PackageSid,
-                FilterRuntimeId = parsed.FilterRuntimeId,
-            };
-        }
-
         private static bool TryParseLearningEntry(
             int eventId,
             IReadOnlyDictionary<string, string> fields,
@@ -249,26 +227,26 @@ namespace pylorak.TinyWall
             out FirewallLogEntry entry)
         {
             entry = null!;
-            if (!TryUInt32(fields, "ProcessID", out uint processId) ||
-                !TryGet(fields, "Application", out string applicationPath) ||
-                !TryGet(fields, "SourceAddress", out string localAddress) ||
-                !TryPort(fields, "SourcePort", out int localPort) ||
-                !TryUInt32(fields, "Protocol", out uint protocol))
-            {
+            // Connection records keep direction and both endpoints so Learning can
+            // skip loopback traffic; only listen and bind records lack a remote side.
+            if (!LearningEventParser.TryParse(eventId, fields, out LearningObservation observation))
                 return false;
-            }
 
+            bool connection = observation.Kind == LearningEventKind.Connection;
             entry = new FirewallLogEntry
             {
                 Timestamp = timestamp.LocalDateTime,
                 Event = (EventLogEvent)eventId,
-                ProcessId = processId,
-                AppPath = NormalizePath(applicationPath),
-                LocalIp = EmptyAddress(localAddress),
-                LocalPort = localPort,
-                RemoteIp = "::",
-                RemotePort = 0,
-                Protocol = (Protocol)protocol,
+                ProcessId = observation.ProcessId,
+                AppPath = NormalizePath(observation.ApplicationPath),
+                Direction = connection && observation.Direction == ConnectionDirection.Outbound
+                    ? RuleDirection.Out
+                    : RuleDirection.In,
+                LocalIp = EmptyAddress(observation.LocalAddress),
+                LocalPort = observation.LocalPort,
+                RemoteIp = connection ? observation.RemoteAddress : "::",
+                RemotePort = observation.RemotePort,
+                Protocol = (Protocol)observation.Protocol,
             };
             return true;
         }
@@ -281,43 +259,6 @@ namespace pylorak.TinyWall
 
         private static string EmptyAddress(string value) =>
             string.IsNullOrEmpty(value) ? "::" : value;
-
-        private static bool TryGet(
-            IReadOnlyDictionary<string, string> fields,
-            string name,
-            out string value)
-        {
-            if (fields.TryGetValue(name, out string? raw) && !string.IsNullOrWhiteSpace(raw))
-            {
-                value = raw.Trim();
-                return true;
-            }
-
-            value = string.Empty;
-            return false;
-        }
-
-        private static bool TryUInt32(
-            IReadOnlyDictionary<string, string> fields,
-            string name,
-            out uint value)
-        {
-            value = 0;
-            return TryGet(fields, name, out string text) &&
-                uint.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out value);
-        }
-
-        private static bool TryPort(
-            IReadOnlyDictionary<string, string> fields,
-            string name,
-            out int port)
-        {
-            port = 0;
-            return TryGet(fields, name, out string text) &&
-                int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out port) &&
-                port >= 0 &&
-                port <= 65535;
-        }
 
         private AuditPolicyLease AcquireAuditLease(AuditPolicyFlags requiredFlags)
         {
