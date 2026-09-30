@@ -132,9 +132,6 @@
   <data name="btnAppAutoDetect.Text" xml:space="preserve">
     <value>Rileva</value>
   </data>
-  <data name="btnSubmitAssoc.Text" xml:space="preserve">
-    <value>Processa</value>
-  </data>
   <data name="label3.Text" xml:space="preserve">
     <value>Modificare l'elenco delle applicazioni a cui si desidera concedere l'accesso alla rete. Solo le applicazioni in questa lista saranno in grado di comunicare. Utilizzare il pulsante Rileva per rilevare alcuni software o aggiungere manualmente le applicazioni.
 </value>
@@ -218,9 +215,6 @@
   </data>
   <data name="lblLinkAttributions.Text" xml:space="preserve">
     <value>Attribuzioni</value>
-  </data>
-  <data name="btnDonate.AccessibleName" xml:space="preserve">
-    <value>Donazione</value>
   </data>
   <data name="lblLinkLicense.Text" xml:space="preserve">
     <value>Licenza</value>

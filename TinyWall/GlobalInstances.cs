@@ -98,19 +98,6 @@ namespace pylorak.TinyWall
         }
 
         [AllowNull]
-        private static Bitmap _SubmitBtnIcon = null;
-        internal static Bitmap SubmitBtnIcon
-        {
-            get
-            {
-                if (null == _SubmitBtnIcon)
-                    _SubmitBtnIcon = Utils.ScaleImage(Resources.Icons.submit, Utils.DpiScalingFactor, Utils.DpiScalingFactor);
-
-                return _SubmitBtnIcon;
-            }
-        }
-
-        [AllowNull]
         private static Bitmap _ImportBtnIcon = null;
         internal static Bitmap ImportBtnIcon
         {

@@ -132,9 +132,6 @@
   <data name="btnAppAutoDetect.Text" xml:space="preserve">
     <value>Detectar</value>
   </data>
-  <data name="btnSubmitAssoc.Text" xml:space="preserve">
-    <value>Enviar</value>
-  </data>
   <data name="label3.Text" xml:space="preserve">
     <value>Crie ou edite abaixo a lista de aplicativos cujo acesso à rede gostaria de controlar. Só os aplicativos desta lista poderão acessar a rede ou não, conforme especificado por você. Clique em DETECTAR se quiser que o SecureWall identifique e configure alguns programas. Se preferir, adicione programas você mesmo.</value>
   </data>
@@ -221,9 +218,6 @@
   </data>
   <data name="lblLinkAttributions.Text" xml:space="preserve">
     <value>Créditos</value>
-  </data>
-  <data name="btnDonate.AccessibleName" xml:space="preserve">
-    <value>Doação</value>
   </data>
   <data name="lblLinkLicense.Text" xml:space="preserve">
     <value>Licença</value>

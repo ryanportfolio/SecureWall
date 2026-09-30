@@ -143,16 +143,6 @@ namespace pylorak.TinyWall.Resources {
         /// <summary>
         ///   Looks up a localized resource of type System.Drawing.Bitmap.
         /// </summary>
-        internal static System.Drawing.Bitmap donate {
-            get {
-                object obj = ResourceManager.GetObject("donate", resourceCulture);
-                return ((System.Drawing.Bitmap)(obj));
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized resource of type System.Drawing.Bitmap.
-        /// </summary>
         internal static System.Drawing.Bitmap executable {
             get {
                 object obj = ResourceManager.GetObject("executable", resourceCulture);
@@ -187,16 +177,6 @@ namespace pylorak.TinyWall.Resources {
             get {
                 object obj = ResourceManager.GetObject("firewall", resourceCulture);
                 return ((System.Drawing.Icon)(obj));
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized resource of type System.Drawing.Bitmap.
-        /// </summary>
-        internal static System.Drawing.Bitmap github_mark {
-            get {
-                object obj = ResourceManager.GetObject("github_mark", resourceCulture);
-                return ((System.Drawing.Bitmap)(obj));
             }
         }
         
@@ -353,6 +333,16 @@ namespace pylorak.TinyWall.Resources {
         /// <summary>
         ///   Looks up a localized resource of type System.Drawing.Icon similar to (Icon).
         /// </summary>
+        internal static System.Drawing.Icon shield_unknown_small {
+            get {
+                object obj = ResourceManager.GetObject("shield_unknown_small", resourceCulture);
+                return ((System.Drawing.Icon)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Drawing.Icon similar to (Icon).
+        /// </summary>
         internal static System.Drawing.Icon shield_yellow_small {
             get {
                 object obj = ResourceManager.GetObject("shield_yellow_small", resourceCulture);
@@ -373,39 +363,9 @@ namespace pylorak.TinyWall.Resources {
         /// <summary>
         ///   Looks up a localized resource of type System.Drawing.Bitmap.
         /// </summary>
-        internal static System.Drawing.Bitmap submit {
-            get {
-                object obj = ResourceManager.GetObject("submit", resourceCulture);
-                return ((System.Drawing.Bitmap)(obj));
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized resource of type System.Drawing.Bitmap.
-        /// </summary>
         internal static System.Drawing.Bitmap uninstall {
             get {
                 object obj = ResourceManager.GetObject("uninstall", resourceCulture);
-                return ((System.Drawing.Bitmap)(obj));
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized resource of type System.Drawing.Bitmap.
-        /// </summary>
-        internal static System.Drawing.Bitmap update {
-            get {
-                object obj = ResourceManager.GetObject("update", resourceCulture);
-                return ((System.Drawing.Bitmap)(obj));
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized resource of type System.Drawing.Bitmap.
-        /// </summary>
-        internal static System.Drawing.Bitmap w7uacshield {
-            get {
-                object obj = ResourceManager.GetObject("w7uacshield", resourceCulture);
                 return ((System.Drawing.Bitmap)(obj));
             }
         }

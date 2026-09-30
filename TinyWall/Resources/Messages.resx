@@ -198,10 +198,6 @@ Select Elevate from the tray menu and try again.</value>
     <value>Lock</value>
     <comment>Tray menu text</comment>
   </data>
-  <data name="UpdateAvailableBubble" xml:space="preserve">
-    <value>A newer version {0} of SecureWall is available. Click this bubble to start the update process.</value>
-    <comment>Param0 is version number of new version</comment>
-  </data>
   <data name="TheFirewallIsNowOperatingAsRecommended" xml:space="preserve">
     <value>The firewall is now operating in the recommended mode.</value>
   </data>

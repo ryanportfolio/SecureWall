@@ -186,9 +186,6 @@
   <data name="Lock" xml:space="preserve">
     <value>锁定</value>
   </data>
-  <data name="UpdateAvailableBubble" xml:space="preserve">
-    <value>有可用的SecureWall更新版本{0}。点击泡泡开始更新进程。</value>
-  </data>
   <data name="TheFirewallIsNowOperatingAsRecommended" xml:space="preserve">
     <value>防火墙正以推荐的模式运行。</value>
   </data>

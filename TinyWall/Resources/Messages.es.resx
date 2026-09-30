@@ -187,9 +187,6 @@ El servidor puede estar caído, verificar que SecureWall no tenga bloqueado el a
   <data name="Lock" xml:space="preserve">
     <value>Bloquear</value>
   </data>
-  <data name="UpdateAvailableBubble" xml:space="preserve">
-    <value>La nueva versión {0} de SecureWall está disponible. Pinchar en el cuadro para comenzar la descarga.</value>
-  </data>
   <data name="TheFirewallIsNowOperatingAsRecommended" xml:space="preserve">
     <value>El cortafuegos está trabajando en el modo recomendado.</value>
   </data>

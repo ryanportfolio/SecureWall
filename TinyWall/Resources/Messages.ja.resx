@@ -195,10 +195,6 @@
     <value>ロック</value>
     <comment>Tray menu text</comment>
   </data>
-  <data name="UpdateAvailableBubble" xml:space="preserve">
-    <value>SecureWall の新しいバージョン {0} が利用可能です、ここをクリックでアップデートを開始します</value>
-    <comment>Param0 is version number of new version</comment>
-  </data>
   <data name="TheFirewallIsNowOperatingAsRecommended" xml:space="preserve">
     <value>ファイアウォールは現在推奨モードで稼働しています</value>
   </data>

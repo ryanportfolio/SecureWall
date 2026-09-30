@@ -132,9 +132,6 @@
   <data name="btnAppAutoDetect.Text" xml:space="preserve">
     <value>検出</value>
   </data>
-  <data name="btnSubmitAssoc.Text" xml:space="preserve">
-    <value>報告する</value>
-  </data>
   <data name="label3.Text" xml:space="preserve">
     <value>ここでネットワークへのアクセスを許可するアプリケーションを編集します。有効にされたアプリケーションのみがネットワークを利用することが可能になり、有効にされたコミュニケーションプロファイルのひとつとして分類されるトラフィックのみ送信/受信することができるようになります。</value>
   </data>
@@ -221,9 +218,6 @@
   </data>
   <data name="lblLinkAttributions.Text" xml:space="preserve">
     <value>属性</value>
-  </data>
-  <data name="btnDonate.AccessibleName" xml:space="preserve">
-    <value>寄付</value>
   </data>
   <data name="lblLinkLicense.Text" xml:space="preserve">
     <value>利用許諾契約</value>

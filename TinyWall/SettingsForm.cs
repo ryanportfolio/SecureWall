@@ -62,11 +62,10 @@ namespace pylorak.TinyWall
             this.btnAppModify.Image = GlobalInstances.ModifyBtnIcon;
             this.btnAppRemove.Image = GlobalInstances.RemoveBtnIcon;
             this.btnAppRemoveAll.Image = GlobalInstances.RemoveBtnIcon;
-            this.btnSubmitAssoc.Image = GlobalInstances.SubmitBtnIcon;
             this.btnImport.Image = GlobalInstances.ImportBtnIcon;
             this.btnExport.Image = GlobalInstances.ExportBtnIcon;
             this.btnWeb.Image = GlobalInstances.WebBtnIcon;
-            this.btnDonate.BackgroundImage = Resources.Icons.donate;
+            this.btnGithub.Image = GlobalInstances.WebBtnIcon;
 
             const string TEMP_ICON_KEY = "generic-executable";
             IconList.Images.Add(TEMP_ICON_KEY, Utils.GetIconContained(".exe", IconSize.Width, IconSize.Height));
@@ -153,7 +152,6 @@ namespace pylorak.TinyWall
                 // General page
                 chkEnableDiagnosticLogging.Checked = TmpConfig.Service.EnableDiagnosticLogging;
                 btnWeb.Visible = false;
-                btnDonate.Visible = false;
                 label10.Visible = false;
                 lblAboutHomepageLink.Text = "TinyWall upstream source (GPLv3)";
                 chkAskForExceptionDetails.Checked = TmpConfig.Controller.AskForExceptionDetails;
@@ -472,11 +470,6 @@ namespace pylorak.TinyWall
             txtPassword.Enabled = txtPasswordAgain.Enabled = chkChangePassword.Checked;
         }
 
-        private void btnSubmitAssoc_Click(object sender, EventArgs e)
-        {
-            /* Not implemented */
-        }
-
         private void SettingsForm_Shown(object sender, EventArgs e)
         {
             this.BringToFront();
@@ -520,21 +513,6 @@ namespace pylorak.TinyWall
                 Process.Start(psi)?.Dispose();
             }
             catch { }
-        }
-
-        private void btnDonate_Click(object sender, EventArgs e)
-        {
-            // SecureWall has no donation endpoint. This inherited control stays hidden.
-        }
-
-        private void btnDonate_MouseEnter(object sender, EventArgs e)
-        {
-            btnDonate.BorderStyle = BorderStyle.FixedSingle;
-        }
-
-        private void btnDonate_MouseLeave(object sender, EventArgs e)
-        {
-            btnDonate.BorderStyle = BorderStyle.None;
         }
 
         private void btnImport_Click(object sender, EventArgs e)
@@ -624,8 +602,6 @@ namespace pylorak.TinyWall
 //          DataCollection.StopProfile(ProfileLevel.Global, DataCollection.CurrentId);
 #endif
 
-            // No submission service exists in SecureWall, including debug builds.
-            btnSubmitAssoc.Visible = false;
 //            loadingDone.Value = true;
         }
 
@@ -706,7 +682,6 @@ namespace pylorak.TinyWall
             bool SingleItemSelected = listApplications.SelectedIndices.Count == 1;
             btnAppModify.Enabled = SingleItemSelected;
             btnAppRemove.Enabled = AnyItemSelected;
-            btnSubmitAssoc.Enabled = AnyItemSelected;
         }
 
         private void btnGithub_Click(object sender, EventArgs e)

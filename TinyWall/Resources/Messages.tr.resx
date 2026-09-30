@@ -188,9 +188,6 @@ Sistem menüsünden Yönetici olarak çalıştır'ı seçin ve tekrar deneyin.</
   <data name="Lock" xml:space="preserve">
     <value>Kilit</value>
   </data>
-  <data name="UpdateAvailableBubble" xml:space="preserve">
-    <value>SecureWall'ın {0} sürümü çıktı. Güncelleme işlemini başlatmak için burayı tıklayın.</value>
-  </data>
   <data name="TheFirewallIsNowOperatingAsRecommended" xml:space="preserve">
     <value>Firewall şuan tavsiye modunda çalışıyor.</value>
   </data>

@@ -80,7 +80,7 @@ namespace pylorak.TinyWall
             // Tray
             // 
             resources.ApplyResources(this.Tray, "Tray");
-            this.Tray.Icon = global::pylorak.TinyWall.Resources.Icons.firewall;
+            this.Tray.Icon = TrayIcon(FirewallMode.Normal);
             this.Tray.Visible = false;
             this.Tray.BalloonTipClicked += new System.EventHandler(this.Tray_BalloonTipClicked);
             this.Tray.MouseClick += new System.Windows.Forms.MouseEventHandler(this.Tray_MouseClick);
@@ -178,7 +178,7 @@ namespace pylorak.TinyWall
             // 
             // mnuElevate
             // 
-            this.mnuElevate.Image = global::pylorak.TinyWall.Resources.Icons.w7uacshield;
+            this.mnuElevate.Image = Utils.LoadStockShieldBitmap();
             this.mnuElevate.Name = "mnuElevate";
             resources.ApplyResources(this.mnuElevate, "mnuElevate");
             this.mnuElevate.Click += new System.EventHandler(this.mnuElevate_Click);
@@ -282,6 +282,10 @@ namespace pylorak.TinyWall
         private readonly TrafficRateMonitor TrafficMonitor = new();
         private bool TrafficRateVisible_ = true;
         private bool TrayMenuShowing_;
+
+        // Tray icons at the system small-icon size, loaded once per mode.
+        private readonly Dictionary<FirewallMode, System.Drawing.Icon> TrayIcons = new();
+        private System.Drawing.Bitmap? ModeUnknownImage;
 
         private EventHandler<AnyEventArgs>? BalloonClickedCallback;
         private object? BalloonClickedCallbackArgument;
@@ -389,6 +393,8 @@ namespace pylorak.TinyWall
                 TrafficMonitor?.Dispose();
 
                 components.Dispose();
+                foreach (var icon in TrayIcons.Values)
+                    icon.Dispose();
                 PathMapper.Instance.Dispose();
             }
 
@@ -526,6 +532,23 @@ namespace pylorak.TinyWall
             ExitThread();
         }
 
+        private System.Drawing.Icon TrayIcon(FirewallMode mode)
+        {
+            if (!TrayIcons.TryGetValue(mode, out System.Drawing.Icon icon))
+            {
+                icon = Utils.LoadSmallIcon(mode switch
+                {
+                    FirewallMode.Normal => Resources.Icons.firewall,
+                    FirewallMode.AllowOutgoing => Resources.Icons.shield_red_small,
+                    FirewallMode.BlockAll => Resources.Icons.shield_yellow_small,
+                    FirewallMode.Disabled => Resources.Icons.shield_grey_small,
+                    _ => Resources.Icons.shield_unknown_small,
+                });
+                TrayIcons[mode] = icon;
+            }
+            return icon;
+        }
+
         private void UpdateDisplay()
         {
             // Update UI based on current firewall mode
@@ -533,32 +556,32 @@ namespace pylorak.TinyWall
             switch (FirewallState.Mode)
             {
                 case FirewallMode.Normal:
-                    Tray.Icon = Resources.Icons.firewall;
+                    Tray.Icon = TrayIcon(FirewallMode.Normal);
                     mnuMode.Image = mnuModeNormal.Image;
                     FirewallModeName = Resources.Messages.FirewallModeNormal;
                     break;
 
                 case FirewallMode.AllowOutgoing:
-                    Tray.Icon = Resources.Icons.shield_red_small;
+                    Tray.Icon = TrayIcon(FirewallMode.AllowOutgoing);
                     mnuMode.Image = mnuModeAllowOutgoing.Image;
                     FirewallModeName = Resources.Messages.FirewallModeAllowOut;
                     break;
 
                 case FirewallMode.BlockAll:
-                    Tray.Icon = Resources.Icons.shield_yellow_small;
+                    Tray.Icon = TrayIcon(FirewallMode.BlockAll);
                     mnuMode.Image = mnuModeBlockAll.Image;
                     FirewallModeName = Resources.Messages.FirewallModeBlockAll;
                     break;
 
                 case FirewallMode.Disabled:
-                    Tray.Icon = Resources.Icons.shield_grey_small;
+                    Tray.Icon = TrayIcon(FirewallMode.Disabled);
                     mnuMode.Image = mnuModeDisabled.Image;
                     FirewallModeName = Resources.Messages.FirewallModeDisabled;
                     break;
 
                 case FirewallMode.Unknown:
-                    Tray.Icon = Resources.Icons.shield_grey_small;
-                    mnuMode.Image = mnuModeDisabled.Image;
+                    Tray.Icon = TrayIcon(FirewallMode.Unknown);
+                    mnuMode.Image = ModeUnknownImage ??= Utils.LoadSmallIconBitmap(Resources.Icons.shield_unknown_small);
                     FirewallModeName = Resources.Messages.FirewallModeUnknown;
                     break;
             }
@@ -1298,10 +1321,10 @@ namespace pylorak.TinyWall
                 TrayMenu.Closed += TrayMenu_Closed;
                 Tray.ContextMenuStrip = TrayMenu;
                 mnuElevate.Visible = !Utils.RunningAsAdmin();
-                mnuModeDisabled.Image = Resources.Icons.shield_grey_small.ToBitmap();
-                mnuModeAllowOutgoing.Image = Resources.Icons.shield_red_small.ToBitmap();
-                mnuModeBlockAll.Image = Resources.Icons.shield_yellow_small.ToBitmap();
-                mnuModeNormal.Image = Resources.Icons.shield_green_small.ToBitmap();
+                mnuModeDisabled.Image = Utils.LoadSmallIconBitmap(Resources.Icons.shield_grey_small);
+                mnuModeAllowOutgoing.Image = Utils.LoadSmallIconBitmap(Resources.Icons.shield_red_small);
+                mnuModeBlockAll.Image = Utils.LoadSmallIconBitmap(Resources.Icons.shield_yellow_small);
+                mnuModeNormal.Image = Utils.LoadSmallIconBitmap(Resources.Icons.shield_green_small);
                 TrayMenuShowing = false;
 
                 ApplyControllerSettings();

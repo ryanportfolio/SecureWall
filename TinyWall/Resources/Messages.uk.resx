@@ -195,10 +195,6 @@
     <value>Заблокувати</value>
     <comment>Tray menu text</comment>
   </data>
-  <data name="UpdateAvailableBubble" xml:space="preserve">
-    <value>Доступна новіша версія {0} SecureWall. Натисніть на це сповіщення, щоб розпочати процес оновлення.</value>
-    <comment>Param0 is version number of new version</comment>
-  </data>
   <data name="TheFirewallIsNowOperatingAsRecommended" xml:space="preserve">
     <value>Брандмауер тепер працює в рекомендованому режимі.</value>
   </data>

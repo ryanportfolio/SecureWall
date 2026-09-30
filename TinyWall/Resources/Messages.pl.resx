@@ -188,9 +188,6 @@ Wybierz z menu „podnieś uprawnienia do administrator” i spróbuj ponownie.<
   <data name="Lock" xml:space="preserve">
     <value>Zablokuj</value>
   </data>
-  <data name="UpdateAvailableBubble" xml:space="preserve">
-    <value>Nowsza wersja {0} SecureWall jest dostępna. Kliknij ten dymek, aby rozpocząć proces aktualizacji.</value>
-  </data>
   <data name="TheFirewallIsNowOperatingAsRecommended" xml:space="preserve">
     <value>Zapora pracuje teraz w trybie zalecanym.</value>
   </data>

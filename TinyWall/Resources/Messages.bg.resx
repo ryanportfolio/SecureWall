@@ -186,9 +186,6 @@
   <data name="Lock" xml:space="preserve">
     <value>Блокирай</value>
   </data>
-  <data name="UpdateAvailableBubble" xml:space="preserve">
-    <value>Нова версия на {0} SecureWall е налична. Натиснете за старт на ъпдейта.</value>
-  </data>
   <data name="TheFirewallIsNowOperatingAsRecommended" xml:space="preserve">
     <value>Апликацията сега е в препоръчан режим</value>
   </data>
