@@ -316,12 +316,6 @@
   <data name="CannotGetPathOfProcess" xml:space="preserve">
     <value>Nem található a folyamat elérési útvonala.</value>
   </data>
-  <data name="TheFirewallIsNowLearning" xml:space="preserve">
-    <value>A tűzfal most tanul, miközben minden folyamatot átenged.</value>
-  </data>
-  <data name="FirewallModeLearn" xml:space="preserve">
-    <value>Tanuló mód</value>
-  </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>Te kezdeményezted a SecureWall eltávolítását vagy frissítését?</value>
   </data>

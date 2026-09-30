@@ -301,12 +301,6 @@ El servidor puede estar caído, verificar que SecureWall no tenga bloqueado el a
   <data name="CannotGetPathOfProcess" xml:space="preserve">
     <value>No se puede encontrar la ruta del proceso.</value>
   </data>
-  <data name="TheFirewallIsNowLearning" xml:space="preserve">
-    <value>El cortafuegos está aprendiendo mientras permite todo el tráfico.</value>
-  </data>
-  <data name="FirewallModeLearn" xml:space="preserve">
-    <value>Auto aprendizaje</value>
-  </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>¿Se inició la desinstalación/actualización de SecureWall?</value>
   </data>

@@ -316,12 +316,6 @@
   <data name="CannotGetPathOfProcess" xml:space="preserve">
     <value>Não foi possível obter o caminho do executável.</value>
   </data>
-  <data name="TheFirewallIsNowLearning" xml:space="preserve">
-    <value>Agora, o firewall está no modo de "aprendizado", permitindo o fluxo de todo tipo de tráfego.</value>
-  </data>
-  <data name="FirewallModeLearn" xml:space="preserve">
-    <value>Automático (aprendizado)</value>
-  </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>Foi você mesmo quem iniciou a desinstalação do SecureWall?</value>
   </data>

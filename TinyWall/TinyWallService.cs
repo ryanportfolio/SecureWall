@@ -57,12 +57,8 @@ namespace pylorak.TinyWall
         private readonly UserActivityTimeout ControllerActivity = new(SystemClock.Instance, TimeSpan.FromMinutes(10));
         private DateTime LastRuleReloadTime = DateTime.Now;
 
-        // Context needed for learning mode
+        // Security event 5157 subscription for prompt attribution
         private readonly FirewallLogWatcher LogWatcher;
-        private readonly List<FirewallExceptionV3> LearningNewExceptions = new();
-        // Entries of LearningNewExceptions built from observed behavior, not a database profile.
-        private readonly List<FirewallExceptionV3> LearningObservedExceptions = new();
-        private readonly CoalescedDiagnostic LearningServiceHostSkips = new();
 
         // Only runtime IDs belonging to outbound default-block filters may create prompts.
         private readonly PromptableFilterSet PromptableFilterIds = new();
@@ -169,13 +165,6 @@ namespace pylorak.TinyWall
 
                         // Allow outgoing
                         def = new RuleDef(ModeId, "Allow outbound", GlobalSubject.Instance, RuleAction.Allow, RuleDirection.Out, Protocol.Any, (ulong)FilterWeights.DefaultPermit);
-                        rules.Add(def);
-                        break;
-                    }
-                case FirewallMode.Learning:
-                    {
-                        // Add rule to explicitly allow everything
-                        var def = new RuleDef(ModeId, "Allow everything", GlobalSubject.Instance, RuleAction.Allow, RuleDirection.InOut, Protocol.Any, (ulong)FilterWeights.DefaultPermit);
                         rules.Add(def);
                         break;
                     }
@@ -1397,8 +1386,8 @@ namespace pylorak.TinyWall
                 Diagnostics.SetEnabled(candidate.EnableDiagnosticLogging);
                 DiagnosticSettingLoaded = true;
             }
-            if (candidate.StartupMode < FirewallMode.Normal || candidate.StartupMode > FirewallMode.AllowOutgoing)
-                candidate.StartupMode = FirewallMode.Normal;
+            // A stored startup mode of Learning (removed) or any other unsupported value starts Normal.
+            candidate.StartupMode = FirewallModePolicy.NormalizeStartupMode(candidate.StartupMode);
             PruneExpiredRules(candidate, restarting: true);
             if (ActiveConfig.Service == null)
             {
@@ -1406,15 +1395,10 @@ namespace pylorak.TinyWall
                 ActiveConfig.Service = candidate;
                 VisibleState.Mode = candidate.StartupMode;
             }
-            lock (LearningNewExceptions)
-            {
-                candidate.ActiveProfile.AddExceptions(LearningNewExceptions.Select(item => Utils.DeepClone(item)).ToList());
-                // A rebuild keeps the revoked runtime mode, except Learning, which ends as a restart would.
-                FirewallMode mode = restoreMode is FirewallMode restored &&
-                    restored >= FirewallMode.Normal && restored <= FirewallMode.Disabled ? restored : candidate.StartupMode;
-                ApplyConfiguration(candidate, mode);
-                LearningNewExceptions.Clear();
-            }
+            // A rebuild keeps the revoked runtime mode.
+            FirewallMode mode = restoreMode is FirewallMode restored && FirewallModePolicy.IsRuntimeMode(restored)
+                ? restored : candidate.StartupMode;
+            ApplyConfiguration(candidate, mode);
         }
 
 
@@ -1687,14 +1671,12 @@ namespace pylorak.TinyWall
 
         private void ApplyConfiguration(ServerConfiguration candidate, FirewallMode mode)
         {
-            if (mode < FirewallMode.Normal || mode > FirewallMode.Learning ||
-                candidate.StartupMode < FirewallMode.Normal || candidate.StartupMode > FirewallMode.AllowOutgoing)
+            if (!FirewallModePolicy.IsRuntimeMode(mode) || !FirewallModePolicy.IsStartupMode(candidate.StartupMode))
                 throw new ArgumentException("Unsupported runtime or startup firewall mode.");
             // A revoked session has no runtime policy to replace; the rebuild reloads stored policy.
             if (RuntimeSessionRevoked)
                 throw new InvalidOperationException("Runtime permissions were withdrawn; policy is being restored.");
             ServerConfiguration previous = ActiveConfig.Service;
-            bool previousLearning = VisibleState.Mode == FirewallMode.Learning;
             ApplyingConfiguration = candidate;
             ApplyingMode = mode;
             try
@@ -1719,7 +1701,6 @@ namespace pylorak.TinyWall
                     () => Diagnostics.Run(RuntimeEvent.policy_persist, () => candidate.Save(ConfigSavePath)),
                     () =>
                     {
-                        LogWatcher.LearningEnabled = mode == FirewallMode.Learning;
                         ReapplySettings();
                         InstallFirewallRules();
                     },
@@ -1728,7 +1709,6 @@ namespace pylorak.TinyWall
                         previous.Save(ConfigSavePath);
                         ApplyingConfiguration = previous;
                         ApplyingMode = VisibleState.Mode;
-                        LogWatcher.LearningEnabled = previousLearning;
                         ReapplySettings();
                     }),
                     () => Diagnostics.Run(RuntimeEvent.policy_publish, () =>
@@ -1933,24 +1913,6 @@ namespace pylorak.TinyWall
             return false;
         }
 
-        private bool CommitLearnedRules()
-        {
-            bool config_changed = false;
-
-            lock (LearningNewExceptions)
-            {
-                if (LearningNewExceptions.Count > 0)
-                {
-                    GlobalInstances.ServerChangeset = Guid.NewGuid();
-                    ActiveConfig.Service.ActiveProfile.AddExceptions(LearningNewExceptions);
-                    LearningNewExceptions.Clear();
-                    config_changed = true;
-                }
-            }
-
-            return config_changed;
-        }
-
         private static bool HasSystemRebooted()
         {
             try
@@ -2041,16 +2003,19 @@ namespace pylorak.TinyWall
                     {
                         var args = (TwMessageModeSwitch)req;
                         FirewallMode newMode = args.Mode;
+                        // Learning was removed. Its reserved value, like any unknown mode, is
+                        // refused before any policy work, so the current mode stays in force.
+                        if (!FirewallModePolicy.IsRuntimeMode(newMode))
+                        {
+                            Utils.Log("Refused a switch to unsupported firewall mode " + (int)newMode +
+                                "; the current mode is unchanged.", Utils.LOG_ID_SERVICE);
+                            return TwMessageError.Instance;
+                        }
 
                         var candidate = Utils.DeepClone(ActiveConfig.Service);
-                        lock (LearningNewExceptions)
-                        {
-                            candidate.ActiveProfile.AddExceptions(LearningNewExceptions.Select(item => Utils.DeepClone(item)).ToList());
-                            if (newMode != FirewallMode.Disabled && newMode != FirewallMode.Learning)
-                                candidate.StartupMode = newMode;
-                            ApplyConfiguration(candidate, newMode);
-                            LearningNewExceptions.Clear();
-                        }
+                        if (FirewallModePolicy.IsStartupMode(newMode))
+                            candidate.StartupMode = newMode;
+                        ApplyConfiguration(candidate, newMode);
                         return args.CreateResponse(VisibleState.Mode);
                     }
                 case MessageType.PUT_SETTINGS:
@@ -2062,7 +2027,10 @@ namespace pylorak.TinyWall
                         {
                             try
                             {
-                                ApplyConfiguration(Utils.DeepClone(args.Config), VisibleState.Mode);
+                                ServerConfiguration candidate = Utils.DeepClone(args.Config);
+                                // An imported configuration that names the removed Learning mode starts Normal.
+                                candidate.StartupMode = FirewallModePolicy.MigrateStartupMode(candidate.StartupMode);
+                                ApplyConfiguration(candidate, VisibleState.Mode);
                             }
                             catch (Exception e)
                             {
@@ -2425,7 +2393,6 @@ namespace pylorak.TinyWall
                 if (PasswordLock.HasPassword)
                     PasswordLock.Locked = true;
 
-                LogWatcher.NewLogEntry += (sender, entry) => AutoLearnLogEntry(entry);
                 LogWatcher.BlockedConnection += LogWatcherBlockedConnection;
                 minuteTimer = new Timer(new TimerCallback(TimerCallback), null, Timeout.Infinite, Timeout.Infinite);
                 promptCandidateTimer = new Timer(
@@ -2877,111 +2844,6 @@ namespace pylorak.TinyWall
             }
         }
 
-        private void AutoLearnLogEntry(FirewallLogEntry entry)
-        {
-            // Loopback traffic, inbound connections and client-side binds teach nothing.
-            LearningEventKind? kind = LearningEventParser.KindOf((int)entry.Event);
-            ConnectionDirection? direction = entry.Direction switch
-            {
-                RuleDirection.Out => ConnectionDirection.Outbound,
-                RuleDirection.In => ConnectionDirection.Inbound,
-                _ => null,
-            };
-            if (kind == null || !LearningPolicy.TryGetGrant(kind.Value, direction, (byte)entry.Protocol,
-                    entry.LocalIp, entry.LocalPort, entry.RemoteIp, out LearningGrant grant))
-                return;
-
-            // Certain things we don't want to whitelist
-            if (!LearningPolicy.IsLearnablePath(entry.AppPath))
-                return;
-            if (RuntimeStopping || VisibleState.Mode != FirewallMode.Learning)
-                return;
-
-            string appPath = entry.AppPath!;
-            ExecutableSubject newSubject;
-            if (LearningPolicy.IsServiceHost(appPath))
-            {
-                // An executable-wide svchost.exe rule would cover every hosted service.
-                if (!TryResolveLearningService(entry, out string? serviceName))
-                    return;
-                newSubject = new ServiceSubject(appPath, serviceName!);
-            }
-            else
-            {
-                newSubject = new ExecutableSubject(appPath);
-            }
-
-            lock (LearningNewExceptions)
-            {
-                // A callback queued while a candidate enabled learning may arrive only
-                // after that transition failed or completed. Trust committed mode here.
-                if (RuntimeStopping || VisibleState.Mode != FirewallMode.Learning)
-                    return;
-                // Every commit empties LearningNewExceptions; drop the stale markers then.
-                if (LearningNewExceptions.Count == 0)
-                    LearningObservedExceptions.Clear();
-
-                FirewallExceptionV3? existing = LearningNewExceptions.FirstOrDefault(
-                    item => item.Subject.Equals(newSubject) && newSubject.Equals(item.Subject));
-                if (existing == null)
-                {
-                    bool observed = true;
-                    List<FirewallExceptionV3> exceptions = newSubject is ServiceSubject
-                        ? new List<FirewallExceptionV3> { new FirewallExceptionV3(newSubject, new TcpUdpPolicy()) }
-                        : GlobalInstances.AppDatabase.GetLearningExceptionsForApp(newSubject, out observed);
-                    if (observed)
-                    {
-                        existing = exceptions[0];
-                        LearningObservedExceptions.Add(existing);
-                    }
-                    LearningNewExceptions.AddRange(exceptions);
-                }
-
-                // Database profiles stay as reviewed; only observed policies grow.
-                if (existing != null && LearningObservedExceptions.Any(item => ReferenceEquals(item, existing)))
-                    ApplyLearningGrant((TcpUdpPolicy)existing.Policy, grant);
-            }
-        }
-
-        private bool TryResolveLearningService(FirewallLogEntry entry, out string? serviceName)
-        {
-            IEnumerable<string>? serviceNames = null;
-            bool uncertain = true;
-            try
-            {
-                var snapshot = new ServicePidMap(requireStableIdentity: true);
-                serviceNames = snapshot.GetServicesInPid(entry.ProcessId);
-                uncertain = snapshot.IsUncertain(entry.ProcessId);
-            }
-            catch (Exception)
-            {
-                // Reported below as a failed snapshot; the event is not learned.
-            }
-
-            TimeSpan age = DateTime.UtcNow - entry.Timestamp.ToUniversalTime();
-            if (LearningPolicy.TryResolveServiceHost(serviceNames, uncertain, age, out serviceName, out string reason))
-                return true;
-
-            LearningServiceHostSkips.Record();
-            if (LearningServiceHostSkips.TryReport(DateTimeOffset.UtcNow, out long count))
-                Utils.Log("Learning skipped " + count + " svchost.exe events without exact service attribution (latest: " +
-                    reason + "). No executable-wide svchost.exe rule was learned.", Utils.LOG_ID_SERVICE);
-            return false;
-        }
-
-        private static void ApplyLearningGrant(TcpUdpPolicy policy, LearningGrant grant)
-        {
-            if (grant.Outbound)
-            {
-                policy.AllowedRemoteTcpConnectPorts = "*";
-                policy.AllowedRemoteUdpConnectPorts = "*";
-            }
-            if (grant.TcpListenerPort is int tcpPort)
-                policy.AllowedLocalTcpListenerPorts = LearningPolicy.AddListenerPort(policy.AllowedLocalTcpListenerPorts, tcpPort);
-            if (grant.UdpListenerPort is int udpPort)
-                policy.AllowedLocalUdpListenerPorts = LearningPolicy.AddListenerPort(policy.AllowedLocalUdpListenerPorts, udpPort);
-        }
-
         // Entry point for thread that listens to commands from the controller application.
         private TwMessage PipeServerDataReceived(TwMessage reqMsg)
         {
@@ -3061,9 +2923,6 @@ namespace pylorak.TinyWall
                 PromptCandidateTimer.Dispose(wh);
                 wh.WaitOne();
             }
-
-            if (CommitLearnedRules())
-                ActiveConfig.Service.Save(ConfigSavePath);
 
             RuleReloadEventMerger.Dispose();
             LocalSubnetFilterConditions.Dispose();

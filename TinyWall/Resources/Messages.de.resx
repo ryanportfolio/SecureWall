@@ -285,12 +285,6 @@
   <data name="CannotGetPathOfProcess" xml:space="preserve">
     <value>Kann den Pfad zum Process nicht finden.</value>
   </data>
-  <data name="TheFirewallIsNowLearning" xml:space="preserve">
-    <value>Die Firewall befindet sich im Lernmodus und lässt währenddessen den gesamten Datenverkehr durch.</value>
-  </data>
-  <data name="FirewallModeLearn" xml:space="preserve">
-    <value>Lernmodus</value>
-  </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>Haben Sie die Deinstallation/Aktualisierung von SecureWall gestartet?</value>
   </data>

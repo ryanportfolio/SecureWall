@@ -29,6 +29,7 @@ SecureWall has no binary update feed. These source changes do not establish that
 ## Intended prompt behavior
 
 - Normal mode blocks inbound and outbound traffic unless an explicit exception applies.
+- TinyWall's Learning (Autolearn) mode is removed; these prompts replace it. A saved or imported configuration that names Learning starts in Normal mode. Exceptions learned by earlier builds stay until you delete them.
 - Only outbound drops caused by SecureWall's default-block filters may produce prompts.
 - **Allow outgoing** creates a permanent outbound TCP/UDP exception for the service-owned subject represented by the prompt token.
 - **Ignore**, closing the prompt, or prompt expiry leaves policy unchanged.

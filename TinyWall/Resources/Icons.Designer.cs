@@ -323,16 +323,6 @@ namespace pylorak.TinyWall.Resources {
         /// <summary>
         ///   Looks up a localized resource of type System.Drawing.Icon similar to (Icon).
         /// </summary>
-        internal static System.Drawing.Icon shield_blue_small {
-            get {
-                object obj = ResourceManager.GetObject("shield_blue_small", resourceCulture);
-                return ((System.Drawing.Icon)(obj));
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized resource of type System.Drawing.Icon similar to (Icon).
-        /// </summary>
         internal static System.Drawing.Icon shield_green_small {
             get {
                 object obj = ResourceManager.GetObject("shield_green_small", resourceCulture);

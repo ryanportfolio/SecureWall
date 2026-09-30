@@ -2,11 +2,13 @@
 
 - `TinyWall/TinyWallService.cs`: LocalSystem enforcement owner, WFP provider/sublayers, weighted filters, prompt service handlers.
 - `pylorak.Windows.WFP/`: direct Windows Filtering Platform wrappers; no custom kernel driver.
-- `TinyWall/FirewallLogWatcher.cs`: named-field Security event 5157 parsing for prompt attribution, Learning-mode parsing of permitted listen/connection/bind events 5154/5156/5158 (`Prompting/LearningPolicy.cs` decides what each teaches), and exact audit-policy leasing. `AuditPolicyLease.cs` journals the original flags to `HKLM\SOFTWARE\SecureWall\AuditRecovery` (`RegistryAuditPolicyJournal.cs`) before the first change; service start, `/uninstall`, and `/msi-cleanup` restore stale entries.
+- `TinyWall/FirewallLogWatcher.cs`: subscribes only to Security event 5157, parses it by field name for prompt attribution, and leases failure auditing with the exact prior flags restored. `AuditPolicyLease.cs` journals the original flags to `HKLM\SOFTWARE\SecureWall\AuditRecovery` (`RegistryAuditPolicyJournal.cs`) before the first change; service start, `/uninstall`, and `/msi-cleanup` restore stale entries.
 - `TinyWall/Prompting/`: pure identity, correlation, bounded queue, token DTO, display coordinator, and WinForms popup. `ExecutableRiskAssessment.cs` is the pure warning classifier; `TinyWall/ExecutableRiskProbe.cs` gathers signature (WinVerifyTrust plus catalog), directory DACL, and last-write facts in the controller at display time.
 - `TinyWall/ConnectionsForm.cs`: one-second live Network Activity view combining bounded WFP allow/drop observations with Windows TCP/UDP endpoint tables. `Allowed` and `Blocked` are observed decisions; `Listening (local endpoint)` is not a reachability claim.
 - `TinyWall/TinyWallController.cs`: unprivileged tray client and asynchronous 750 ms prompt polling.
 - `TinyWall/Message.cs`: source-generated JSON protocol over the authenticated named pipe.
+
+Modes are Normal, BlockAll, AllowOutgoing and Disabled (`Prompting/FirewallModePolicy.cs`). Learning mode was removed; its enum value stays reserved so old messages and configs parse, a switch to it is refused, and a stored or imported startup mode of Learning becomes Normal.
 
 Normal mode is default deny. Only committed runtime IDs for outbound ALE default-block filters are promptable. The service maps an opaque token to an immutable subject; the controller never supplies an executable path, package SID, or service name as authority.
 

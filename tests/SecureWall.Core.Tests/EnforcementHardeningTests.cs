@@ -102,7 +102,7 @@ namespace SecureWall.Core.Tests
             var lifetime = new AuditWatcherLifetime();
             var sender = new object();
             Check(lifetime.Attach(sender), "Subscription attach failed.");
-            object learning = new object();
+            object transition = new object();
             using var callbackEntered = new ManualResetEventSlim();
             using var drainEntered = new ManualResetEventSlim();
             using var callbackDone = new ManualResetEventSlim();
@@ -113,7 +113,7 @@ namespace SecureWall.Core.Tests
                 {
                     Check(lifetime.Accept(sender), "Initial callback rejected.");
                     callbackEntered.Set();
-                    lock (learning) { }
+                    lock (transition) { }
                 }
                 catch (Exception error) { callbackError = error; }
                 finally { callbackDone.Set(); }
@@ -123,13 +123,13 @@ namespace SecureWall.Core.Tests
                 try { lifetime.Stop(() => { }, () => { drainEntered.Set(); Check(callbackDone.Wait(3000), "Drain blocked callback."); }); }
                 catch (Exception error) { stopError = error; }
             }) { IsBackground = true };
-            lock (learning)
+            lock (transition)
             {
                 callback.Start();
                 Check(callbackEntered.Wait(3000), "Callback did not enter.");
                 stopper.Start();
                 Check(drainEntered.Wait(3000), "Stop did not enter drain.");
-                // Same lock order as a policy transition: learning then watcher lifecycle.
+                // A caller holds its own lock, then takes the watcher lifecycle lock.
                 bool entered = Monitor.TryEnter(lifetime.SyncRoot, 1000);
                 try { Check(entered, "Callback drain retained the transition lock."); }
                 finally { if (entered) Monitor.Exit(lifetime.SyncRoot); }
@@ -640,7 +640,7 @@ namespace SecureWall.Core.Tests
 
         private static void RuntimeLifetimes()
         {
-            foreach (string policy in new[] { "Disabled", "Learning", "temporary app", "until reboot", "permanent app", "LAN", "WSL", "inherited app" })
+            foreach (string policy in new[] { "Disabled", "temporary app", "until reboot", "permanent app", "LAN", "WSL", "inherited app" })
             {
                 var lifetimes = new List<WfpFilterLifetime>();
                 var ids = WfpFilterPairRegistration.Register(lifetime => { lifetimes.Add(lifetime); return 42; }, false, runtimeOnly: true);

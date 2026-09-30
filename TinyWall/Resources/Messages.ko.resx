@@ -321,12 +321,6 @@
   <data name="CannotGetPathOfProcess" xml:space="preserve">
     <value>프로세스의 경로를 확인할 수 없습니다.</value>
   </data>
-  <data name="TheFirewallIsNowLearning" xml:space="preserve">
-    <value>현재 방화벽은 모든 트래픽을 통과시키면서 학습하고 있습니다.</value>
-  </data>
-  <data name="FirewallModeLearn" xml:space="preserve">
-    <value>자동 학습</value>
-  </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>SecureWall의 제거/업데이트를 시작했습니까?</value>
   </data>

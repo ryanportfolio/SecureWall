@@ -137,9 +137,6 @@
   <data name="mnuModeDisabled.Text" xml:space="preserve">
     <value>Disable firewall</value>
   </data>
-  <data name="mnuModeLearn.Text" xml:space="preserve">
-    <value>Autolearn</value>
-  </data>
   <data name="mnuMode.Text" xml:space="preserve">
     <value>Change mode</value>
   </data>
@@ -243,12 +240,6 @@
     <value>mnuModeDisabled</value>
   </data>
   <data name="&gt;&gt;mnuModeDisabled.Type" xml:space="preserve">
-    <value>System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;mnuModeLearn.Name" xml:space="preserve">
-    <value>mnuModeLearn</value>
-  </data>
-  <data name="&gt;&gt;mnuModeLearn.Type" xml:space="preserve">
     <value>System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
   <data name="&gt;&gt;mnuManage.Name" xml:space="preserve">

@@ -17,18 +17,13 @@ namespace pylorak.TinyWall
             new Guid("{0CCE9226-69AE-11D9-BED3-505054503030}");
 
         private readonly AuditWatcherLifetime _lifetime = new AuditWatcherLifetime();
-        private object _lifecycle => _lifetime.SyncRoot;
         private readonly AuditSubscriptionHealth _health = new AuditSubscriptionHealth();
         private readonly CoalescedDiagnostic _subscriptionErrors = new CoalescedDiagnostic();
         private readonly CoalescedDiagnostic _recordErrors = new CoalescedDiagnostic();
         private volatile EventLogWatcher? _logWatcher;
         private AuditPolicyLease? _failureAuditLease;
-        private AuditPolicyLease? _learningAuditLease;
-        private volatile bool _learningEnabled;
         private volatile bool _failureLeaseOwned;
 
-        internal delegate void NewLogEntryDelegate(FirewallLogWatcher sender, FirewallLogEntry entry);
-        internal event NewLogEntryDelegate? NewLogEntry;
         internal delegate void BlockedConnectionDelegate(FirewallLogWatcher sender, BlockedConnectionAuditEvent blockedConnection);
         internal event BlockedConnectionDelegate? BlockedConnection;
 
@@ -65,8 +60,8 @@ namespace pylorak.TinyWall
             Report(RuntimeEvent.audit_subscribe, RuntimeResult.attempt);
             try
             {
-                var query = new EventLogQuery("Security", PathType.LogName,
-                    "*[System[(EventID=5154 or EventID=5155 or EventID=5156 or EventID=5157 or EventID=5158 or EventID=5159)]]");
+                // Prompt attribution reads only 5157 (connection blocked by WFP).
+                var query = new EventLogQuery("Security", PathType.LogName, "*[System[(EventID=5157)]]");
                 var watcher = new EventLogWatcher(query);
                 if (!_lifetime.Attach(watcher)) { watcher.Dispose(); return; }
                 _logWatcher = watcher;
@@ -99,29 +94,6 @@ namespace pylorak.TinyWall
             }
         }
 
-        internal bool LearningEnabled
-        {
-            get => _learningEnabled;
-            set
-            {
-                lock (_lifecycle)
-                {
-                    if (_health.Stopped) throw new ObjectDisposedException(nameof(FirewallLogWatcher));
-                    if (value == _learningEnabled) return;
-                    if (value)
-                    {
-                        _learningAuditLease = AcquireAuditLease(AuditPolicyFlags.Success);
-                        _learningEnabled = true;
-                    }
-                    else
-                    {
-                        _learningEnabled = false;
-                        DisposeAuditLease(ref _learningAuditLease);
-                    }
-                }
-            }
-        }
-
         internal bool AuditEnrichmentAvailable => _health.Available(_failureLeaseOwned);
 
         protected override void Dispose(bool disposing)
@@ -130,20 +102,16 @@ namespace pylorak.TinyWall
             _lifetime.Stop(() =>
             {
                 _health.Stop();
-                _learningEnabled = false;
                 _failureLeaseOwned = false;
                 watcher = _logWatcher;
                 _logWatcher = null;
                 if (watcher != null) watcher.EventRecordWritten -= LogWatcherEventRecordWritten;
             }, () =>
             {
-                // EventLogWatcher.Dispose waits for callbacks. A callback may be waiting
-                // for LearningNewExceptions while a policy transition takes _lifecycle.
-                // The lifetime seam releases that lock before entering this drain.
+                // EventLogWatcher.Dispose waits for callbacks. The lifetime seam releases
+                // its lock before this drain, so a callback blocked in Accept can finish.
                 try { watcher?.Dispose(); Report(RuntimeEvent.audit_unsubscribe, RuntimeResult.success); }
                 catch (Exception exception) { Report(RuntimeEvent.audit_unsubscribe, RuntimeResult.failure, exception.HResult); Utils.LogException(exception, Utils.LOG_ID_SERVICE); }
-                try { DisposeAuditLease(ref _learningAuditLease); }
-                catch (Exception exception) { Utils.LogException(exception, Utils.LOG_ID_SERVICE); }
                 try { DisposeAuditLease(ref _failureAuditLease); }
                 catch (Exception exception) { Utils.LogException(exception, Utils.LOG_ID_SERVICE); }
                 base.Dispose(disposing);
@@ -169,12 +137,8 @@ namespace pylorak.TinyWall
                     SecurityEvent5157Parser.TryParse(fields, timestamp.ToUniversalTime(), out BlockedConnectionAuditEvent parsed))
                 {
                     BlockedConnectionAuditEvent normalized = Normalize(parsed);
-                    // Blocked connections never teach Learning (LearningEventParser.KindOf).
                     if (_lifetime.Accept(sender) && AuditEnrichmentAvailable) BlockedConnection?.Invoke(this, normalized);
-                    return;
                 }
-                if (_lifetime.Accept(sender) && _learningEnabled && TryParseLearningEntry(record.Id, fields, timestamp, out FirewallLogEntry entry))
-                    NewLogEntry?.Invoke(this, entry);
             }
             catch (Exception exception)
             {
@@ -220,45 +184,11 @@ namespace pylorak.TinyWall
                 parsed.PackageSid);
         }
 
-        private static bool TryParseLearningEntry(
-            int eventId,
-            IReadOnlyDictionary<string, string> fields,
-            DateTimeOffset timestamp,
-            out FirewallLogEntry entry)
-        {
-            entry = null!;
-            // Connection records keep direction and both endpoints so Learning can
-            // skip loopback traffic; only listen and bind records lack a remote side.
-            if (!LearningEventParser.TryParse(eventId, fields, out LearningObservation observation))
-                return false;
-
-            bool connection = observation.Kind == LearningEventKind.Connection;
-            entry = new FirewallLogEntry
-            {
-                Timestamp = timestamp.LocalDateTime,
-                Event = (EventLogEvent)eventId,
-                ProcessId = observation.ProcessId,
-                AppPath = NormalizePath(observation.ApplicationPath),
-                Direction = connection && observation.Direction == ConnectionDirection.Outbound
-                    ? RuleDirection.Out
-                    : RuleDirection.In,
-                LocalIp = EmptyAddress(observation.LocalAddress),
-                LocalPort = observation.LocalPort,
-                RemoteIp = connection ? observation.RemoteAddress : "::",
-                RemotePort = observation.RemotePort,
-                Protocol = (Protocol)observation.Protocol,
-            };
-            return true;
-        }
-
         private static string NormalizePath(string applicationPath)
         {
             string path = PathMapper.Instance.ConvertPathIgnoreErrors(applicationPath, PathFormat.Win32);
             return Utils.GetExactPath(path) ?? path;
         }
-
-        private static string EmptyAddress(string value) =>
-            string.IsNullOrEmpty(value) ? "::" : value;
 
         private AuditPolicyLease AcquireAuditLease(AuditPolicyFlags requiredFlags)
         {

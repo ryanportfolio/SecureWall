@@ -322,12 +322,6 @@
   <data name="CannotGetPathOfProcess" xml:space="preserve">
     <value>Не вдалося отримати шлях до процесу.</value>
   </data>
-  <data name="TheFirewallIsNowLearning" xml:space="preserve">
-    <value>Брандмауер тепер у режимі навчання та пропускає весь трафік.</value>
-  </data>
-  <data name="FirewallModeLearn" xml:space="preserve">
-    <value>Автонавічання</value>
-  </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>Ви ініціювали видалення/оновлення SecureWall?</value>
   </data>

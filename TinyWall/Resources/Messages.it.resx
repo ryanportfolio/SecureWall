@@ -308,12 +308,6 @@ Selezionare Eleva dal menu, quindi riprovare.
   <data name="CannotGetPathOfProcess" xml:space="preserve">
     <value>Impossibile trovare il percorso del processo.</value>
   </data>
-  <data name="TheFirewallIsNowLearning" xml:space="preserve">
-    <value>Il firewall sta apprendendo le regole del traffico.</value>
-  </data>
-  <data name="FirewallModeLearn" xml:space="preserve">
-    <value>Autoapprendimento</value>
-  </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>E' stata avviata la procedura di disinstallazione ?</value>
   </data>

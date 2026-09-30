@@ -132,9 +132,6 @@
   <data name="mnuModeDisabled.Text" xml:space="preserve">
     <value>Wyłącz zaporę</value>
   </data>
-  <data name="mnuModeLearn.Text" xml:space="preserve">
-    <value>Tryb uczenia</value>
-  </data>
   <data name="mnuMode.Text" xml:space="preserve">
     <value>Tryby ochrony</value>
   </data>

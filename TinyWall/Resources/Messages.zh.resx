@@ -303,12 +303,6 @@
   <data name="CannotGetPathOfProcess" xml:space="preserve">
     <value>无法获得进程路径。</value>
   </data>
-  <data name="TheFirewallIsNowLearning" xml:space="preserve">
-    <value>防火墙在允许流量通过的同时进行学习。</value>
-  </data>
-  <data name="FirewallModeLearn" xml:space="preserve">
-    <value>自动学习</value>
-  </data>
   <data name="DidYouInitiateTheUninstall" xml:space="preserve">
     <value>您希望卸载SecureWall吗？</value>
   </data>

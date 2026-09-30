@@ -210,14 +210,14 @@ namespace SecureWall.Core.Tests
             var (subcategory, backend, journal, trace) = Harness(AuditPolicyFlags.Unchanged);
 
             var failure = AuditPolicyLease.Acquire(backend, subcategory, AuditPolicyFlags.Failure, journal);
-            var learning = AuditPolicyLease.Acquire(backend, subcategory, AuditPolicyFlags.Success, journal);
+            var inner = AuditPolicyLease.Acquire(backend, subcategory, AuditPolicyFlags.Success, journal);
 
             AssertEx.SequenceEqual(new[] { "write", "set", "set" }, trace, "inner lease must not re-journal or treat the outer record as stale");
             AssertEx.Equal(AuditPolicyFlags.Unchanged, journal.Entries[subcategory]);
             AssertEx.Equal(AuditPolicyFlags.Success | AuditPolicyFlags.Failure, backend[subcategory]);
 
             trace.Clear();
-            learning.Dispose();
+            inner.Dispose();
             AssertEx.SequenceEqual(new[] { "set" }, trace, "inner dispose restores the outer lease's value and keeps the journal");
             AssertEx.Equal(AuditPolicyFlags.Failure, backend[subcategory]);
             AssertEx.Equal(AuditPolicyFlags.Unchanged, journal.Entries[subcategory]);
@@ -230,7 +230,7 @@ namespace SecureWall.Core.Tests
         }
 
         // Machine already audits Failure: the outer failure lease changes nothing,
-        // so the inner learning lease is the first to change policy and must journal
+        // so the inner lease is the first to change policy and must journal
         // the true original (Failure), not the value it found.
         private static void InnerLeaseJournalsTrueOriginal()
         {
@@ -240,13 +240,13 @@ namespace SecureWall.Core.Tests
             AssertEx.Equal(0, trace.Count, "outer lease finds Failure already on and changes nothing");
             AssertEx.Equal(0, journal.Entries.Count);
 
-            var learning = AuditPolicyLease.Acquire(backend, subcategory, AuditPolicyFlags.Success, journal);
+            var inner = AuditPolicyLease.Acquire(backend, subcategory, AuditPolicyFlags.Success, journal);
             AssertEx.SequenceEqual(new[] { "write", "set" }, trace, "inner lease journals before it sets");
             AssertEx.Equal(AuditPolicyFlags.Failure, journal.Entries[subcategory]);
             AssertEx.Equal(AuditPolicyFlags.Success | AuditPolicyFlags.Failure, backend[subcategory]);
 
             trace.Clear();
-            learning.Dispose();
+            inner.Dispose();
             AssertEx.SequenceEqual(new[] { "set", "clear" }, trace, "restoring Failure reaches the true original, so the record clears");
             AssertEx.Equal(AuditPolicyFlags.Failure, backend[subcategory]);
             AssertEx.Equal(0, journal.Entries.Count);
@@ -274,7 +274,7 @@ namespace SecureWall.Core.Tests
             AssertEx.Equal(AuditPolicyFlags.Failure, backend[subcategory]);
 
             trace.Clear();
-            using var learning = AuditPolicyLease.Acquire(backend, subcategory, AuditPolicyFlags.Success, journal);
+            using var inner = AuditPolicyLease.Acquire(backend, subcategory, AuditPolicyFlags.Success, journal);
             AssertEx.SequenceEqual(new[] { "write", "set" }, trace, "the retry writes the journal before setting");
             AssertEx.Equal(AuditPolicyFlags.Failure, journal.Entries[subcategory]);
             AssertEx.Equal(AuditPolicyFlags.Success | AuditPolicyFlags.Failure, backend[subcategory]);
@@ -288,11 +288,11 @@ namespace SecureWall.Core.Tests
         {
             var (subcategory, backend, journal, trace) = Harness(AuditPolicyFlags.Failure);
             var failure = AuditPolicyLease.Acquire(backend, subcategory, AuditPolicyFlags.Failure, journal);
-            var learning = AuditPolicyLease.Acquire(backend, subcategory, AuditPolicyFlags.Success, journal);
+            var inner = AuditPolicyLease.Acquire(backend, subcategory, AuditPolicyFlags.Success, journal);
             AssertEx.Equal(AuditPolicyFlags.Failure, journal.Entries[subcategory]);
 
             backend.FailSetFor.Add(subcategory);
-            AssertEx.Throws<InvalidOperationException>(() => learning.Dispose());
+            AssertEx.Throws<InvalidOperationException>(() => inner.Dispose());
             AssertEx.Equal(AuditPolicyFlags.Success | AuditPolicyFlags.Failure, backend[subcategory], "inner restore failed, live policy stays modified");
             AssertEx.Equal(AuditPolicyFlags.Failure, journal.Entries[subcategory]);
 
@@ -338,7 +338,7 @@ namespace SecureWall.Core.Tests
         {
             var (subcategory, backend, journal, _) = Harness(AuditPolicyFlags.Failure);
             var failure = AuditPolicyLease.Acquire(backend, subcategory, AuditPolicyFlags.Failure, journal);
-            var learning = AuditPolicyLease.Acquire(backend, subcategory, AuditPolicyFlags.Success, journal);
+            var inner = AuditPolicyLease.Acquire(backend, subcategory, AuditPolicyFlags.Success, journal);
             AssertEx.Equal(AuditPolicyFlags.Success | AuditPolicyFlags.Failure, backend[subcategory]);
 
             var trace = new List<string>();
@@ -353,7 +353,7 @@ namespace SecureWall.Core.Tests
             AssertEx.Equal(0, recoveryJournal.Entries.Count);
 
             // Unwind the live leases so the static lease table does not leak into other tests.
-            learning.Dispose();
+            inner.Dispose();
             failure.Dispose();
         }
 

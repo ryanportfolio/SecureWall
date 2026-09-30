@@ -129,9 +129,6 @@
   <data name="mnuModeDisabled.Text" xml:space="preserve">
     <value>Отключить фаервол</value>
   </data>
-  <data name="mnuModeLearn.Text" xml:space="preserve">
-    <value>Автообучение</value>
-  </data>
   <data name="mnuMode.Text" xml:space="preserve">
     <value>Изменить режим</value>
   </data>
