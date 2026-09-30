@@ -1,6 +1,6 @@
 # Pre-switch review: TinyWall 3.3.1 to SecureWall v0.3.0
 
-Review date: 2026-09-29, status updated 2026-09-30. Product source reviewed: HEAD `fe0d011` (v0.3.0 is tag `5385cab`; `fe0d011` changes only `.claude/`, `.agents/` and `.codex/`). Fixes: branch `claude/pre-switch-fixes`, audited integration head `b192054`; after it, the release-prep commits `ca2cc3d` (version 0.4.0, `docs/releases/v0.4.0.md`, `release.yml` manual default tag `v0.4.0`) and `d68b4b8` (release note wording) change no product logic. Upstream reviewed to `62b088f`. Every finding below comes from a review round whose claims were re-checked by a separate auditor; see [Method and limits](#8-method-and-limits).
+Review date: 2026-09-29, status updated 2026-09-30. Product source reviewed: HEAD `fe0d011` (v0.3.0 is tag `5385cab`; `fe0d011` changes only `.claude/` and `.agents/`). Fixes: branch `claude/pre-switch-fixes`, audited integration head `b192054`; after it, the release-prep commits `ca2cc3d` (version 0.4.0, `docs/releases/v0.4.0.md`, `release.yml` manual default tag `v0.4.0`) and `d68b4b8` (release note wording) change no product logic. Upstream reviewed to `62b088f`. Every finding below comes from a review round whose claims were re-checked by a separate auditor; see [Method and limits](#8-method-and-limits).
 
 Severity: HIGH can break networking or security, or lose data, on the owner's PC. MEDIUM is a real defect or risk with narrower impact. LOW is minor. Intent questions are in section 4, not in the findings.
 
