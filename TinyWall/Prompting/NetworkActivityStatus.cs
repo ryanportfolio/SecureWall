@@ -33,6 +33,24 @@ namespace pylorak.TinyWall.Prompting
             };
         }
 
+        // The group comes from the committed filter ID that WFP reported for the drop.
+        // Unknown (another provider's filter, a replaced policy, or a failed map) claims no reason.
+        internal static string ToDisplayText(NetworkActivityStatus status, FilterGroup blockedBy)
+        {
+            if (status != NetworkActivityStatus.Blocked)
+                return ToDisplayText(status);
+
+            return blockedBy switch
+            {
+                FilterGroup.DefaultAction => "Blocked (default deny)",
+                FilterGroup.PortScan => "Blocked (port scan protection)",
+                FilterGroup.RawSocket => "Blocked (raw socket)",
+                FilterGroup.Blocklist => "Blocked (port blocklist)",
+                FilterGroup.User => "Blocked (user rule)",
+                _ => ToDisplayText(status),
+            };
+        }
+
         internal static bool IsDecisionVisible(
             NetworkActivityStatus status,
             bool showAllowed,

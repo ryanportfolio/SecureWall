@@ -24,6 +24,9 @@ namespace pylorak.TinyWall
         private bool DiagnosticSettingLoaded;
         private readonly DiagnosticFilterSet PortBlocklistFilterIds = new();
         private List<ulong>? PendingPortBlocklistFilterIds;
+        // Display-only block reasons for Network Activity; published only after commit.
+        private readonly FilterGroupMap FilterGroups = new();
+        private List<KeyValuePair<ulong, FilterGroup>>? PendingFilterGroups;
         private bool EffectiveHostsBlocklist;
         private bool EffectivePortBlocklist;
         private bool PortBlocklistDiagnosticsAvailable;
@@ -331,7 +334,11 @@ namespace pylorak.TinyWall
             Transaction? trx = useTransaction ? WfpEngine.BeginTransaction() : null;
             var addedKeys = useTransaction ? new List<Guid>() : PendingRuntimeFilterKeys;
             if (useTransaction)
+            {
                 PendingRuntimeFilterKeys = addedKeys;
+                try { PendingFilterGroups = new List<KeyValuePair<ulong, FilterGroup>>(); }
+                catch { PendingFilterGroups = null; } // Display data cannot abort policy.
+            }
             try
             {
                 // Add new rules
@@ -356,13 +363,19 @@ namespace pylorak.TinyWall
 
                 trx?.Commit();
                 if (useTransaction)
+                {
                     RuntimeFilterKeys.AddRange(addedKeys!);
+                    FilterGroups.Add(PendingFilterGroups);
+                }
                 return promptableFilterIds;
             }
             finally
             {
                 if (useTransaction)
+                {
                     PendingRuntimeFilterKeys = null;
+                    PendingFilterGroups = null;
+                }
                 trx?.Dispose();
             }
 
@@ -399,6 +412,8 @@ namespace pylorak.TinyWall
                     PendingRuntimeFilterKeys = candidateKeys;
                     try { PendingPortBlocklistFilterIds = new List<ulong>(); }
                     catch { PendingPortBlocklistFilterIds = null; } // Diagnostics cannot abort policy.
+                    try { PendingFilterGroups = new List<KeyValuePair<ulong, FilterGroup>>(); }
+                    catch { PendingFilterGroups = null; } // Display data cannot abort policy.
                     if (PolicyMode != FirewallMode.Disabled)
                     {
                         InstallPortScanProtection();
@@ -409,6 +424,7 @@ namespace pylorak.TinyWall
                     committed = true;
                     PortBlocklistDiagnosticsAvailable = PendingPortBlocklistFilterIds != null && PortBlocklistFilterIds.Replace(PendingPortBlocklistFilterIds);
                     if (!PortBlocklistDiagnosticsAvailable) PortBlocklistFilterIds.Clear();
+                    FilterGroups.Replace(PendingFilterGroups);
                     EffectivePortBlocklist = PolicyConfiguration.Blocklists.EnableBlocklists &&
                         PolicyConfiguration.Blocklists.EnablePortBlocklist &&
                         PolicyMode != FirewallMode.BlockAll;
@@ -429,6 +445,7 @@ namespace pylorak.TinyWall
                 {
                     PendingRuntimeFilterKeys = null;
                     PendingPortBlocklistFilterIds = null;
+                    PendingFilterGroups = null;
                     if (!committed)
                     {
                         UserSubjectExes = previousSubjects;
@@ -575,9 +592,9 @@ namespace pylorak.TinyWall
             };
         }
 
-        private IReadOnlyList<ulong> InstallWfpFilter(Filter f, bool required = true)
+        private IReadOnlyList<ulong> InstallWfpFilter(Filter f, FilterGroup group, bool required = true)
         {
-            return WfpFilterPairRegistration.Register(lifetime =>
+            IReadOnlyList<ulong> filterIds = WfpFilterPairRegistration.Register(lifetime =>
             {
                 f.FilterKey = Guid.NewGuid();
                 f.Flags = 0;
@@ -585,6 +602,20 @@ namespace pylorak.TinyWall
                 (PendingRuntimeFilterKeys ?? throw new InvalidOperationException("No runtime transaction is active.")).Add(f.FilterKey);
                 return f.FilterId;
             }, required, runtimeOnly: true);
+            if (group != FilterGroup.Unknown)
+            {
+                try
+                {
+                    if (PendingFilterGroups != null)
+                    {
+                        if (filterIds.Count > FilterGroupMap.Capacity - PendingFilterGroups.Count)
+                            PendingFilterGroups = null;
+                        else foreach (ulong id in filterIds) PendingFilterGroups.Add(new KeyValuePair<ulong, FilterGroup>(id, group));
+                    }
+                }
+                catch { PendingFilterGroups = null; } // Display data cannot reject a rule.
+            }
+            return filterIds;
         }
 
         private void ConstructFilter(RuleDef r, LayerKeyEnum layer, List<ulong> promptableFilterIds)
@@ -800,6 +831,10 @@ namespace pylorak.TinyWall
 
             IReadOnlyList<ulong> installedFilterIds = InstallWfpFilter(
                 f,
+                r.Action == RuleAction.Block
+                    ? FilterGroupClassifier.ForBlockRule(r.Weight, (ulong)FilterWeights.Blocklist,
+                        (ulong)FilterWeights.UserBlock, (ulong)FilterWeights.DefaultBlock)
+                    : FilterGroup.Unknown,
                 PromptFilterClassifier.IsRequiredProtection(r.Action == RuleAction.Block));
             if (r.Action == RuleAction.Block && r.Weight == (ulong)FilterWeights.Blocklist)
             {
@@ -843,7 +878,7 @@ namespace pylorak.TinyWall
             f.SublayerKey = GetSublayerKey(layer);
             f.Conditions.Add(new FlagsFilterCondition(ConditionFlags.FWP_CONDITION_FLAG_IS_RAW_ENDPOINT, FieldMatchType.FWP_MATCH_FLAGS_ANY_SET));
 
-            InstallWfpFilter(f);
+            InstallWfpFilter(f, FilterGroup.RawSocket);
         }
 
         private void InstallWsl2Filters(bool permit)
@@ -878,7 +913,7 @@ namespace pylorak.TinyWall
             f.SublayerKey = GetSublayerKey(layer);
             f.Conditions.Add(new LocalInterfaceCondition(ifAlias));
 
-            InstallWfpFilter(f);
+            InstallWfpFilter(f, permit ? FilterGroup.Unknown : FilterGroup.User);
         }
 
         private void InstallRawSocketPermits(List<RuleDef> rawSocketExceptions)
@@ -910,7 +945,7 @@ namespace pylorak.TinyWall
                 f.LayerKey = GetLayerKey(layer);
                 f.SublayerKey = GetSublayerKey(layer);
 
-                InstallWfpFilter(f);
+                InstallWfpFilter(f, FilterGroup.Unknown);
             }
         }
 
@@ -936,7 +971,7 @@ namespace pylorak.TinyWall
             // Don't affect loopback traffic
             f.Conditions.Add(new FlagsFilterCondition(ConditionFlags.FWP_CONDITION_FLAG_IS_LOOPBACK | ConditionFlags.FWP_CONDITION_FLAG_IS_IPSEC_SECURED, FieldMatchType.FWP_MATCH_FLAGS_NONE_SET));
 
-            InstallWfpFilter(f);
+            InstallWfpFilter(f, FilterGroup.PortScan);
         }
 
         private static bool LayerIsAleAuthConnect(LayerKeyEnum layer)
@@ -1612,6 +1647,7 @@ namespace pylorak.TinyWall
             }
             PromptableFilterIds.Replace(Array.Empty<ulong>());
             PortBlocklistFilterIds.Clear();
+            FilterGroups.Clear();
             PortBlocklistDiagnosticsAvailable = true;
             EffectivePortBlocklist = false;
             VisibleState.Mode = FirewallMode.Unknown;
@@ -2328,7 +2364,11 @@ namespace pylorak.TinyWall
                 if (data.localPort.HasValue)
                     entry.LocalPort = data.localPort.Value;
                 if (data.filterId.HasValue)
+                {
                     entry.FilterRuntimeId = data.filterId.Value;
+                    if (eventType == EventLogEvent.BLOCKED)
+                        entry.FilterGroup = FilterGroups.Lookup(data.filterId.Value);
+                }
 
                 // Replace invalid IP strings with the "unspecified address" IPv6 specifier
                 if (string.IsNullOrEmpty(entry.RemoteIp))
@@ -2613,6 +2653,7 @@ namespace pylorak.TinyWall
             WfpEngine.Dispose();
             PromptableFilterIds.Replace(Array.Empty<ulong>());
             PortBlocklistFilterIds.Clear();
+            FilterGroups.Clear();
             PortBlocklistDiagnosticsAvailable = true;
             EffectivePortBlocklist = false;
             ServerPipe?.Dispose();

@@ -75,7 +75,8 @@ internal static class Program
             .Concat(PromptTransactionIntegrationTests.Cases)
             .Concat(ExecutableRiskTests.Cases)
             .Concat(PasswordStorageTests.Cases)
-            .Concat(ControllerUiPortTests.Cases).ToArray();
+            .Concat(ControllerUiPortTests.Cases)
+            .Concat(BlockReasonTests.Cases).ToArray();
         tests = tests.Concat(RuntimeJournalTests.Cases).Concat(RuntimeDiagnosticCoverageTests.Cases).ToArray();
         var failed = 0;
 

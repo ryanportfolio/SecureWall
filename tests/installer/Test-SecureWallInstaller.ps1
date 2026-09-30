@@ -205,6 +205,16 @@ foreach ($entry in @(@{ Name = 'source'; Rules = @($sourceUpdate.Components) }, 
     Assert-True ($serviceRules.Count -eq 1) "$($entry.Name) Windows_Update retains intended wuauserv outbound TCP service rule"
 }
 
+# profiles.json is compiled from TinyWall\Database by the interactive develtool,
+# so a source edit without a matching payload edit would ship stale rules.
+$sourceProfiles = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'TinyWall\Database') -Filter '*.json' -Recurse -File |
+    ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) | ConvertFrom-Json | ConvertTo-Json -Depth 32 -Compress } | Sort-Object)
+$payloadProfiles = @($packagedDatabase.KnownApplications | ForEach-Object { $_ | ConvertTo-Json -Depth 32 -Compress } | Sort-Object)
+Assert-True ($sourceProfiles.Count -gt 0 -and (Compare-Object $sourceProfiles $payloadProfiles -CaseSensitive -SyncWindow 0).Count -eq 0) 'packaged profiles.json matches the Database source profiles'
+$defenderPaths = @($packagedDatabase.KnownApplications | Where-Object { $_.Name -eq 'Windows_Defender' } | ForEach-Object { $_.Components } | ForEach-Object { Split-Path -Leaf $_.Subject.ExecutablePath })
+Assert-True ($defenderPaths -contains 'MpCmdRun.exe') 'payload Windows_Defender allows MpCmdRun.exe protection updates'
+Assert-True ($defenderPaths -notcontains 'MpDefenderCoreService.exe') 'payload Windows_Defender excludes MpDefenderCoreService.exe'
+
 $productConstants = Read-RepoFile 'TinyWall\SecureWallProduct.cs'
 Assert-True ($productConstants -match 'internal const string Name = "SecureWall"') 'runtime product name is SecureWall'
 Assert-True ($productConstants -match 'ControllerPipeName = "SecureWallController"') 'named pipe identity is SecureWall'
