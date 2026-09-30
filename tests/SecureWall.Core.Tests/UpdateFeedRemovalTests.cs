@@ -12,6 +12,7 @@ internal static class UpdateFeedRemovalTests
     internal static IEnumerable<(string Name, Action Test)> Cases => new (string, Action)[]
     {
         ("product sources contain no update feed host or update download path", ProductSourcesHaveNoUpdateFeed),
+        ("product sources link to SecureWall, not the upstream TinyWall repository", ProductSourcesHaveNoUpstreamLinks),
         ("legacy JSON settings with AutoUpdateCheck deserialize and ignore it", LegacyJsonAutoUpdateCheck),
         ("legacy XML settings with AutoUpdateCheck deserialize and ignore it", LegacyXmlAutoUpdateCheck),
     };
@@ -44,7 +45,16 @@ internal static class UpdateFeedRemovalTests
         return dir?.FullName ?? throw new InvalidOperationException("Repository source not found.");
     }
 
-    private static void ProductSourcesHaveNoUpdateFeed()
+    // Links in the product point at SecureWall's own repository.
+    private static readonly string[] UpstreamLinkPatterns = { "github.com/pylorak" };
+
+    private static void ProductSourcesHaveNoUpdateFeed() =>
+        AssertNoProductMatches(ForbiddenPatterns, "Update feed code remains");
+
+    private static void ProductSourcesHaveNoUpstreamLinks() =>
+        AssertNoProductMatches(UpstreamLinkPatterns, "Upstream TinyWall links remain");
+
+    private static void AssertNoProductMatches(string[] patterns, string failure)
     {
         string root = RepositoryRoot();
         var hits = new List<string>();
@@ -61,7 +71,7 @@ internal static class UpdateFeedRemovalTests
                 if (!TextExtensions.Contains(Path.GetExtension(file), StringComparer.OrdinalIgnoreCase)) continue;
                 scanned++;
                 string text = File.ReadAllText(file);
-                foreach (string pattern in ForbiddenPatterns)
+                foreach (string pattern in patterns)
                     if (text.Contains(pattern, StringComparison.OrdinalIgnoreCase))
                         hits.Add(relative + ": " + pattern);
             }
