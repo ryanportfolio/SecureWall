@@ -151,23 +151,28 @@ namespace pylorak.TinyWall
         // Sets ServerConfiguration.AiAssistantEgress through the authenticated pipe with the
         // same PUT_SETTINGS request the settings window uses, so the service password lock and
         // changeset check apply. The service decides what the flag installs.
+        // The candidate is always built from a fresh GET_SETTINGS reply, never the controller's
+        // cache: after a lost connection the cache can hold default settings with a matching
+        // changeset, and sending that back would replace the saved rules and exceptions.
         internal static bool TrySetServiceAccess(bool enabled, out string? error)
         {
             error = null;
-            ServerConfiguration? current = ActiveConfig.Service;
-            if (current != null && current.AiAssistantEgress == enabled)
-                return true;
-
-            Controller? pipe = GlobalInstances.Controller;
-            if (pipe == null || current == null)
+            MessageType read = TryReadServiceSettings(out ServerConfiguration? current, out Guid changeset);
+            switch (AiExplainEgressPolicy.PlanServiceAccessChange(enabled, current?.AiAssistantEgress))
             {
-                error = "SecureWall's service is not connected.";
-                return false;
+                case AiExplainEgressPolicy.ServiceAccessPlan.NoChange:
+                    return true;
+                case AiExplainEgressPolicy.ServiceAccessPlan.NotConnected:
+                    error = read == MessageType.RESPONSE_LOCKED
+                        ? "SecureWall is locked. Unlock it from the tray icon, then try again."
+                        : "SecureWall's service is not connected, so its settings could not be read.";
+                    return false;
             }
 
-            ServerConfiguration candidate = Utils.DeepClone(current);
+            Controller pipe = GlobalInstances.Controller;
+            ServerConfiguration candidate = Utils.DeepClone(current!);
             candidate.AiAssistantEgress = enabled;
-            TwMessage response = pipe.SetServerConfig(candidate, GlobalInstances.ClientChangeset);
+            TwMessage response = pipe.SetServerConfig(candidate, changeset);
             switch (response.Type)
             {
                 case MessageType.PUT_SETTINGS:
@@ -192,6 +197,27 @@ namespace pylorak.TinyWall
                     error = "The SecureWall service could not apply the change.";
                     return false;
             }
+        }
+
+        // Reads the service's current settings with an empty changeset so the service always
+        // returns them. Does not touch the controller's cache. Returns the reply type; `config`
+        // is null unless the reply carried settings.
+        internal static MessageType TryReadServiceSettings(out ServerConfiguration? config, out Guid changeset)
+        {
+            config = null;
+            changeset = Guid.Empty;
+            Controller? pipe = GlobalInstances.Controller;
+            if (pipe == null)
+                return MessageType.COM_ERROR;
+
+            Guid received = Guid.Empty;
+            MessageType reply = pipe.GetServerConfig(out ServerConfiguration? fresh, out _, ref received);
+            if (reply == MessageType.GET_SETTINGS && fresh != null && received != Guid.Empty)
+            {
+                config = fresh;
+                changeset = received;
+            }
+            return reply;
         }
     }
 }

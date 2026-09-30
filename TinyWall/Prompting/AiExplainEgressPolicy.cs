@@ -47,6 +47,17 @@ namespace pylorak.TinyWall.Prompting
         internal static bool ShouldInstallPermit(bool enabled, bool normalMode, bool displayOffBlockActive) =>
             enabled && normalMode && !displayOffBlockActive;
 
+        internal enum ServiceAccessPlan { NoChange, Send, NotConnected }
+
+        // `freshServiceFlag` comes from a settings read made just now, or is null when that read
+        // failed. A failed read never counts as "already set" and never sends a cached copy.
+        internal static ServiceAccessPlan PlanServiceAccessChange(bool requested, bool? freshServiceFlag)
+        {
+            if (freshServiceFlag == null)
+                return ServiceAccessPlan.NotConnected;
+            return freshServiceFlag.Value == requested ? ServiceAccessPlan.NoChange : ServiceAccessPlan.Send;
+        }
+
         // True when a settings change toggles only the AI egress flag in the same firewall mode.
         // Such a reload adds or removes only the SecureWall.exe permit, whose own prompts are
         // never allowable, so pending prompt tokens for other subjects stay valid and are kept.

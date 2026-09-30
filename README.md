@@ -33,7 +33,7 @@ SecureWall has no binary update feed. These source changes do not establish that
 - **Allow outgoing** creates a permanent outbound TCP/UDP exception for the service-owned subject represented by the prompt token.
 - **Ignore**, closing the prompt, or prompt expiry leaves policy unchanged.
 - Explicit user blocks, blocklists, inbound drops, and ambiguous shared-service identities are never converted into broad allow rules.
-- The optional AI **?** lookup is off by default. Turning it on (SecureWall must be unlocked) adds a Normal-mode permit for `SecureWall.exe` limited to outbound TCP port 443 from signed-in (interactive) accounts; the LocalSystem service never matches it. Do not add a manual exception for `SecureWall.exe`: that would also cover the service. Answers are labeled AI-generated, size-capped, and never change policy.
+- The optional AI **?** lookup is off by default. Turning it on (SecureWall must be unlocked) adds a Normal-mode permit for `SecureWall.exe` limited to outbound TCP port 443 from signed-in (interactive) accounts; the LocalSystem service never matches it. Do not add a manual exception for `SecureWall.exe`: that would also cover the service. The endpoint must use HTTPS port 443; other ports and a system proxy on another port are not supported. Answers are labeled AI-generated, size-capped, and never change policy.
 
 The implementation and verification plan is in [docs/superpowers/plans/2026-07-14-securewall.md](docs/superpowers/plans/2026-07-14-securewall.md). The threat model and architecture are in [docs/design/2026-07-14-securewall-design.md](docs/design/2026-07-14-securewall-design.md).
 

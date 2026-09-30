@@ -26,6 +26,8 @@ namespace SecureWall.Core.Tests
                 yield return ("ai own image detection matches securewall exe only", OwnImageDetection);
                 yield return ("ai egress-only change keeps pending prompt tokens", EgressOnlyChangeKeepsPrompts);
                 yield return ("own image warning applies to non-block exceptions only", OwnImageWarningGate);
+                yield return ("ai endpoint must use port 443 like the egress permit", EndpointPortMatchesPermit);
+                yield return ("ai permit change never trusts a cached or failed settings read", ServiceAccessPlanNeedsFreshRead);
             }
         }
 
@@ -231,6 +233,45 @@ namespace SecureWall.Core.Tests
             AssertEx.False(AiExplainEgressPolicy.RequiresOwnImageWarning(true, own, own), "A block rule for SecureWall needs no warning.");
             AssertEx.False(AiExplainEgressPolicy.RequiresOwnImageWarning(false, @"C:\Apps\app.exe", own));
             AssertEx.True(AiExplainEgressPolicy.OwnImageExceptionWarning.Contains("LocalSystem"));
+        }
+
+        private static void EndpointPortMatchesPermit()
+        {
+            AssertEx.False(AiExplainSettings.Validate("https://provider.example:8443/v1", "m", out string? portError),
+                "A port the permit does not cover must be rejected.");
+            AssertEx.True(portError != null && portError.Contains("443"), "The error must name port 443.");
+            AssertEx.False(AiExplainSettings.TryBuildChatCompletionsUri("https://provider.example:8443/v1", out _));
+            AssertEx.True(AiExplainSettings.Validate("https://provider.example:443/v1", "m", out _));
+            AssertEx.True(AiExplainSettings.TryBuildChatCompletionsUri("https://provider.example/v1", out Uri? uri));
+            AssertEx.Equal(443, uri!.Port);
+            AssertEx.False(AiExplainSettings.Validate("not a url", "m", out string? urlError));
+            AssertEx.False(urlError!.Contains("port 443"), "Unrelated URL errors keep the generic message.");
+        }
+
+        private static void ServiceAccessPlanNeedsFreshRead()
+        {
+            // A failed read (null) must never be treated as "already set" in either direction.
+            AssertEx.Equal(AiExplainEgressPolicy.ServiceAccessPlan.NotConnected, AiExplainEgressPolicy.PlanServiceAccessChange(true, null));
+            AssertEx.Equal(AiExplainEgressPolicy.ServiceAccessPlan.NotConnected, AiExplainEgressPolicy.PlanServiceAccessChange(false, null));
+            AssertEx.Equal(AiExplainEgressPolicy.ServiceAccessPlan.NoChange, AiExplainEgressPolicy.PlanServiceAccessChange(true, true));
+            AssertEx.Equal(AiExplainEgressPolicy.ServiceAccessPlan.NoChange, AiExplainEgressPolicy.PlanServiceAccessChange(false, false));
+            AssertEx.Equal(AiExplainEgressPolicy.ServiceAccessPlan.Send, AiExplainEgressPolicy.PlanServiceAccessChange(true, false));
+            AssertEx.Equal(AiExplainEgressPolicy.ServiceAccessPlan.Send, AiExplainEgressPolicy.PlanServiceAccessChange(false, true));
+
+            // The sender reads fresh settings and never clones the controller cache.
+            string form = PromptTransactionIntegrationTests.Source("TinyWall/AiExplainSettingsForm.cs");
+            int start = form.IndexOf("internal static bool TrySetServiceAccess", StringComparison.Ordinal);
+            int end = form.IndexOf("internal static MessageType TryReadServiceSettings", StringComparison.Ordinal);
+            AssertEx.True(start > 0 && end > start);
+            string sender = form.Substring(start, end - start);
+            AssertEx.True(sender.Contains("TryReadServiceSettings(out ServerConfiguration? current, out Guid changeset)"));
+            AssertEx.True(sender.Contains("pipe.SetServerConfig(candidate, changeset)"));
+            AssertEx.True(sender.Contains("Utils.DeepClone(current!)"), "The candidate must come from the fresh read.");
+            AssertEx.False(sender.Contains("DeepClone(ActiveConfig.Service") || sender.Contains("? current = ActiveConfig.Service"),
+                "The candidate must not come from the controller cache.");
+            AssertEx.False(sender.Contains("GlobalInstances.ClientChangeset)"), "The cached changeset must not be sent.");
+            string reader = form.Substring(end);
+            AssertEx.True(reader.Contains("Guid received = Guid.Empty;"), "The read must force a full settings reply.");
         }
 
         // Returns at most 7 bytes per read so the bounded reader must loop.

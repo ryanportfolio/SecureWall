@@ -33,7 +33,11 @@ namespace pylorak.TinyWall
                 throw new ArgumentNullException(nameof(subject));
 
             if (!AiExplainSettings.TryBuildChatCompletionsUri(_baseUrl, out Uri? uri) || uri == null)
-                return AiExplainResult.Fail("The configured base URL is not valid.");
+            {
+                // A URL saved before the port-443 rule reaches here; name the reason.
+                AiExplainSettings.Validate(_baseUrl, _model, out string? invalid);
+                return AiExplainResult.Fail(invalid ?? "The configured base URL is not valid.");
+            }
             if (string.IsNullOrWhiteSpace(_model))
                 return AiExplainResult.Fail("No model is configured.");
             if (string.IsNullOrWhiteSpace(_apiKey))

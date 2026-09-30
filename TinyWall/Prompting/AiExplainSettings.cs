@@ -15,7 +15,10 @@ namespace pylorak.TinyWall.Prompting
         {
             if (!TryBuildChatCompletionsUri(baseUrl, out _))
             {
-                error = "Enter a valid https base URL, for example " + DefaultBaseUrl + ".";
+                error = UsesOtherHttpsPort(baseUrl)
+                    ? "The AI endpoint must use the standard HTTPS port 443. SecureWall's permit for the assistant " +
+                      "covers only TCP port 443, so other ports (and a system proxy on another port) would be blocked."
+                    : "Enter a valid https base URL, for example " + DefaultBaseUrl + ".";
                 return false;
             }
 
@@ -43,8 +46,18 @@ namespace pylorak.TinyWall.Prompting
                 !string.IsNullOrEmpty(built.Query) || !string.IsNullOrEmpty(built.Fragment))
                 return false;
 
+            // The controller's egress permit allows remote TCP 443 only (AiExplainEgressPolicy).
+            if (built.Port != AiExplainEgressPolicy.RemotePort)
+                return false;
+
             uri = built;
             return true;
         }
+
+        private static bool UsesOtherHttpsPort(string? baseUrl) =>
+            !string.IsNullOrWhiteSpace(baseUrl)
+            && Uri.TryCreate(baseUrl!.Trim(), UriKind.Absolute, out Uri? parsed)
+            && parsed!.Scheme == Uri.UriSchemeHttps
+            && parsed.Port != AiExplainEgressPolicy.RemotePort;
     }
 }

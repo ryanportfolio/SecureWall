@@ -99,8 +99,10 @@ namespace pylorak.TinyWall.Prompting
             timeoutTimer.Start();
 
             // Without the service's narrow permit the request would be blocked and raise a
-            // second, non-allowable prompt for SecureWall itself.
-            if (ActiveConfig.Service?.AiAssistantEgress != true && !OfferToEnableServiceAccess())
+            // second, non-allowable prompt for SecureWall itself. Read the service's current
+            // setting; the controller's cached copy can be stale.
+            AiExplainSettingsForm.TryReadServiceSettings(out ServerConfiguration? live, out _);
+            if (live?.AiAssistantEgress != true && !OfferToEnableServiceAccess())
                 return;
 
             _aiButton.Enabled = false;
