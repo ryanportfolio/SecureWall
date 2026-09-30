@@ -218,7 +218,7 @@ namespace pylorak.TinyWall.Prompting
                     return new PromptActionResult(PromptActionStatus.Expired, expired);
                 }
 
-                if (entry.Identity.Kind == PromptIdentityKind.AmbiguousService)
+                if (!entry.Identity.CanAllow)
                 {
                     return new PromptActionResult(
                         PromptActionStatus.NotAllowable,

@@ -37,15 +37,14 @@ namespace pylorak.Windows.Services
             uint cbBufSize,
             out uint pcbBytesNeeded);
 
-        /*
-        [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-        public static extern int QueryServiceConfig2(
-            IntPtr hService,
+        [DllImport("advapi32", SetLastError = true, CharSet = CharSet.Unicode)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool QueryServiceConfig2(
+            SafeServiceHandle hService,
             ServiceConfig2InfoLevel dwInfoLevel,
             IntPtr lpBuffer,
-            int cbBufSize,
-            out int pcbBytesNeeded);
-         */
+            uint cbBufSize,
+            out uint pcbBytesNeeded);
 
         [DllImport("advapi32", SetLastError = true, CharSet = CharSet.Unicode)]
         [return: MarshalAs(UnmanagedType.Bool)]

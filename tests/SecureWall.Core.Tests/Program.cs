@@ -83,7 +83,8 @@ internal static class Program
             .Concat(ServiceRecoveryTests.Cases)
             .Concat(ServiceStartupRobustnessTests.Cases)
             .Concat(LearningPolicyTests.Cases)
-            .Concat(ExceptionMergePolicyTests.Cases).ToArray();
+            .Concat(ExceptionMergePolicyTests.Cases)
+            .Concat(ServiceAttributionTests.Cases).ToArray();
         var failed = 0;
 
         foreach (var (name, test) in tests)
@@ -626,8 +627,10 @@ internal static class Program
             ServiceImagePath.TryExtractExecutable(
                 "\"C:\\Program Files\\Example Service\\service.exe\" --service",
                 @"C:\Windows"));
-        AssertEx.Equal(
-            @"C:\Program Files\Example Service\service.exe",
+        // Unquoted with spaces: CreateProcess tries C:\Program.exe first, so the executable
+        // depends on the disk and stays unresolved.
+        AssertEx.Equal<string?>(
+            null,
             ServiceImagePath.TryExtractExecutable(
                 @"C:\Program Files\Example Service\service.exe --service",
                 @"C:\Windows"));

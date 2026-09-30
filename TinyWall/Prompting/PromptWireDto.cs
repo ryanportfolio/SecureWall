@@ -9,6 +9,7 @@ namespace pylorak.TinyWall.Prompting
         public Guid Token { get; set; }
         public PromptIdentityKind SubjectKind { get; set; }
         public bool CanAllow { get; set; }
+        public PromptAllowBlocker AllowBlocker { get; set; }
         public string? ExecutablePath { get; set; }
         public string? PackageSid { get; set; }
         public string? ServiceName { get; set; }
@@ -31,6 +32,7 @@ namespace pylorak.TinyWall.Prompting
                 Token = prompt.Token,
                 SubjectKind = prompt.Identity.Kind,
                 CanAllow = prompt.CanAllow,
+                AllowBlocker = prompt.Identity.AllowBlocker,
                 ExecutablePath = prompt.Identity.ExecutablePath,
                 PackageSid = prompt.Identity.PackageSid,
                 ServiceName = prompt.Identity.ServiceName,

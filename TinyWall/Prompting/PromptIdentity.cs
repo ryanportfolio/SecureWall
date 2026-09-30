@@ -13,6 +13,24 @@ namespace pylorak.TinyWall.Prompting
         AmbiguousService,
     }
 
+    // Why the popup must not offer Allow for an identity. Anything other than None is
+    // non-allowable, and the service refuses the token regardless of what the controller shows.
+    internal enum PromptAllowBlocker
+    {
+        None,
+        // Shared, pending or unattributed service host: no exact service to name.
+        AmbiguousService,
+        // Exact service whose SID type is NONE (or not unrestricted/restricted), so its token
+        // carries no per-service SID. A ServiceSubject rule matches FWPM_CONDITION_ALE_USER_ID
+        // against that SID, so it would never match the service's traffic.
+        ServiceSidUnavailable,
+        // Exact service whose SID type could not be read, so a matching rule is unverified.
+        ServiceSidUnverified,
+        // The service inventory cannot rule out that this executable is a registered
+        // service. This is uncertainty, not established service attribution.
+        ServiceRegistrationUnknown,
+    }
+
     internal sealed class PromptIdentity
     {
         private PromptIdentity(
@@ -21,9 +39,13 @@ namespace pylorak.TinyWall.Prompting
             string? executablePath,
             string? packageSid,
             string? serviceName,
-            IReadOnlyList<string>? ambiguousServiceNames)
+            IReadOnlyList<string>? ambiguousServiceNames,
+            PromptAllowBlocker allowBlocker = PromptAllowBlocker.None)
         {
             Kind = kind;
+            AllowBlocker = kind == PromptIdentityKind.AmbiguousService
+                ? PromptAllowBlocker.AmbiguousService
+                : allowBlocker;
             Key = key;
             ExecutablePath = executablePath;
             PackageSid = packageSid;
@@ -37,6 +59,8 @@ namespace pylorak.TinyWall.Prompting
         internal string? PackageSid { get; }
         internal string? ServiceName { get; }
         internal IReadOnlyList<string> AmbiguousServiceNames { get; }
+        internal PromptAllowBlocker AllowBlocker { get; }
+        internal bool CanAllow => AllowBlocker == PromptAllowBlocker.None;
 
         internal static PromptIdentity ForExecutable(string executablePath)
         {
@@ -48,6 +72,22 @@ namespace pylorak.TinyWall.Prompting
                 null,
                 null,
                 null);
+        }
+
+        // Shown as the executable, but not allowable: the service inventory could not rule
+        // out that it runs as a registered service. A separate key keeps this prompt from
+        // coalescing with, or sharing an Ignore cooldown with, an allowable one.
+        internal static PromptIdentity ForUnconfirmedServiceRegistration(string executablePath)
+        {
+            string path = Require(executablePath, nameof(executablePath));
+            return new PromptIdentity(
+                PromptIdentityKind.Executable,
+                $"exe:{Canonical(path)}|registration-unknown",
+                path,
+                null,
+                null,
+                null,
+                PromptAllowBlocker.ServiceRegistrationUnknown);
         }
 
         internal static PromptIdentity ForPackage(string packageSid, string? executablePath)
@@ -77,6 +117,27 @@ namespace pylorak.TinyWall.Prompting
                 null,
                 service,
                 null);
+        }
+
+        // Exact service with no per-service SID (sidTypeKnown) or an unreadable SID type, so a
+        // ServiceSubject rule could not be shown to match it. Kept distinct from ForService so
+        // a later SID-type change starts a fresh, allowable prompt instead of coalescing into this one.
+        internal static PromptIdentity ForServiceWithoutSid(
+            string executablePath,
+            string serviceName,
+            bool sidTypeKnown = true)
+        {
+            string path = Require(executablePath, nameof(executablePath));
+            string service = Require(serviceName, nameof(serviceName));
+            return new PromptIdentity(
+                PromptIdentityKind.Service,
+                $"service:{Canonical(service)}|{Canonical(path)}|" +
+                    (sidTypeKnown ? "no-service-sid" : "service-sid-unverified"),
+                path,
+                null,
+                service,
+                null,
+                sidTypeKnown ? PromptAllowBlocker.ServiceSidUnavailable : PromptAllowBlocker.ServiceSidUnverified);
         }
 
         internal static PromptIdentity ForAmbiguousServices(

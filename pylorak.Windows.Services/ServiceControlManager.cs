@@ -297,6 +297,31 @@ namespace pylorak.Windows.Services
             return query_srv_config.dwStartType;
         }
 
+        /// <summary>
+        /// Returns the service's configured SERVICE_SID_INFO.dwServiceSidType
+        /// (0 = none, 1 = unrestricted, 3 = restricted).
+        /// </summary>
+        [SecurityPermission(SecurityAction.LinkDemand, UnmanagedCode = true)]
+        public uint GetServiceSidType(string serviceName)
+        {
+            using var service = OpenService(serviceName, ServiceAccessRights.SERVICE_QUERY_CONFIG);
+
+            // SERVICE_SID_INFO is a single DWORD.
+            const uint size = sizeof(uint);
+            using var buff = SafeHGlobalHandle.Alloc(size);
+            if (!NativeMethods.QueryServiceConfig2(
+                service,
+                ServiceConfig2InfoLevel.SERVICE_CONFIG_SERVICE_SID_INFO,
+                buff.DangerousGetHandle(),
+                size,
+                out _))
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            }
+
+            return (uint)Marshal.ReadInt32(buff.DangerousGetHandle());
+        }
+
         [SecurityPermission(SecurityAction.LinkDemand, UnmanagedCode = true)]
         public uint? GetServicePid(string serviceName)
         {
