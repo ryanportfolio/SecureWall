@@ -8,6 +8,7 @@ This is the Codex boundary for the AI Operating System starter. Claude Code keep
 - Use plain prose for security warnings, irreversible confirmations, and ambiguous multi-step decisions, then resume Ultra. A new session restores Ultra after the user temporarily disables it.
 - Read `CLAUDE.md` for project facts, architecture, verification, references, and engineering rules. Do not inherit Claude popup rules, hook implementation, model names, slash syntax, or automatic Git behavior.
 - Never execute `.claude/hooks/session-start.sh` in Codex.
+- No unit tests or type tests unless the user asks.
 
 ## Capabilities
 
