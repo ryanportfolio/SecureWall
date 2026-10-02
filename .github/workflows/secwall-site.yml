@@ -27,6 +27,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     env:
       RELEASE_TAG: ${{ inputs.tag }}
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}

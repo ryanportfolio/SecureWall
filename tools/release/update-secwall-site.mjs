@@ -59,12 +59,17 @@ function setOutput(name, value) {
   if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, `${name}=${value}\n`);
 }
 
+// The timeout also covers reading the body, so a stalled response cannot hang the job.
+function request(url, options = {}) {
+  return fetch(url, { ...options, signal: AbortSignal.timeout(60_000) });
+}
+
 async function vercel(apiPath) {
   const token = process.env.VERCEL_TOKEN;
   const team = process.env.VERCEL_ORG_ID;
   if (!token || !team) fail("VERCEL_TOKEN and VERCEL_ORG_ID must be set");
   const sep = apiPath.includes("?") ? "&" : "?";
-  const res = await fetch(`https://api.vercel.com${apiPath}${sep}teamId=${team}`, {
+  const res = await request(`https://api.vercel.com${apiPath}${sep}teamId=${team}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) fail(`Vercel API ${apiPath.split("?")[0]} returned ${res.status}`);
@@ -122,7 +127,9 @@ function bundleSources(html) {
 
 async function checkUrl(url) {
   // Range keeps MSI downloads to one byte; GitHub answers 200 or 206.
-  const res = await fetch(url, { headers: { Range: "bytes=0-0" }, redirect: "follow" });
+  const res = await request(url, { headers: { Range: "bytes=0-0" }, redirect: "follow" });
+  // A server that ignores Range would otherwise stream the whole MSI.
+  await res.body?.cancel();
   if (res.status !== 200 && res.status !== 206) fail(`${url} returned ${res.status}`);
   console.log(`ok ${res.status} ${url}`);
 }
@@ -167,6 +174,10 @@ async function update(version, out) {
     if (!match) fail(`${rel}: expected a name ending in an 8-character hash`);
     const newName = `${match[1]}-${hash}.js`;
     if (newName === oldName) fail(`${rel}: cannot derive a new hashed name`);
+    // A build file importing this bundle would change too and need its own new
+    // name. The site has a single entry bundle; refuse anything else.
+    const importers = listFiles(out).filter(f => f.startsWith("build/") && f !== rel && TEXT.test(f) && read(f).includes(oldName));
+    if (importers.length) fail(`${importers.join(", ")} reference ${oldName}; only a single entry bundle is supported`);
     fs.renameSync(path.join(out, rel), path.join(out, "build", newName));
     for (const f of listFiles(out).filter(f => TEXT.test(f))) {
       const text = read(f);
@@ -207,20 +218,24 @@ async function checkLive(version) {
   for (let attempt = 1; ; attempt++) {
     try {
       const get = async url => {
-        const res = await fetch(url, { cache: "no-store" });
-        if (!res.ok) throw Error(`${url} returned ${res.status}`);
+        const res = await request(url, { cache: "no-store" });
+        if (!res.ok) {
+          await res.body?.cancel();
+          throw Error(`${url} returned ${res.status}`);
+        }
         return res.text();
       };
       const html = await get(`https://${SITE}/`);
       const sources = bundleSources(html);
       if (!sources.length) throw Error("index.html references no bundle");
-      // The page's <noscript> links the release too, so each bundle must show it on its own.
-      for (const src of sources) {
-        const live = siteVersion(await get(`https://${SITE}/${src}`));
-        if (live !== version) throw Error(`${src} links v${live}`);
-      }
-      const live = siteVersion(html);
-      if (live !== version) throw Error(`index.html links v${live}`);
+      // Every bundle must load. The page's <noscript> links the release too, so
+      // the bundles must show it without index.html's help.
+      const bundles = [];
+      for (const src of sources) bundles.push(await get(`https://${SITE}/${src}`));
+      const inBundles = siteVersion(bundles.join("\n"));
+      if (inBundles !== version) throw Error(`bundles link v${inBundles}`);
+      const inPage = siteVersion(html);
+      if (inPage !== version) throw Error(`index.html links v${inPage}`);
       console.log(`${SITE} serves v${version}`);
       return;
     } catch (err) {
