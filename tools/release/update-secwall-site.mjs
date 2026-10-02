@@ -162,7 +162,10 @@ async function update(version, out) {
   for (const rel of edited.filter(f => f.startsWith("build/"))) {
     const oldName = path.posix.basename(rel);
     const hash = createHash("sha256").update(fs.readFileSync(path.join(out, rel))).digest("base64url").slice(0, 8);
-    const newName = oldName.replace(/-[^-.]+(\.js)$/, `-${hash}$1`);
+    // Bundle hashes are 8 base64url characters and may themselves contain "-".
+    const match = oldName.match(/^(.+)-[A-Za-z0-9_-]{8}\.js$/);
+    if (!match) fail(`${rel}: expected a name ending in an 8-character hash`);
+    const newName = `${match[1]}-${hash}.js`;
     if (newName === oldName) fail(`${rel}: cannot derive a new hashed name`);
     fs.renameSync(path.join(out, rel), path.join(out, "build", newName));
     for (const f of listFiles(out).filter(f => TEXT.test(f))) {
@@ -203,10 +206,21 @@ async function checkLive(version) {
   parseVersion(version);
   for (let attempt = 1; ; attempt++) {
     try {
-      const html = await (await fetch(`https://${SITE}/`, { cache: "no-store" })).text();
-      const bundles = await Promise.all(bundleSources(html).map(async src => (await fetch(`https://${SITE}/${src}`)).text()));
-      const live = siteVersion([html, ...bundles].join("\n"));
-      if (live !== version) throw Error(`site links v${live}`);
+      const get = async url => {
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) throw Error(`${url} returned ${res.status}`);
+        return res.text();
+      };
+      const html = await get(`https://${SITE}/`);
+      const sources = bundleSources(html);
+      if (!sources.length) throw Error("index.html references no bundle");
+      // The page's <noscript> links the release too, so each bundle must show it on its own.
+      for (const src of sources) {
+        const live = siteVersion(await get(`https://${SITE}/${src}`));
+        if (live !== version) throw Error(`${src} links v${live}`);
+      }
+      const live = siteVersion(html);
+      if (live !== version) throw Error(`index.html links v${live}`);
       console.log(`${SITE} serves v${version}`);
       return;
     } catch (err) {
