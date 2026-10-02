@@ -12,11 +12,18 @@ No signing, publishing, deployment, or real firewall activation is authorized by
 
 ## secwall.org
 
-https://secwall.org is a static site on the Vercel project `securewall` (team `sardonicasts-projects`). It is deployed from the CLI and not linked to Git, so publishing a release changes nothing on it. Its files live in `site/` (added by ryanportfolio/SecureWall#15; `site/README.md` covers preview, checks and deploy). Until that PR merges, the only copy is the Vercel production deployment.
+https://secwall.org is a static site on the Vercel project `securewall` (team `sardonicasts-projects`). It is deployed from the CLI and not linked to Git. The live production deployment is the source of truth for its files; no repository holds them. Its JS bundle is prebuilt and its React source is not available, so version strings are the only edits it takes.
 
-Every release updates the site in the same task: a new tag, and a prerelease flipped to a full release. After `release.yml` has attached the MSIs:
+Every release updates the site. `release.yml` does this in its `site` job, after the MSIs are attached, by calling `.github/workflows/secwall-site.yml`. That workflow runs `tools/release/update-secwall-site.mjs`, which:
 
-1. Replace `v<old>` with `v<new>` in `site/index.html` and `site/build/index-*.js`. The version appears in release-tag links, `releases/download/v<old>/SecureWall_<arch>.msi` links, the `tree/v<old>/tools/diagnostics` link, the "v<old> alpha" labels and the JSON-LD description. Grep both files for the old version afterwards; expect zero hits. A flip to a full release also changes the "alpha" and "unsigned" wording, which needs the user's copy decision.
-2. The bundle's React source is not in the repo, so a literal string replacement is the only allowed edit to `site/build/`. `/build/*` is served `immutable` for a year, so give the edited bundle a new hashed file name and update every reference to it (`index.html`, `tools/site/prune-css.mjs`). An edit under the old name stays cached in browsers.
-3. `curl -sIL` each new download URL and confirm it resolves to the MSI. Run `node tools/site/seo.mjs --check`, then `vercel deploy --prod` from `site/`.
-4. Confirm the live page: `curl -sL https://secwall.org/` contains `v<new>` and no `v<old>`.
+1. Downloads the deployment `secwall.org` points at, checking each file against the SHA-1 Vercel reports.
+2. Reads the current release from the site's GitHub release links. It stops without deploying when the site already shows the tag, and refuses to move to an older version.
+3. Replaces only `v<old>` and `Version <old>` in `index.html` and `build/*.js`. The bundle also contains Theatre.js's own `"0.4.0"` state version, so a bare version number is never replaced.
+4. Gives each edited bundle a new hashed name and updates every reference to it. `/build/*` may be served `immutable`, and an edit under the old name would stay cached in browsers.
+5. Fails if any old version form remains, if `index.html` references a missing bundle, or if any new GitHub link or `SecureWall_<arch>.msi` asset does not return 200.
+
+The workflow then deploys with `vercel deploy --prod` and checks that the live page links the new tag. It needs the `VERCEL_TOKEN` repository secret. After publishing a release, confirm the `site` job passed. To retry, or to update the site without rebuilding the MSIs, run `secwall-site` by hand with the tag (`gh workflow run secwall-site.yml -f tag=v<Version>`).
+
+Flipping a prerelease to a full release is not automated. The site calls each release an unsigned alpha, so that change needs the user's copy decision and a hand edit following the same rules (version forms only, rename the bundle, deploy, check live).
+
+To test locally, set `VERCEL_ORG_ID=team_kjAf51SrpxZhvAptYZizUMmB` and a `VERCEL_TOKEN`, then run `node tools/release/update-secwall-site.mjs --version <x.y.z> --out .tmp/site`. It writes the result to `.tmp/site` and deploys nothing.

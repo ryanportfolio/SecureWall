@@ -31,7 +31,7 @@ This is the Codex boundary for the AI Operating System starter. Claude Code keep
 - Do not inherit Claude auto-commit, push, PR, or merge. Ship only when the request includes shipping.
 - Never push to `main`, force-push, merge, delete branches/worktrees, migrate, deploy, install runtime dependencies, or modify external checkouts without explicit approval.
 - Stage explicit paths, preserve unrelated changes, and verify before claiming completion.
-- Every GitHub release also updates https://secwall.org in the same task. A request to publish a release is approval to update the site and deploy it to production; follow the "secwall.org" section of `.claude/reference/deployment.md`.
+- Every GitHub release also updates https://secwall.org; `release.yml` deploys it through `secwall-site.yml`, and a release task is not done until that job passes. A request to publish a release is approval to update the site and deploy it to production, including a manual `secwall-site` run or the hand edit a full-release flip needs; follow the "secwall.org" section of `.claude/reference/deployment.md`.
 
 ## Shared Assets
 

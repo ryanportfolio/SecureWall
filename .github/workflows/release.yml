@@ -101,3 +101,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
         run: gh release upload "$RELEASE_TAG" artifacts/* --clobber
+
+  site:
+    needs: upload
+    uses: ./.github/workflows/secwall-site.yml
+    with:
+      tag: ${{ github.event.release.tag_name || inputs.tag }}
+    secrets: inherit

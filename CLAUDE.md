@@ -75,11 +75,12 @@ service, registering WFP filters, changing audit policy outside a disposable VM,
 or running the real firewall requires explicit user approval and confirmed local
 console access. Never install over remote-only access.
 
-Every GitHub release also updates https://secwall.org in the same task: a new
-release tag, and a prerelease flipped to a full release. The site is a
-CLI-deployed Vercel project with no Git link, so nothing updates it on its own. A
-request to publish a release covers the site edit and its production deploy.
-Procedure: `.claude/reference/deployment.md`, section "secwall.org".
+Every GitHub release also updates https://secwall.org. `release.yml` deploys the
+new version through `secwall-site.yml`; a release task is not done until that
+job passes. Flipping a prerelease to a full release needs a hand edit of the
+site's "alpha" wording. A request to publish a release covers the site update
+and its production deploy. Detail: `.claude/reference/deployment.md`, section
+"secwall.org".
 
 ## Project reference library
 

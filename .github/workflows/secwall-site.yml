@@ -1,0 +1,57 @@
+name: secwall-site
+
+# Moves https://secwall.org to a published release. release.yml calls this
+# after the installers are attached; run it by hand to retry a failed update.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+    secrets:
+      VERCEL_TOKEN:
+        required: false
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published release tag the site should offer
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: secwall-site
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: team_kjAf51SrpxZhvAptYZizUMmB
+      VERCEL_PROJECT_ID: prj_3bHSBYH96aI8uDwkAIaW9W3bYHcA
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Build the updated site from the live deployment
+        id: site
+        run: |
+          case "$RELEASE_TAG" in
+            v*) ;;
+            *) echo "Tag $RELEASE_TAG must start with v" >&2; exit 1 ;;
+          esac
+          node tools/release/update-secwall-site.mjs --version "${RELEASE_TAG#v}" --out "$RUNNER_TEMP/secwall-site"
+
+      - name: Deploy to production
+        if: steps.site.outputs.changed == 'true'
+        working-directory: ${{ runner.temp }}/secwall-site
+        run: npx --yes vercel@56.4.1 deploy --prod --yes --token "$VERCEL_TOKEN"
+
+      - name: Confirm the live site
+        run: node tools/release/update-secwall-site.mjs --check-live "${RELEASE_TAG#v}"
