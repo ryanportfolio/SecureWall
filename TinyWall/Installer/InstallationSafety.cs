@@ -162,6 +162,42 @@ namespace pylorak.TinyWall.Installer
             finally { CloseServiceHandle(manager); }
         }
 
+        // Install failure diagnostics only. ServiceController hides the exit codes
+        // that say why a service stopped; SCM keeps them until the next start.
+        internal static string DescribeServiceStatus()
+        {
+            try
+            {
+                IntPtr manager = OpenSCManager(null, null, 1);
+                if (manager == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error());
+                try
+                {
+                    IntPtr service = OpenService(manager, TinyWallService.SERVICE_NAME, 4);
+                    if (service == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error());
+                    try
+                    {
+                        ServiceStatus status = ReadStatus(service);
+                        string state = status.CurrentState switch
+                        {
+                            1 => "Stopped",
+                            2 => "StartPending",
+                            3 => "StopPending",
+                            4 => "Running",
+                            _ => status.CurrentState.ToString(),
+                        };
+                        return $"state {state}, Win32 exit code {status.Win32ExitCode} ({new Win32Exception((int)status.Win32ExitCode).Message}), " +
+                            $"service-specific exit code {status.ServiceSpecificExitCode}";
+                    }
+                    finally { CloseServiceHandle(service); }
+                }
+                finally { CloseServiceHandle(manager); }
+            }
+            catch (Exception exception)
+            {
+                return "unavailable (" + exception.Message + ")";
+            }
+        }
+
         private static ServiceStatus ReadStatus(IntPtr service)
         {
             if (!QueryServiceStatusEx(service, 0, out ServiceStatus status, Marshal.SizeOf(typeof(ServiceStatus)), out _))

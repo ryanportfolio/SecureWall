@@ -1643,6 +1643,17 @@ namespace pylorak.TinyWall
         private static Engine CreateRuntimeEngine() =>
             new("SecureWall Session", "", FWPM_SESSION_FLAGS.FWPM_SESSION_FLAG_DYNAMIC, 5000);
 
+        // Engine options are global BFE settings, and FwpmEngineSetOption0 fails with
+        // FWP_E_DYNAMIC_SESSION_IN_PROGRESS inside a dynamic session such as the runtime
+        // one. Set them through a short-lived ordinary session that adds no objects.
+        private static void SetNetEventCollection(bool collect)
+        {
+            using var options = new Engine("SecureWall Engine Options", "", FWPM_SESSION_FLAGS.None, 5000);
+            options.CollectNetEvents = collect;
+            if (collect)
+                options.EventMatchAnyKeywords = InboundEventMatchKeyword.FWPM_NET_EVENT_KEYWORD_INBOUND_BCAST | InboundEventMatchKeyword.FWPM_NET_EVENT_KEYWORD_INBOUND_MCAST;
+        }
+
         private bool MayRetainCommittedPolicy() => EnvironmentalPolicyReload.MayRetain(!RuntimeSessionRevoked, LastInstallCommitted,
             Addresses.Superseded || VolumeMappingChanged ||
                 DisplayRestriction.Pending(ActiveConfig.Service.ActiveProfile.DisplayOffBlock, DisplayCurrentlyOn, CommittedDisplayRestricted),
@@ -1686,8 +1697,7 @@ namespace pylorak.TinyWall
                 IDisposable? subscription = null;
                 try
                 {
-                    engine.CollectNetEvents = true;
-                    engine.EventMatchAnyKeywords = InboundEventMatchKeyword.FWPM_NET_EVENT_KEYWORD_INBOUND_BCAST | InboundEventMatchKeyword.FWPM_NET_EVENT_KEYWORD_INBOUND_MCAST;
+                    SetNetEventCollection(true);
                     subscription = engine.SubscribeNetEvent(WfpNetEventCallback);
                 }
                 catch
@@ -2048,7 +2058,7 @@ namespace pylorak.TinyWall
                             // Event collection might have been disabled by external process or user after we started up,
                             // so re-enable it if that is the case.
                             if (!WfpEngine.CollectNetEvents)
-                                WfpEngine.CollectNetEvents = true;
+                                SetNetEventCollection(true);
                         }
 
                         // Check for inactivity and lock if necessary
@@ -2287,9 +2297,8 @@ namespace pylorak.TinyWall
             using var DeviceNotification = SafeHandleDeviceNotification.Create(service.ServiceHandle, DeviceInterfaceClass.GUID_DEVINTERFACE_VOLUME, DeviceNotifFlags.DEVICE_NOTIFY_SERVICE_HANDLE);
             using var MountPointsWatcher = new RegistryWatcher(@"HKEY_LOCAL_MACHINE\SYSTEM\MountedDevices", true);
 
-            WfpEngine.CollectNetEvents = true;
-            using var NetEventCollection = new CallbackOnDispose(() => { try { WfpEngine.CollectNetEvents = false; } catch { } });
-            WfpEngine.EventMatchAnyKeywords = InboundEventMatchKeyword.FWPM_NET_EVENT_KEYWORD_INBOUND_BCAST | InboundEventMatchKeyword.FWPM_NET_EVENT_KEYWORD_INBOUND_MCAST;
+            SetNetEventCollection(true);
+            using var NetEventCollection = new CallbackOnDispose(() => { try { SetNetEventCollection(false); } catch { } });
             Diagnostics.Run(RuntimeEvent.wfp_subscribe, () => RuntimeEventSubscription = WfpEngine.SubscribeNetEvent(WfpNetEventCallback));
             using var WfpEvent = new CallbackOnDispose(DisposeRuntimeSubscription);
 

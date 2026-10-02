@@ -253,7 +253,11 @@ namespace pylorak.TinyWall
 
         private static int InstallService()
         {
-            return TinyWallDoctor.EnsureServiceInstalledAndRunning(Utils.LOG_ID_INSTALLER, true) ? 0 : -1;
+            long serviceLogStart = Installer.InstallFailureReport.ServiceLogLength();
+            if (TinyWallDoctor.EnsureServiceInstalledAndRunning(Utils.LOG_ID_INSTALLER, true))
+                return 0;
+            Utils.Log(Installer.InstallFailureReport.Build(serviceLogStart), Utils.LOG_ID_INSTALLER);
+            return -1;
         }
 
         private static int UninstallService()

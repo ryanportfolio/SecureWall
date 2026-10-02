@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Based on FatalError.wxs from WiX 3.14.1. Copyright (c) .NET Foundation and contributors. All rights reserved. Licensed under the Microsoft Reciprocal License. See LICENSE.TXT file in the project root for full license information. -->
+
+<!--
+Replaces the stock "Setup Wizard ended prematurely" page. EXE custom actions
+cannot pass their output to Windows Installer, so this page opens the two files
+that hold the failure: SecureWall's installer.log (written by SYSTEM /install,
+including the service log entries from the attempt) and the Windows Installer
+log that MsiLogging enables in Product.wxs. Both open in the user's default
+text viewer for select-all and copy. Nothing here writes to ProgramData.
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+    <Fragment>
+        <CustomAction Id="SecureWallOpenFailureLog" BinaryKey="WixCA" DllEntry="WixShellExec" Execute="immediate" Impersonate="yes" Return="ignore" />
+
+        <UI>
+            <Dialog Id="SecureWallFatalError" Width="370" Height="270" Title="!(loc.FatalError_Title)">
+                <Control Id="Finish" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Cancel="yes" Text="!(loc.WixUIFinish)">
+                    <Publish Event="EndDialog" Value="Exit">1</Publish>
+                </Control>
+                <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Disabled="yes" Text="!(loc.WixUICancel)" />
+                <Control Id="Bitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="234" TabSkip="no" Text="!(loc.FatalErrorBitmap)" />
+                <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Disabled="yes" Text="!(loc.WixUIBack)" />
+                <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+                <Control Id="Title" Type="Text" X="135" Y="20" Width="220" Height="30" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Bigger}[ProductName] setup failed" />
+                <Control Id="Description" Type="Text" X="135" Y="55" Width="220" Height="40" Transparent="yes" NoPrefix="yes" Text="Setup stopped because of an error and ran its rollback steps to undo the changes." />
+                <Control Id="Instructions" Type="Text" X="135" Y="95" Width="220" Height="40" Transparent="yes" NoPrefix="yes" Text="To report the problem, open each log below, press Ctrl+A and then Ctrl+C, and paste the text into your report. Start with the SecureWall log." />
+                <Control Id="OpenSecureWallLog" Type="PushButton" X="135" Y="137" Width="120" Height="17" Text="Open &amp;SecureWall log">
+                    <Publish Property="WixShellExecTarget" Value="[CommonAppDataFolder]SecureWall\logs\installer.log" Order="1">1</Publish>
+                    <Publish Event="DoAction" Value="SecureWallOpenFailureLog" Order="2">1</Publish>
+                </Control>
+                <Control Id="SecureWallLogPath" Type="Text" X="135" Y="157" Width="220" Height="20" Transparent="yes" NoPrefix="yes" Text="[CommonAppDataFolder]SecureWall\logs\installer.log" />
+                <Control Id="OpenSetupLog" Type="PushButton" X="135" Y="181" Width="120" Height="17" Text="Open setup &amp;log">
+                    <Publish Property="WixShellExecTarget" Value="[MsiLogFileLocation]" Order="1">1</Publish>
+                    <Publish Event="DoAction" Value="SecureWallOpenFailureLog" Order="2">1</Publish>
+                    <Condition Action="disable">NOT MsiLogFileLocation</Condition>
+                    <Condition Action="enable">MsiLogFileLocation</Condition>
+                </Control>
+                <Control Id="SetupLogPath" Type="Text" X="135" Y="201" Width="220" Height="28" Transparent="yes" NoPrefix="yes" Text="[MsiLogFileLocation]" />
+            </Dialog>
+
+            <InstallUISequence>
+                <Show Dialog="SecureWallFatalError" OnExit="error" />
+            </InstallUISequence>
+
+            <AdminUISequence>
+                <Show Dialog="SecureWallFatalError" OnExit="error" />
+            </AdminUISequence>
+        </UI>
+    </Fragment>
+</Wix>
