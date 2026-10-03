@@ -179,8 +179,6 @@
     <UIRef Id="WixUI_InstallDir_Custom" />
     <WixVariable Id="WixUIBannerBmp" Value="banner.bmp" />
     <WixVariable Id="WixUIDialogBmp" Value="background.bmp" />
-    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLDIR" />
-    <Property Id="WIXUI_EXITDIALOGOPTIONALTEXT" Value='SecureWall blocks unknown inbound and outbound traffic by default. When a new application is blocked while connecting out, use the bottom-right prompt to allow outbound TCP/UDP or ignore it and keep blocking.' />
     <WixVariable Id="WixUILicenseRtf" Value="Sources\ProgramFiles\SecureWall\License.rtf" />
 
   </Product>

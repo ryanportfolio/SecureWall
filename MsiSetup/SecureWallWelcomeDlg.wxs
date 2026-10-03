@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Layout follows WelcomeDlg.wxs from WiX 3.14.1. Copyright (c) .NET Foundation and contributors. All rights reserved. Licensed under the Microsoft Reciprocal License. See LICENSE.TXT file in the project root for full license information. -->
+
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+    <Fragment>
+        <UI>
+            <Dialog Id="SecureWallWelcomeDlg" Width="370" Height="270" Title="[ProductName] Setup">
+                <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="&amp;Next" />
+                <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="Cancel">
+                    <Publish Event="SpawnDialog" Value="CancelDlg">1</Publish>
+                </Control>
+                <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Disabled="yes" Text="&amp;Back" />
+                <Control Id="Bitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="234" TabSkip="no" Text="WixUI_Bmp_Dialog" />
+                <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+                <Control Id="Title" Type="Text" X="135" Y="20" Width="220" Height="40" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Bigger}Welcome to SecureWall !(bind.property.ProductVersion.Major).!(bind.property.ProductVersion.Minor).!(bind.property.ProductVersion.Build)" />
+                <Control Id="WhatItDoes" Type="Text" X="135" Y="70" Width="220" Height="30" Transparent="yes" NoPrefix="yes" Text="SecureWall is a default-deny firewall for Windows. It blocks inbound and outbound connections that no rule allows." />
+                <Control Id="Prompts" Type="Text" X="135" Y="108" Width="220" Height="30" Transparent="yes" NoPrefix="yes" Text="When an app is blocked while connecting out, a prompt in the bottom-right corner of the screen lets you allow it or keep it blocked." />
+                <Control Id="EarlyBuild" Type="Text" X="135" Y="152" Width="220" Height="30" Transparent="yes" NoPrefix="yes" Text="SecureWall is early development software. Install it only on a computer you can fix at its own keyboard and screen." />
+            </Dialog>
+
+            <InstallUISequence>
+                <Show Dialog="SecureWallWelcomeDlg" Before="SecureWallProgressDlg">NOT Installed</Show>
+            </InstallUISequence>
+        </UI>
+    </Fragment>
+</Wix>

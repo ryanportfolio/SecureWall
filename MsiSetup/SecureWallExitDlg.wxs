@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Based on ExitDialog.wxs and UserExit.wxs from WiX 3.14.1. Copyright (c) .NET Foundation and contributors. All rights reserved. Licensed under the Microsoft Reciprocal License. See LICENSE.TXT file in the project root for full license information. -->
+
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+    <Fragment>
+        <UI>
+            <!-- Success. Installed is still set at the end of a removal; an
+                 administrative image (msiexec /a) neither installs nor runs SecureWall. -->
+            <Dialog Id="SecureWallExitDlg" Width="370" Height="270" Title="[ProductName] Setup">
+                <Control Id="Finish" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Cancel="yes" Text="&amp;Finish">
+                    <Publish Event="EndDialog" Value="Return">1</Publish>
+                </Control>
+                <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Disabled="yes" Text="Cancel" />
+                <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Disabled="yes" Text="&amp;Back" />
+                <Control Id="Bitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="234" TabSkip="no" Text="WixUI_Bmp_Dialog" />
+                <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+                <Control Id="TitleInstalled" Type="Text" X="135" Y="20" Width="220" Height="40" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="{\WixUI_Font_Bigger}SecureWall is installed">
+                    <Condition Action="show">NOT Installed AND ACTION &lt;&gt; "ADMIN"</Condition>
+                </Control>
+                <Control Id="Running" Type="Text" X="135" Y="70" Width="220" Height="30" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="SecureWall is running and blocks connections that no rule allows.">
+                    <Condition Action="show">NOT Installed AND ACTION &lt;&gt; "ADMIN"</Condition>
+                </Control>
+                <Control Id="Prompts" Type="Text" X="135" Y="108" Width="220" Height="50" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="When an app is blocked while connecting out, use the prompt in the bottom-right corner to allow it or keep it blocked. Open SecureWall from its tray icon or the Start menu.">
+                    <Condition Action="show">NOT Installed AND ACTION &lt;&gt; "ADMIN"</Condition>
+                </Control>
+                <Control Id="TitleImage" Type="Text" X="135" Y="20" Width="220" Height="40" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="{\WixUI_Font_Bigger}Setup files extracted">
+                    <Condition Action="show">ACTION = "ADMIN"</Condition>
+                </Control>
+                <Control Id="Image" Type="Text" X="135" Y="70" Width="220" Height="30" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="The administrative image is ready. Creating it did not install or start SecureWall.">
+                    <Condition Action="show">ACTION = "ADMIN"</Condition>
+                </Control>
+                <Control Id="TitleRemoved" Type="Text" X="135" Y="20" Width="220" Height="40" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="{\WixUI_Font_Bigger}SecureWall was removed">
+                    <Condition Action="show">Installed</Condition>
+                </Control>
+                <Control Id="Removed" Type="Text" X="135" Y="70" Width="220" Height="30" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="SecureWall, its service and its firewall filters were removed from this computer.">
+                    <Condition Action="show">Installed</Condition>
+                </Control>
+            </Dialog>
+
+            <!-- Cancelled by the user, before or during the install. -->
+            <Dialog Id="SecureWallCancelledDlg" Width="370" Height="270" Title="[ProductName] Setup">
+                <Control Id="Finish" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Cancel="yes" Text="&amp;Finish">
+                    <Publish Event="EndDialog" Value="Exit">1</Publish>
+                </Control>
+                <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Disabled="yes" Text="Cancel" />
+                <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Disabled="yes" Text="&amp;Back" />
+                <Control Id="Bitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="234" TabSkip="no" Text="WixUI_Bmp_Dialog" />
+                <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+                <Control Id="Title" Type="Text" X="135" Y="20" Width="220" Height="40" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Bigger}Setup was cancelled" />
+                <Control Id="Description" Type="Text" X="135" Y="70" Width="220" Height="40" Transparent="yes" NoPrefix="yes" Text="Setup stopped before finishing. Any changes it had started were rolled back. Run setup again when you are ready." />
+            </Dialog>
+
+            <InstallUISequence>
+                <Show Dialog="SecureWallExitDlg" OnExit="success" />
+                <Show Dialog="SecureWallCancelledDlg" OnExit="cancel" />
+            </InstallUISequence>
+
+            <!-- ICE20 requires both; ACTION="ADMIN" selects the image text above. -->
+            <AdminUISequence>
+                <Show Dialog="SecureWallExitDlg" OnExit="success" />
+                <Show Dialog="SecureWallCancelledDlg" OnExit="cancel" />
+            </AdminUISequence>
+        </UI>
+    </Fragment>
+</Wix>
