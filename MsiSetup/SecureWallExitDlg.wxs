@@ -30,10 +30,10 @@
                     <Condition Action="show">ACTION = "ADMIN"</Condition>
                 </Control>
                 <Control Id="TitleRemoved" Type="Text" X="135" Y="20" Width="220" Height="40" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="{\WixUI_Font_Bigger}SecureWall was removed">
-                    <Condition Action="show">Installed</Condition>
+                    <Condition Action="show">Installed AND ACTION &lt;&gt; "ADMIN"</Condition>
                 </Control>
                 <Control Id="Removed" Type="Text" X="135" Y="70" Width="220" Height="30" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="SecureWall, its service and its firewall filters were removed from this computer.">
-                    <Condition Action="show">Installed</Condition>
+                    <Condition Action="show">Installed AND ACTION &lt;&gt; "ADMIN"</Condition>
                 </Control>
             </Dialog>
 
@@ -47,7 +47,7 @@
                 <Control Id="Bitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="234" TabSkip="no" Text="WixUI_Bmp_Dialog" />
                 <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
                 <Control Id="Title" Type="Text" X="135" Y="20" Width="220" Height="40" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Bigger}Setup was cancelled" />
-                <Control Id="Description" Type="Text" X="135" Y="70" Width="220" Height="40" Transparent="yes" NoPrefix="yes" Text="Setup stopped before finishing. Any changes it had started were rolled back. Run setup again when you are ready." />
+                <Control Id="Description" Type="Text" X="135" Y="70" Width="220" Height="80" Transparent="yes" NoPrefix="yes" Text="Setup stopped before finishing. If it had started installing, it ran its rollback steps to undo the changes. A rollback step can fail and leave the firewall blocking traffic; the Installation recovery and logs section of the SecureWall README explains what to do. Run setup again when you are ready." />
             </Dialog>
 
             <InstallUISequence>

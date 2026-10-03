@@ -15,3 +15,8 @@ $session.Property('ACTION') = 'ADMIN'
 $session.Property('ACTION') = 'INSTALL'
 "cancelled -> $($session.DoAction('SecureWallCancelledDlg'))"
 "failed -> $($session.DoAction('SecureWallFatalError'))"
+# Installed selects the removal text on the progress and finish pages.
+$session.Property('Installed') = '1'
+"progress-removal -> $($session.DoAction('SecureWallProgressDlg'))"
+Start-Sleep -Seconds 4
+"exit-removal -> $($session.DoAction('SecureWallExitDlg'))"

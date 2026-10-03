@@ -41,9 +41,10 @@ public static class SetupPreviewWindows {
         EnumWindows((h, l) => { uint p; GetWindowThreadProcessId(h, out p); if (p == pid && IsWindowVisible(h)) list.Add(h); return true; }, IntPtr.Zero);
         return list;
     }
+    // Visible controls only: each page also holds the hidden text of its other variants.
     public static List<IntPtr> Children(IntPtr parent) {
         var list = new List<IntPtr>();
-        EnumChildWindows(parent, (h, l) => { list.Add(h); return true; }, IntPtr.Zero);
+        EnumChildWindows(parent, (h, l) => { if (IsWindowVisible(h)) list.Add(h); return true; }, IntPtr.Zero);
         return list;
     }
 }
@@ -75,15 +76,20 @@ function Save-Page($window, [string]$name) {
     $rect = New-Object SetupPreviewWindows+RECT
     [SetupPreviewWindows]::GetWindowRect($window, [ref]$rect) | Out-Null
     $bitmap = New-Object System.Drawing.Bitmap ($rect.Right - $rect.Left), ($rect.Bottom - $rect.Top)
-    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-    $hdc = $graphics.GetHdc()
-    # PW_RENDERFULLCONTENT copies the compositor surface; plain WM_PRINT drops
-    # MSI's transparent text controls.
-    [SetupPreviewWindows]::PrintWindow($window, $hdc, 2) | Out-Null
-    $graphics.ReleaseHdc($hdc)
-    $graphics.Dispose()
-    $bitmap.Save((Join-Path $OutputDirectory "$name.png"), [System.Drawing.Imaging.ImageFormat]::Png)
-    $bitmap.Dispose()
+    try {
+        $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+        try {
+            $hdc = $graphics.GetHdc()
+            # PW_RENDERFULLCONTENT copies the compositor surface; plain WM_PRINT drops
+            # MSI's transparent text controls.
+            try { $printed = [SetupPreviewWindows]::PrintWindow($window, $hdc, 2) }
+            finally { $graphics.ReleaseHdc($hdc) }
+        }
+        finally { $graphics.Dispose() }
+        if (-not $printed) { throw "PrintWindow failed for $name." }
+        $bitmap.Save((Join-Path $OutputDirectory "$name.png"), [System.Drawing.Imaging.ImageFormat]::Png)
+    }
+    finally { $bitmap.Dispose() }
     "Captured $name.png"
 }
 
@@ -109,6 +115,8 @@ try {
     $page = Find-Page 'Setup files extracted';     Save-Page $page '07-finish-admin'; Click-Button $page 'Finish'
     $page = Find-Page 'Setup was cancelled';       Save-Page $page '08-cancelled';    Click-Button $page 'Finish'
     $page = Find-Page 'setup failed';              Save-Page $page '09-failed';       Click-Button $page 'Finish'
+    $page = Find-Page 'Removing SecureWall';       Save-Page $page '10-progress-removal'
+    $page = Find-Page 'SecureWall was removed';    Save-Page $page '11-finish-removal'; Click-Button $page 'Finish'
     if (-not $child.WaitForExit(15000)) { throw 'Show-SetupPages.ps1 did not exit after the last page.' }
 }
 finally {
