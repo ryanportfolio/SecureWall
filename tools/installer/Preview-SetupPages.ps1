@@ -13,7 +13,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $Msi = (Resolve-Path -LiteralPath $Msi).ProviderPath
-New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
+# .NET resolves relative paths against the process directory, not the PowerShell location.
+$OutputDirectory = (New-Item -ItemType Directory -Force -Path $OutputDirectory).FullName
 Add-Type -AssemblyName System.Drawing
 Add-Type -TypeDefinition @'
 using System;
