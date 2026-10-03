@@ -122,6 +122,13 @@ function siteVersion(text) {
   return [...found][0];
 }
 
+// JSON-LD can drift from the release links, so it is checked on its own.
+const SOFTWARE_VERSION = /"softwareVersion":"(\d+\.\d+\.\d+)"/g;
+
+function staleMetadata(html, version) {
+  return [...html.matchAll(SOFTWARE_VERSION)].map(m => m[1]).find(v => v !== version);
+}
+
 function bundleSources(html) {
   return [...html.matchAll(/src="\/(build\/[^"]+\.js)"/g)].map(m => m[1]);
 }
@@ -146,6 +153,8 @@ async function update(version, out) {
   const old = siteVersion(pageText());
 
   if (old === version) {
+    const stale = staleMetadata(read("index.html"), version);
+    if (stale) fail(`release links show v${version} but JSON-LD softwareVersion is ${stale}; fix it by hand`);
     console.log(`${SITE} already shows v${version}; nothing to deploy`);
     setOutput("changed", "false");
     return;
@@ -197,6 +206,8 @@ async function update(version, out) {
     if (!fs.existsSync(path.join(out, src))) fail(`index.html references missing ${src}`);
   }
   if (siteVersion(pageText()) !== version) fail("release links did not move to the new version");
+  const stale = staleMetadata(read("index.html"), version);
+  if (stale) fail(`JSON-LD softwareVersion is ${stale}, not ${version}`);
 
   const escapedVersion = version.replace(/\./g, "\\.");
   const links = new Set();
@@ -237,6 +248,8 @@ async function checkLive(version) {
       if (inBundles !== version) throw Error(`bundles link v${inBundles}`);
       const inPage = siteVersion(html);
       if (inPage !== version) throw Error(`index.html links v${inPage}`);
+      const stale = staleMetadata(html, version);
+      if (stale) throw Error(`JSON-LD softwareVersion is ${stale}`);
       console.log(`${SITE} serves v${version}`);
       return;
     } catch (err) {
