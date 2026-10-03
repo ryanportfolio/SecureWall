@@ -21,8 +21,9 @@ const SITE = "secwall.org";
 const REPO_URL = "https://github.com/ryanportfolio/SecureWall";
 const TEXT = /\.(html|js|css|json|txt|svg|xml)$/;
 // The bundle also embeds Theatre.js's own "0.4.0" state version, so only these
-// forms are release versions. Never replace a bare version number.
-const versionForms = v => [`v${v}`, `Version ${v}`];
+// forms are release versions. Never replace a bare version number. The last
+// form is the JSON-LD SoftwareApplication field in index.html.
+const versionForms = v => [`v${v}`, `Version ${v}`, `"softwareVersion":"${v}"`];
 
 class Failure extends Error {}
 

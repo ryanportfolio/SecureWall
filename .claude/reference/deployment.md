@@ -12,13 +12,13 @@ No signing, publishing, deployment, or real firewall activation is authorized by
 
 ## secwall.org
 
-https://secwall.org is a static site on the Vercel project `securewall` (team `sardonicasts-projects`). It is deployed from the CLI and not linked to Git. The live production deployment is the source of truth for its files; no repository holds them. Its JS bundle is prebuilt and its React source is not available, so version strings are the only edits it takes.
+https://secwall.org is a static site on the Vercel project `securewall` (team `sardonicasts-projects`). It is deployed from the CLI and not linked to Git. The live production deployment is the source of truth for its files; no repository holds them. Its JS bundle is prebuilt and its React source is not available, so version strings are the only edits it takes. The live site is the SEO version from ryanportfolio/SecureWall#15 (closed unmerged), deployed 2026-10-02 at v0.4.0: metadata, JSON-LD, a hidden crawler copy of the page text in `index.html`, `404.html`, `robots.txt`, `sitemap.xml` and a pruned stylesheet. That PR's branch keeps its preview server, SEO check and brand-image tools.
 
 Every release updates the site. `release.yml` does this in its `site` job, after the MSIs are attached, by calling `.github/workflows/secwall-site.yml`. That workflow runs `tools/release/update-secwall-site.mjs`, which:
 
 1. Downloads the deployment `secwall.org` points at, checking each file against the SHA-1 Vercel reports.
 2. Reads the current release from the site's GitHub release links. It stops without deploying when the site already shows the tag, and refuses to move to an older version.
-3. Replaces only `v<old>` and `Version <old>` in `index.html` and `build/*.js`. The bundle also contains Theatre.js's own `"0.4.0"` state version, so a bare version number is never replaced.
+3. Replaces only `v<old>`, `Version <old>` and the JSON-LD `"softwareVersion":"<old>"` in `index.html` and `build/*.js`. The bundle also contains Theatre.js's own `"0.4.0"` state version, so a bare version number is never replaced.
 4. Gives each edited bundle a new hashed name and updates every reference to it. `/build/*` may be served `immutable`, and an edit under the old name would stay cached in browsers.
 5. Fails if any old version form remains, if `index.html` references a missing bundle, or if any new GitHub link or `SecureWall_<arch>.msi` asset does not return 200.
 
