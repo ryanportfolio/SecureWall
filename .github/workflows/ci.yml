@@ -84,7 +84,7 @@ jobs:
           }
           if ($bad) { exit 1 }
 
-      - name: Verify Codex adapters and JSON
+      - name: Verify Codex skills and JSON
         shell: pwsh
         run: |
           node .claude\scripts\sync-codex-skills.mjs --check
