@@ -65,6 +65,10 @@
     </Condition>
     <CustomAction Id="SetARPINSTALLLOCATION" Property="ARPINSTALLLOCATION" Value="[INSTALLDIR]" />
 
+    <!-- Always write a verbose Windows Installer log to %TEMP% (MSI*.LOG). Its path is
+         MsiLogFileLocation, which the failure page offers to open. -->
+    <Property Id="MsiLogging" Value="voicewarmupx" />
+
     <!-- Disable use of "Files in Use" dialogs, we manage that ourself over custom actions -->
     <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" />
 

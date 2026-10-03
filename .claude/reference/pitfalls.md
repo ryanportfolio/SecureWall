@@ -61,3 +61,8 @@ User controller logs use LocalApplicationData/SecureWall/logs. Actual privileged
 ## 2026-09-30: core test registration
 
 2026-09-30: the core test harness has no discovery. A new test class runs only after its `Cases` are concatenated in `tests/SecureWall.Core.Tests/Program.cs`, and product sources it exercises need a `Compile Include` link in the test csproj; an unregistered class compiles and is silently skipped. Parallel branches collide in both files: when merging, keep every registration and link, then confirm the passing count equals the sum of both sides.
+
+## 2026-10-02: WFP engine options and dynamic sessions
+
+- `FwpmEngineSetOption0` fails with `FWP_E_DYNAMIC_SESSION_IN_PROGRESS` (0x8032000B) on a `FWPM_SESSION_FLAG_DYNAMIC` handle. The runtime session is dynamic, so net-event options go through `ApplyNetEventOptions`, which opens a short-lived ordinary session; the service restores the values it found at start when it stops, because they are shared with other WFP consumers and persist across reboots. Option reads, net-event subscription, transactions and non-persistent filter adds work on the dynamic handle. v0.4.0 shipped with the option set on the dynamic handle and crashed every service start on a real install; build, tests and preview never open a WFP session, so only an install shows this class of bug.
+- To render setup's failure page without installing: with TinyWall installed, the MSI's TinyWall launch condition fails before any change and the failure page follows. UI Automation from the agent session did not find the MSI dialogs (cause unconfirmed), so ask the owner for a screenshot. Give msiexec a backslash path; a forward-slash path fails with "This installation package could not be opened".
