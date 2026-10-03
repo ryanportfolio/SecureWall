@@ -15,7 +15,17 @@ namespace pylorak.TinyWall.Installer
 
         private static string ServiceLogPath => Path.Combine(MachineDataGuard.PathName, "logs", Utils.LOG_ID_SERVICE + ".log");
 
-        internal static long ServiceLogLength()
+        // Where the service log ended when the attempt began.
+        internal readonly struct ServiceLogMark
+        {
+            internal readonly long Length;
+            internal readonly DateTime TimeUtc;
+            internal ServiceLogMark(long length, DateTime timeUtc) { Length = length; TimeUtc = timeUtc; }
+        }
+
+        internal static ServiceLogMark MarkServiceLog() => new(ServiceLogLength(), DateTime.UtcNow);
+
+        private static long ServiceLogLength()
         {
             try
             {
@@ -25,25 +35,31 @@ namespace pylorak.TinyWall.Installer
             catch { return 0; }
         }
 
-        internal static string Build(long serviceLogStart)
+        internal static string Build(ServiceLogMark start)
         {
             var report = new StringBuilder();
             report.AppendLine("SecureWall /install failed. Service diagnostics for this attempt:");
             report.AppendLine("Service status: " + InstallationSafety.DescribeServiceStatus());
             report.AppendLine("Service log entries written during this attempt (" + ServiceLogPath + "):");
-            report.Append(ServiceLogSince(serviceLogStart));
+            report.Append(ServiceLogSince(start));
             return report.ToString();
         }
 
-        private static string ServiceLogSince(long start)
+        private static string ServiceLogSince(ServiceLogMark start)
         {
             try
             {
                 MachineDataGuard.Require();
-                // A rotation during the attempt moved the earlier entries to the previous file.
-                string text = ServiceLogLength() >= start
-                    ? ReadFrom(ServiceLogPath, start)
-                    : ReadFrom(LogRotationPolicy.PreviousPath(ServiceLogPath), start) + ReadFrom(ServiceLogPath, 0);
+                // A rotation during the attempt moved the file that held the mark to the
+                // previous path: either the current file shrank below the mark, or the
+                // previous file took a write after the attempt began.
+                string previous = LogRotationPolicy.PreviousPath(ServiceLogPath);
+                var previousLog = new FileInfo(previous);
+                bool rotated = ServiceLogLength() < start.Length ||
+                    (previousLog.Exists && previousLog.LastWriteTimeUtc >= start.TimeUtc);
+                string text = rotated
+                    ? ReadFrom(previous, start.Length) + ReadFrom(ServiceLogPath, 0)
+                    : ReadFrom(ServiceLogPath, start.Length);
                 text = text.Trim();
                 if (text.Length == 0) return "(none)";
                 if (text.Length > MaxServiceLogChars)

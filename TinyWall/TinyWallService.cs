@@ -1643,15 +1643,33 @@ namespace pylorak.TinyWall
         private static Engine CreateRuntimeEngine() =>
             new("SecureWall Session", "", FWPM_SESSION_FLAGS.FWPM_SESSION_FLAG_DYNAMIC, 5000);
 
-        // Engine options are global BFE settings, and FwpmEngineSetOption0 fails with
+        // Net event options are global BFE settings shared with other WFP consumers and
+        // persist across reboots. FwpmEngineSetOption0 fails with
         // FWP_E_DYNAMIC_SESSION_IN_PROGRESS inside a dynamic session such as the runtime
-        // one. Set them through a short-lived ordinary session that adds no objects.
-        private static void SetNetEventCollection(bool collect)
+        // one, so they go through a short-lived ordinary session that adds no objects.
+        private readonly struct NetEventOptions
         {
-            using var options = new Engine("SecureWall Engine Options", "", FWPM_SESSION_FLAGS.None, 5000);
-            options.CollectNetEvents = collect;
-            if (collect)
-                options.EventMatchAnyKeywords = InboundEventMatchKeyword.FWPM_NET_EVENT_KEYWORD_INBOUND_BCAST | InboundEventMatchKeyword.FWPM_NET_EVENT_KEYWORD_INBOUND_MCAST;
+            internal readonly bool Collect;
+            internal readonly InboundEventMatchKeyword Keywords;
+            internal NetEventOptions(bool collect, InboundEventMatchKeyword keywords) { Collect = collect; Keywords = keywords; }
+        }
+
+        private static readonly NetEventOptions RuntimeNetEventOptions = new(true,
+            InboundEventMatchKeyword.FWPM_NET_EVENT_KEYWORD_INBOUND_BCAST | InboundEventMatchKeyword.FWPM_NET_EVENT_KEYWORD_INBOUND_MCAST);
+
+        private static Engine OpenEngineOptionsSession() => new("SecureWall Engine Options", "", FWPM_SESSION_FLAGS.None, 5000);
+
+        private static NetEventOptions ReadNetEventOptions()
+        {
+            using var options = OpenEngineOptionsSession();
+            return new NetEventOptions(options.CollectNetEvents, options.EventMatchAnyKeywords);
+        }
+
+        private static void ApplyNetEventOptions(NetEventOptions value)
+        {
+            using var options = OpenEngineOptionsSession();
+            options.CollectNetEvents = value.Collect;
+            options.EventMatchAnyKeywords = value.Keywords;
         }
 
         private bool MayRetainCommittedPolicy() => EnvironmentalPolicyReload.MayRetain(!RuntimeSessionRevoked, LastInstallCommitted,
@@ -1697,7 +1715,7 @@ namespace pylorak.TinyWall
                 IDisposable? subscription = null;
                 try
                 {
-                    SetNetEventCollection(true);
+                    ApplyNetEventOptions(RuntimeNetEventOptions);
                     subscription = engine.SubscribeNetEvent(WfpNetEventCallback);
                 }
                 catch
@@ -2058,7 +2076,7 @@ namespace pylorak.TinyWall
                             // Event collection might have been disabled by external process or user after we started up,
                             // so re-enable it if that is the case.
                             if (!WfpEngine.CollectNetEvents)
-                                SetNetEventCollection(true);
+                                ApplyNetEventOptions(RuntimeNetEventOptions);
                         }
 
                         // Check for inactivity and lock if necessary
@@ -2297,8 +2315,11 @@ namespace pylorak.TinyWall
             using var DeviceNotification = SafeHandleDeviceNotification.Create(service.ServiceHandle, DeviceInterfaceClass.GUID_DEVINTERFACE_VOLUME, DeviceNotifFlags.DEVICE_NOTIFY_SERVICE_HANDLE);
             using var MountPointsWatcher = new RegistryWatcher(@"HKEY_LOCAL_MACHINE\SYSTEM\MountedDevices", true);
 
-            SetNetEventCollection(true);
-            using var NetEventCollection = new CallbackOnDispose(() => { try { SetNetEventCollection(false); } catch { } });
+            // Restore the options found at start, registered before any change so a
+            // partial apply is undone too.
+            NetEventOptions startupNetEventOptions = ReadNetEventOptions();
+            using var NetEventCollection = new CallbackOnDispose(() => { try { ApplyNetEventOptions(startupNetEventOptions); } catch { } });
+            ApplyNetEventOptions(RuntimeNetEventOptions);
             Diagnostics.Run(RuntimeEvent.wfp_subscribe, () => RuntimeEventSubscription = WfpEngine.SubscribeNetEvent(WfpNetEventCallback));
             using var WfpEvent = new CallbackOnDispose(DisposeRuntimeSubscription);
 

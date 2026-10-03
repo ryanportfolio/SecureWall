@@ -253,7 +253,7 @@ namespace pylorak.TinyWall
 
         private static int InstallService()
         {
-            long serviceLogStart = Installer.InstallFailureReport.ServiceLogLength();
+            var serviceLogStart = Installer.InstallFailureReport.MarkServiceLog();
             if (TinyWallDoctor.EnsureServiceInstalledAndRunning(Utils.LOG_ID_INSTALLER, true))
                 return 0;
             Utils.Log(Installer.InstallFailureReport.Build(serviceLogStart), Utils.LOG_ID_INSTALLER);
