@@ -1,5 +1,7 @@
 # SecureWall
 
+Website: [secwall.org](https://secwall.org/)
+
 SecureWall is a Windows default-deny firewall derived from TinyWall. It keeps TinyWall's service-owned Windows Filtering Platform enforcement and adds a tightly scoped, bottom-right prompt when a previously unknown application or service is blocked while attempting an outbound connection.
 
 The tray menu's **Network Activity** window refreshes every second and separates observed WFP decisions (`Allowed` / `Blocked`), exact TCP transport states, and local listening endpoints. `Listening (local endpoint)` deliberately does not claim that a port is externally reachable.
