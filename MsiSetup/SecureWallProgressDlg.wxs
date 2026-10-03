@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Based on ProgressDlg.wxs from WiX 3.14.1. Copyright (c) .NET Foundation and contributors. All rights reserved. Licensed under the Microsoft Reciprocal License. See LICENSE.TXT file in the project root for full license information. -->
+
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+    <Fragment>
+        <UI>
+            <Dialog Id="SecureWallProgressDlg" Width="370" Height="270" Title="[ProductName] Setup" Modeless="yes">
+                <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Default="yes" Cancel="yes" Text="Cancel">
+                    <Publish Event="SpawnDialog" Value="CancelDlg">1</Publish>
+                </Control>
+                <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Disabled="yes" Text="&amp;Back" />
+                <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Disabled="yes" Text="&amp;Next" />
+                <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="WixUI_Bmp_Banner" />
+                <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+                <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+                <!-- Install and removal strings overlap; exactly one pair shows. -->
+                <Control Id="TitleInstalling" Type="Text" X="15" Y="6" Width="290" Height="15" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="{\WixUI_Font_Title}Installing SecureWall">
+                    <Condition Action="show">NOT Installed</Condition>
+                </Control>
+                <Control Id="TextInstalling" Type="Text" X="20" Y="60" Width="330" Height="30" NoPrefix="yes" Hidden="yes" Text="Setup is copying files, then starting the SecureWall service and turning on blocking. Starting the service can take up to two minutes.">
+                    <Condition Action="show">NOT Installed</Condition>
+                </Control>
+                <Control Id="TitleRemoving" Type="Text" X="15" Y="6" Width="290" Height="15" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="{\WixUI_Font_Title}Removing SecureWall">
+                    <Condition Action="show">Installed</Condition>
+                </Control>
+                <Control Id="TextRemoving" Type="Text" X="20" Y="60" Width="330" Height="30" NoPrefix="yes" Hidden="yes" Text="Setup is stopping the SecureWall service, restoring the Windows settings it changed and removing its firewall filters.">
+                    <Condition Action="show">Installed</Condition>
+                </Control>
+                <Control Id="StatusLabel" Type="Text" X="20" Y="100" Width="50" Height="10" Text="Status:" />
+                <Control Id="ActionText" Type="Text" X="70" Y="100" Width="285" Height="10">
+                    <Subscribe Event="ActionText" Attribute="Text" />
+                </Control>
+                <Control Id="ProgressBar" Type="ProgressBar" X="20" Y="115" Width="330" Height="10" ProgressBlocks="yes" Text="Progress done">
+                    <Subscribe Event="SetProgress" Attribute="Progress" />
+                </Control>
+            </Dialog>
+
+            <!-- Status line text for SecureWall's own setup steps. -->
+            <ProgressText Action="InstallCustom">Starting the SecureWall service and turning on blocking</ProgressText>
+            <ProgressText Action="InstallCustomRollback">Undoing the SecureWall service setup</ProgressText>
+            <ProgressText Action="UninstallCustom">Stopping SecureWall and removing its firewall filters</ProgressText>
+            <ProgressText Action="UninstallCustomRollback">Restoring SecureWall protection</ProgressText>
+
+            <InstallUISequence>
+                <Show Dialog="SecureWallProgressDlg" Before="ExecuteAction" />
+            </InstallUISequence>
+        </UI>
+    </Fragment>
+</Wix>

@@ -54,9 +54,12 @@
 		<IntermediateOutputPath>obj\$(Platform)\$(Configuration)\</IntermediateOutputPath>
 	</PropertyGroup>
 	<ItemGroup>
-    <Compile Include="CustomWelcomeDlg.wxs" />
-    <Compile Include="RemoteWarnDlg.wxs" />
+    <Compile Include="SecureWallChecklistDlg.wxs" />
+    <Compile Include="SecureWallExitDlg.wxs" />
     <Compile Include="SecureWallFatalErrorDlg.wxs" />
+    <Compile Include="SecureWallProgressDlg.wxs" />
+    <Compile Include="SecureWallReadyDlg.wxs" />
+    <Compile Include="SecureWallWelcomeDlg.wxs" />
     <Compile Include="Product.wxs" />
     <Compile Include="WixUI_InstallDir_Custom.wxs" />
   </ItemGroup>

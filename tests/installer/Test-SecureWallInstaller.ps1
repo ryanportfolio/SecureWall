@@ -131,8 +131,9 @@ $installUi = Read-RepoFile 'MsiSetup\WixUI_InstallDir_Custom.wxs'
 $uiNs = New-Object System.Xml.XmlNamespaceManager($uiXml.NameTable)
 $uiNs.AddNamespace('w', 'http://schemas.microsoft.com/wix/2006/wi')
 Assert-True ($null -eq $uiXml.SelectSingleNode('//w:Publish[@Dialog="InstallDirDlg" or @Value="InstallDirDlg" or @Value="BrowseDlg"]', $uiNs)) 'full install UI offers no unsupported directory chooser'
-Assert-True ($null -ne $uiXml.SelectSingleNode('//w:Publish[@Dialog="LicenseAgreementDlg" and @Control="Next" and @Value="VerifyReadyDlg"]', $uiNs)) 'license acceptance advances directly to installation confirmation'
-Assert-True ($null -ne $uiXml.SelectSingleNode('//w:Publish[@Dialog="VerifyReadyDlg" and @Control="Back" and @Value="LicenseAgreementDlg"]', $uiNs)) 'installation confirmation returns to the license dialog'
+Assert-True ($null -ne $uiXml.SelectSingleNode('//w:Publish[@Dialog="SecureWallChecklistDlg" and @Control="Next" and @Value="SecureWallReadyDlg"]', $uiNs)) 'pre-install checklist advances directly to installation confirmation'
+Assert-True ($null -ne $uiXml.SelectSingleNode('//w:Publish[@Dialog="SecureWallReadyDlg" and @Control="Back" and @Value="SecureWallChecklistDlg"]', $uiNs)) 'installation confirmation returns to the checklist'
+Assert-True ($null -eq $uiXml.SelectSingleNode('//w:Publish[@Value="LicenseAgreementDlg" or @Dialog="LicenseAgreementDlg"]', $uiNs)) 'GPL notice is shown without an acceptance step'
 
 $installerProject = Read-RepoFile 'MsiSetup\MsiSetup.wixproj'
 Assert-True ($installerProject -match '<OutputName>SecureWall</OutputName>') 'MSI filenames use SecureWall'

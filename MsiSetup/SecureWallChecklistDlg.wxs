@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Layout follows the banner dialogs from WiX 3.14.1. Copyright (c) .NET Foundation and contributors. All rights reserved. Licensed under the Microsoft Reciprocal License. See LICENSE.TXT file in the project root for full license information. -->
+
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+    <Fragment>
+        <UI>
+            <Dialog Id="SecureWallChecklistDlg" Width="370" Height="270" Title="[ProductName] Setup">
+                <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="&amp;Next" />
+                <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="&amp;Back" />
+                <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="Cancel">
+                    <Publish Event="SpawnDialog" Value="CancelDlg">1</Publish>
+                </Control>
+                <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="WixUI_Bmp_Banner" />
+                <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+                <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+                <Control Id="Title" Type="Text" X="15" Y="6" Width="290" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Before you install" />
+                <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="Read these points before you continue." />
+                <Control Id="LocalOnly" Type="Text" X="25" Y="60" Width="320" Height="30" NoPrefix="yes" Text="• Run setup at this computer, not over Remote Desktop or another remote connection. SecureWall blocks inbound connections as soon as its service starts, which can end a remote session." />
+                <Control Id="FailClosed" Type="Text" X="25" Y="100" Width="320" Height="30" NoPrefix="yes" Text="• If the SecureWall service stops or cannot start, all traffic to and from other computers stays blocked until SecureWall recovers or is removed. Fixing that needs this computer's own keyboard and screen." />
+                <Control Id="WindowsFirewall" Type="Text" X="25" Y="140" Width="320" Height="20" NoPrefix="yes" Text="• The Windows Defender Firewall service must be running. Setup fails if that service is stopped." />
+            </Dialog>
+        </UI>
+    </Fragment>
+</Wix>

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Based on VerifyReadyDlg.wxs and LicenseAgreementDlg.wxs from WiX 3.14.1 (Install button disk-space events and license text control). Copyright (c) .NET Foundation and contributors. All rights reserved. Licensed under the Microsoft Reciprocal License. See LICENSE.TXT file in the project root for full license information. -->
+
+<!--
+GPLv3 section 9: a user need not accept the license to receive or run the
+program, so setup shows the notice and offers the full text without an accept
+step. License.rtf is also installed beside SecureWall.exe.
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+    <Fragment>
+        <UI>
+            <Dialog Id="SecureWallReadyDlg" Width="370" Height="270" Title="[ProductName] Setup" TrackDiskSpace="yes">
+                <Control Id="Install" Type="PushButton" ElevationShield="yes" X="212" Y="243" Width="80" Height="17" Default="yes" Text="&amp;Install">
+                    <Publish Event="EndDialog" Value="Return"><![CDATA[OutOfDiskSpace <> 1]]></Publish>
+                    <Publish Event="SpawnDialog" Value="OutOfRbDiskDlg">OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 0 AND (PROMPTROLLBACKCOST="P" OR NOT PROMPTROLLBACKCOST)</Publish>
+                    <Publish Event="EndDialog" Value="Return">OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 0 AND PROMPTROLLBACKCOST="D"</Publish>
+                    <Publish Event="EnableRollback" Value="False">OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 0 AND PROMPTROLLBACKCOST="D"</Publish>
+                    <Publish Event="SpawnDialog" Value="OutOfDiskDlg">(OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 1) OR (OutOfDiskSpace = 1 AND PROMPTROLLBACKCOST="F")</Publish>
+                </Control>
+                <Control Id="Back" Type="PushButton" X="156" Y="243" Width="56" Height="17" Text="&amp;Back" />
+                <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="Cancel">
+                    <Publish Event="SpawnDialog" Value="CancelDlg">1</Publish>
+                </Control>
+                <Control Id="ViewLicense" Type="PushButton" X="25" Y="205" Width="80" Height="17" Text="&amp;View license">
+                    <Publish Event="SpawnDialog" Value="SecureWallLicenseDlg">1</Publish>
+                </Control>
+                <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="WixUI_Bmp_Banner" />
+                <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+                <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+                <Control Id="Title" Type="Text" X="15" Y="6" Width="290" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Ready to install" />
+                <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="Click Install to start. Windows asks for administrator permission." />
+                <Control Id="StepsLabel" Type="Text" X="25" Y="60" Width="320" Height="10" NoPrefix="yes" Text="Setup will:" />
+                <Control Id="StepFiles" Type="Text" X="25" Y="75" Width="320" Height="10" NoPrefix="yes" Text="• Install SecureWall in [INSTALLDIR]" />
+                <Control Id="StepService" Type="Text" X="25" Y="89" Width="320" Height="10" NoPrefix="yes" Text="• Start the SecureWall service and turn on blocking" />
+                <Control Id="StepTray" Type="Text" X="25" Y="103" Width="320" Height="20" NoPrefix="yes" Text="• Start the SecureWall tray app, which adds rules for known apps it finds on this computer" />
+                <Control Id="LicenseLine" Type="Line" X="25" Y="140" Width="320" Height="0" />
+                <Control Id="LicenseNotice" Type="Text" X="25" Y="150" Width="320" Height="40" NoPrefix="yes" Text="SecureWall is free software under the GNU General Public License version 3 and comes with no warranty. Copyright © [Manufacturer]." />
+            </Dialog>
+
+            <Dialog Id="SecureWallLicenseDlg" Width="370" Height="270" Title="[ProductName] Setup">
+                <Control Id="Close" Type="PushButton" X="304" Y="243" Width="56" Height="17" Default="yes" Cancel="yes" Text="&amp;Close">
+                    <Publish Event="EndDialog" Value="Return">1</Publish>
+                </Control>
+                <Control Id="LicenseText" Type="ScrollableText" X="20" Y="55" Width="330" Height="172" Sunken="yes" TabSkip="no">
+                    <Text SourceFile="!(wix.WixUILicenseRtf)" />
+                </Control>
+                <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="WixUI_Bmp_Banner" />
+                <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+                <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+                <Control Id="Title" Type="Text" X="15" Y="6" Width="290" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}GNU General Public License version 3" />
+                <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="You do not need to accept this license to install or run SecureWall." />
+            </Dialog>
+        </UI>
+    </Fragment>
+</Wix>
