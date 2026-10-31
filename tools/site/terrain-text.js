@@ -19,10 +19,11 @@
   const TOP_LAYER = 0.95;
   // Level the letters sink to when the hero is gone, below most terrain.
   const SUNK_LAYER = 0.2;
-  // Layers within this many offsets below the level draw the letters. Layers
-  // sit 0.05 apart and, seen from this camera, about 80 px apart on screen, so
-  // a thicker slab prints offset copies; 0.04 keeps the letters on one layer.
-  const DEPTH = 0.04;
+  // Layers sit 0.05 apart and, seen from this camera, about 80 px apart on
+  // screen, so letters spread over several layers print offset copies. The
+  // letters therefore sit on exactly one layer: the level is snapped to the
+  // nearest layer offset and the shader selects the layer within half a step.
+  const LAYER_STEP = 0.05;
   // Blur radius as a fraction of the font size, for the soft letter edge.
   const EDGE = 0.05;
   // Letter color (linear) and the drop shadow on the terrain below: strength
@@ -104,7 +105,7 @@
       "uniform sampler2D tSwText;uniform mat3 uSwTextMap;" +
         "uniform float uSwTextAmount;uniform float uSwTextLevel;uniform float uSwTextDepth;" +
         "uniform vec3 uSwTextColor;uniform vec4 uSwScreenBox;uniform vec4 uSwShift;uniform vec3 uSwStrength;vec2 swOffset;" +
-        "bool swOnText(){return vLayerOffset<=uSwTextLevel+.001&&vLayerOffset>=uSwTextLevel-uSwTextDepth;}" +
+        "bool swOnText(){return abs(vLayerOffset-uSwTextLevel)<uSwTextDepth;}" +
         "float swBox(vec2 s,float bias){if(s.x<0.||s.x>1.||s.y<0.||s.y>1.)return 0.;return texture2D(tSwText,s,bias).a;}" +
         "float swMask(vec2 uv,float bias){vec3 p=uSwTextMap*vec3(uv,1.);vec2 t=p.xy/p.z;" +
         "if(p.z<=0.||t.x<0.||t.x>1.||t.y<0.||t.y>1.)return 0.;return texture2D(tSwText,t,bias).a;}" +
@@ -155,13 +156,13 @@
     const Texture = uniforms.tHeightNoise.value.constructor;
 
     const canvas = document.createElement("canvas");
-    const texture = new Texture(canvas);
+    let texture = new Texture(canvas);
     Object.assign(uniforms, {
       tSwText: { value: texture },
       uSwTextMap: { value: [1, 0, 0, 0, 1, 0, 0, 0, 1] },
       uSwTextAmount: { value: 0 },
       uSwTextLevel: { value: SUNK_LAYER },
-      uSwTextDepth: { value: DEPTH },
+      uSwTextDepth: { value: LAYER_STEP / 2 },
       uSwTextColor: { value: COLOR },
       uSwScreenBox: { value: [0, 0, 1, 1] },
       uSwShift: { value: [0, 0, 0, 0] },
@@ -195,8 +196,16 @@
       const key = `${Math.round(box.width)}x${Math.round(box.height)}:${style.fontSize}:${glyphs.join("|")}`;
       if (key === drawnFor) return true;
       const scale = CANVAS_WIDTH / box.width;
-      canvas.width = CANVAS_WIDTH;
-      canvas.height = Math.min(2048, Math.round(box.height * scale));
+      const height = Math.min(2048, Math.round(box.height * scale));
+      // WebGL2 gives a texture fixed storage on its first upload, so a canvas
+      // of a new size needs a new texture.
+      if (canvas.width !== CANVAS_WIDTH || canvas.height !== height) {
+        canvas.width = CANVAS_WIDTH;
+        canvas.height = height;
+        texture.dispose();
+        texture = new Texture(canvas);
+        uniforms.tSwText.value = texture;
+      }
       const sy = canvas.height / box.height;
       const ctx = canvas.getContext("2d");
       const size = parseFloat(style.fontSize) * scale;
@@ -282,7 +291,8 @@
       // layer, and their mask fades only near the bottom.
       rise += (target - rise) * Math.min(1, dt * 2.5);
       const eased = rise * rise * (3 - 2 * rise);
-      uniforms.uSwTextLevel.value = SUNK_LAYER + (TOP_LAYER - SUNK_LAYER) * eased;
+      const level = SUNK_LAYER + (TOP_LAYER - SUNK_LAYER) * eased;
+      uniforms.uSwTextLevel.value = Math.round(level / LAYER_STEP) * LAYER_STEP;
       uniforms.uSwTextAmount.value = Math.min(1, rise * 4);
       // Shadows and rim are pinned to the headline's screen box, so they fade
       // out as soon as the letters start to move.
