@@ -1,0 +1,79 @@
+/* Control: hide the DOM title once the 3D letters draw; it keeps its text
+   and stays in the accessibility tree. Its dark text shadow would print a
+   smudge where the letters stand, so it goes too. */
+.sw-control-3d .sw-control-title{color:transparent!important;text-shadow:none!important;transition:color .8s ease}
+
+/* Frosted app cards around the letters. control.js sets --sw-show (0..1)
+   from the title's show/hide; each slot sets its place (--x, --y), depth tier
+   (scale --s, blur --b, opacity --o, stacking) and tilt (--r). Opacity sits on
+   each card, not the container, so the backdrop blur still sees the scene. */
+.sw-control-cards{position:fixed;inset:0;z-index:2;overflow:hidden;pointer-events:none;visibility:hidden;--sw-show:0}
+.sw-control-cards.is-shown{visibility:visible}
+.sw-control-card{
+  --x:50%;--y:50%;--s:1;--b:0px;--o:1;--r:0deg;--rise:36px;
+  position:absolute;left:var(--x);top:var(--y);
+  display:flex;align-items:center;gap:14px;
+  min-width:212px;padding:14px 24px 14px 15px;border-radius:18px;
+  background:linear-gradient(140deg,rgba(255,255,255,.62),rgba(236,240,248,.38) 55%,rgba(255,255,255,.5));
+  box-shadow:0 22px 44px -12px rgba(12,16,28,.42),0 2px 6px rgba(12,16,28,.12),inset 0 1px 0 rgba(255,255,255,.85);
+  -webkit-backdrop-filter:blur(14px) saturate(1.15);backdrop-filter:blur(14px) saturate(1.15);
+  color:#161b26;font-family:'Geist Mono',monospace;line-height:1.15;white-space:nowrap;
+  transform-origin:50% 50%;
+  transform:scale(var(--s));rotate:var(--r);
+  translate:0 calc((1 - var(--sw-show)) * var(--rise));
+  filter:blur(var(--b));
+  opacity:calc(var(--o) * var(--sw-show));
+}
+/* Thin iridescent rim: cyan, white, violet, amber. */
+.sw-control-card::before{
+  content:"";position:absolute;inset:0;border-radius:inherit;padding:1.5px;
+  background:linear-gradient(120deg,rgba(120,220,255,.95),rgba(255,255,255,.9) 30%,rgba(170,140,255,.9) 62%,rgba(255,206,120,.9));
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude;
+}
+.sw-control-card__mark{position:relative;flex:none;width:30px;height:30px;border-radius:50%;box-sizing:border-box}
+.sw-control-card__text{display:flex;flex-direction:column;gap:5px}
+.sw-control-card__name{font-size:17px;font-weight:600;letter-spacing:-.01em}
+.sw-control-card__rule{font-size:15px;font-weight:700;letter-spacing:.02em}
+
+/* Allow: filled cyan disc with a white tick. Block: violet ring with a bar.
+   Told apart by tone and shape, not red and green. */
+[data-rule="allow"] .sw-control-card__rule{color:#08718f}
+[data-rule="allow"] .sw-control-card__mark{background:linear-gradient(160deg,#3cc7ea,#0b86ab)}
+[data-rule="allow"] .sw-control-card__mark::after{
+  content:"";position:absolute;left:10px;top:6px;width:7px;height:13px;
+  border:solid #fff;border-width:0 3px 3px 0;transform:rotate(45deg)}
+[data-rule="block"] .sw-control-card__rule{color:#5b34c4}
+[data-rule="block"] .sw-control-card__mark{border:3px solid #6a43d6;background:rgba(255,255,255,.55)}
+[data-rule="block"] .sw-control-card__mark::after{
+  content:"";position:absolute;left:50%;top:50%;width:17px;height:3px;margin:-1.5px 0 0 -8.5px;
+  background:#6a43d6;border-radius:2px;transform:rotate(-45deg)}
+
+/* Slots at 1440x900 around the letters (about x 270..1180, y 235..660):
+   cards overlap the edges of F, ll, C and the last l. Near: large, a little
+   soft, in front. Mid: sharp. Far: small and soft, behind the near ones. */
+.sw-control-card[data-sw-card="0"]{--x:21%;--y:23%;--s:.9;--b:0px;--o:1;--r:-4deg;z-index:2}
+.sw-control-card[data-sw-card="1"]{--x:70%;--y:13%;--s:.68;--b:1px;--o:.86;--r:-3deg;z-index:1}
+.sw-control-card[data-sw-card="2"]{--x:64%;--y:37%;--s:.9;--b:0px;--o:1;--r:5deg;z-index:2}
+.sw-control-card[data-sw-card="3"]{--x:6%;--y:67%;--s:1.2;--b:.7px;--o:1;--r:6deg;z-index:3}
+.sw-control-card[data-sw-card="4"]{--x:71%;--y:71%;--s:1.08;--b:.7px;--o:1;--r:4deg;z-index:3}
+.sw-control-card[data-sw-card="5"]{--x:6%;--y:12%;--s:.68;--b:1px;--o:.86;--r:2deg;z-index:1}
+
+@media(max-width:767px){
+  .sw-control-card{min-width:0;gap:9px;padding:9px 14px 9px 10px;border-radius:13px;--rise:24px}
+  .sw-control-card__mark{width:22px;height:22px}
+  [data-rule="allow"] .sw-control-card__mark::after{left:7px;top:4px;width:5px;height:10px;border-width:0 2.5px 2.5px 0}
+  [data-rule="block"] .sw-control-card__mark{border-width:2.5px}
+  [data-rule="block"] .sw-control-card__mark::after{width:12px;height:2.5px;margin:-1.25px 0 0 -6px}
+  .sw-control-card[data-sw-card="1"],.sw-control-card[data-sw-card="5"]{--s:.8;--b:.8px}
+  .sw-control-card[data-sw-card="3"]{--s:1.1;--b:.5px}
+  .sw-control-card[data-sw-card="4"]{--s:1.02;--b:.5px}
+  .sw-control-card__name{font-size:13px}
+  .sw-control-card__rule{font-size:12px}
+  .sw-control-card[data-sw-card="0"]{--x:5%;--y:20%}
+  .sw-control-card[data-sw-card="1"]{--x:52%;--y:13%}
+  .sw-control-card[data-sw-card="2"]{--x:50%;--y:66%}
+  .sw-control-card[data-sw-card="3"]{--x:4%;--y:74%}
+  .sw-control-card[data-sw-card="4"]{--x:46%;--y:84%}
+  .sw-control-card[data-sw-card="5"]{--x:8%;--y:11%}
+}

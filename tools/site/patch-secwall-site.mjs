@@ -3,10 +3,17 @@
 //
 // The site has no source; its live deployment is the source of truth. This
 // script copies a downloaded deployment, patches the prebuilt bundle with
-// anchored replacements that must each match exactly once, adds the
-// terrain-text script and its CSS, and renames every changed /build/* file
-// (served immutable). It can run on an already patched deployment: it replaces
-// its own earlier additions instead of stacking them.
+// anchored replacements that must each match exactly once, adds the headline
+// scripts and their CSS, and renames every changed /build/* file (served
+// immutable). It can run on an already patched deployment: it replaces its own
+// earlier additions instead of stacking them.
+//
+// Scripts: tools/site/lib/swtext.js (the shared SWText library), then every
+// tools/site/sections/*.js in alphabetical order, each served as
+// /build/sw-<basename>-<hash>.js from a classic <script> placed before the
+// entry bundle, so window.__swLayers is watched before the terrain is built.
+// CSS: every tools/site/sections/*.css, alphabetical, concatenated into one
+// marked block at the end of securewall.css.
 //
 //   node tools/release/update-secwall-site.mjs --download .tmp/site-live
 //   node tools/site/patch-secwall-site.mjs --from .tmp/site-live --out .tmp/site-patched
@@ -21,21 +28,10 @@ import { fileURLToPath } from "node:url";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CSS_START = "/* sw-terrain-text start */";
 const CSS_END = "/* sw-terrain-text end */";
-
-// Hides the DOM headline once the terrain draws it; the text stays in the
-// accessibility tree and selectable. The dark overlay that kept the DOM text
-// readable would dim the terrain letters, so only its bottom band stays, for
-// the tagline. Also moves the tagline below the headline so it no longer sits
-// under "connects".
-const CSS = `${CSS_START}
-.sw-terrain-text .js-hero h1{color:transparent!important;transition:color .8s ease}
-.sw-terrain-text .js-hero{background:linear-gradient(0deg,rgba(9,13,20,.6),transparent 32%)!important}
-@media(min-width:1024px){
-.js-hero .grid>div:first-child{width:100%!important}
-.js-hero .grid>div:nth-child(2){width:100%!important;margin-left:0!important;margin-top:28px}
-.js-hero p.t-lazare{max-width:560px!important}
-}
-${CSS_END}`;
+const SECTIONS = path.join(HERE, "sections");
+// Added scripts and their tags, including the older sw-terrain-text-<hash>.js.
+const ADDED_FILE = /^build\/sw-[A-Za-z0-9_-]+-[A-Za-z0-9_-]{8}\.js$/;
+const ADDED_TAG = /<script src="\/build\/sw-[A-Za-z0-9_-]+-[A-Za-z0-9_-]{8}\.js"><\/script>/g;
 
 // Anchored bundle patches: [anchor, replacement, already-applied marker].
 const BUNDLE_PATCHES = [
@@ -59,6 +55,15 @@ function listFiles(dir) {
   return fs.readdirSync(dir, { recursive: true, withFileTypes: true })
     .filter(e => e.isFile())
     .map(e => path.relative(dir, path.join(e.parentPath, e.name)).split(path.sep).join("/"));
+}
+
+// Section files with this extension, sorted by name.
+function sectionFiles(ext) {
+  if (!fs.existsSync(SECTIONS)) return [];
+  return fs.readdirSync(SECTIONS, { withFileTypes: true })
+    .filter(e => e.isFile() && e.name.endsWith(ext))
+    .map(e => e.name)
+    .sort();
 }
 
 function overlaps(a, b) {
@@ -107,23 +112,42 @@ function patch(from, out) {
     bundleName = renamed;
   }
 
-  // Terrain-text script: drop an earlier copy, add the current one before the
-  // bundle so window.__swLayers is watched before the terrain is built.
-  for (const old of listFiles(out).filter(f => /^build\/sw-terrain-text-[A-Za-z0-9_-]{8}\.js$/.test(f))) {
+  // Scripts: drop every earlier copy and tag, then add the library and the
+  // sections before the bundle, library first.
+  for (const old of listFiles(out).filter(f => ADDED_FILE.test(f))) {
     fs.rmSync(path.join(out, old));
     console.log(`removed ${old}`);
   }
-  html = html.replace(/<script src="\/build\/sw-terrain-text-[A-Za-z0-9_-]{8}\.js"><\/script>/g, "");
-  const script = fs.readFileSync(path.join(HERE, "terrain-text.js"));
-  const scriptName = `sw-terrain-text-${hash8(script)}.js`;
-  write(`build/${scriptName}`, script);
+  html = html.replace(ADDED_TAG, "");
+  const sources = [
+    path.join(HERE, "lib", "swtext.js"),
+    ...sectionFiles(".js").map(f => path.join(SECTIONS, f)),
+  ];
+  const tags = [];
+  const seen = new Set();
+  for (const src of sources) {
+    const base = path.basename(src, ".js");
+    if (!/^[A-Za-z0-9_-]+$/.test(base)) fail(`${src}: script names may use only letters, digits, "_" and "-"`);
+    if (seen.has(base)) fail(`two scripts are named ${base}.js`);
+    seen.add(base);
+    const bytes = fs.readFileSync(src);
+    const name = `sw-${base}-${hash8(bytes)}.js`;
+    write(`build/${name}`, bytes);
+    tags.push(`<script src="/build/${name}"></script>`);
+    console.log(`added build/${name}`);
+  }
   const entry = `<script type="module" src="/build/${bundleName}"></script>`;
   if (count(html, entry) !== 1) fail("index.html: entry bundle script tag not found once");
-  html = html.replace(entry, `<script src="/build/${scriptName}"></script>${entry}`);
+  html = html.replace(entry, `${tags.join("")}${entry}`);
+  if ((html.match(ADDED_TAG) ?? []).length !== tags.length) fail("index.html: added script tags not found once each");
   write("index.html", html);
-  console.log(`added build/${scriptName}`);
 
   // CSS lives in the root securewall.css, which is not served immutable.
+  const blocks = sectionFiles(".css").map(f => {
+    const text = fs.readFileSync(path.join(SECTIONS, f), "utf8").replace(/\r\n/g, "\n").trim();
+    if (text.includes(CSS_START) || text.includes(CSS_END)) fail(`${f} contains a block marker`);
+    return `/* ${f} */\n${text}`;
+  });
   let css = read("securewall.css");
   const start = css.indexOf(CSS_START);
   if (start >= 0) {
@@ -131,8 +155,9 @@ function patch(from, out) {
     if (end < 0) fail("securewall.css: start marker without end marker");
     css = css.slice(0, start).trimEnd() + css.slice(end + CSS_END.length);
   }
-  write("securewall.css", `${css.trimEnd()}\n\n${CSS}\n`);
-  console.log("updated securewall.css");
+  if (css.includes(CSS_START) || css.includes(CSS_END)) fail("securewall.css: more than one marked block");
+  write("securewall.css", `${css.trimEnd()}\n\n${[CSS_START, ...blocks, CSS_END].join("\n")}\n`);
+  console.log(`updated securewall.css (${blocks.length} section CSS files)`);
 
   for (const src of [...html.matchAll(/src="\/(build\/[^"]+\.js)"/g)].map(m => m[1])) {
     if (!fs.existsSync(path.join(out, src))) fail(`index.html references missing ${src}`);

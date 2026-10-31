@@ -1,6 +1,6 @@
 # secwall.org headline redesign
 
-Status: hero built (steps 1 to 3 and the hero part of 6), on a Vercel preview only. Block and Control sections not started. Written 2026-10-31 from a `/redesign-concepts` run.
+Status: all three sections built as stacked-slice 3D text (see "How it is built"), reviewed locally and on a Vercel preview only; production secwall.org is unchanged. The owner rejected the first hero build (flat plates with a neon rim); the "Decisions" section below is the original plan, and "How it is built" records what replaced it. Written 2026-10-31 from a `/redesign-concepts` run.
 
 ## Goal
 
@@ -61,6 +61,18 @@ This changes how cheaply concept 01 can be built: anything added to the height t
 - The shader wobbles uv by up to 0.024 (`heightNoiseOffset`), about a fifth of the headline's width in uv, so the text is looked up without it.
 - The scene's post-processing lifts the bright side of the terrain toward white after the layer shader runs, so darkening (shadows) does not separate white letters there. A rainbow rim around the letters, in the terrain's own band colors, does.
 - The hero's intro animation translates the characters, so the canvas is redrawn whenever a character moves.
+
+## How it is built
+
+The text height map was dropped after the owner compared the first hero with concept 01. Each headline is now real 3D geometry in the terrain scene:
+
+- **Library** `tools/site/lib/swtext.js` (`window.SWText`). It takes three.js classes from objects the site already built, so nothing new is downloaded. It draws a headline's glyphs into a canvas mask (`glyphMask`), maps the DOM box onto the terrain plane with a four-corner homography (`planeMap`), and builds extruded letters as an `InstancedMesh` of stacked planes that each discard outside the glyphs (`SliceText`). It also patches the terrain shader once to raise a mound under a mask (`setMound`), so the terrain's contour lines bend around the letters. The header comment documents the API.
+- **Hero** `tools/site/sections/hero.js`: white bevelled faces with rainbow-striped walls (`sw-hero`), grey contour terraces offset from the glyph outlines (`sw-hero-rings`, built from a distance transform of the mask), and a mound whose inside corners are rounded off so no dark terrain slivers show through. The h1 is set at 190 px in three centred lines at 1024 px and wider.
+- **Block** `tools/site/sections/block.js`: one mesh per word from the h2's word elements. "Block" is large and charcoal, "by default" is 0.4x and overlaps its foot, and a mound raises a plateau under "Block". The site's post-processing lifts black to about 77/255, so a multiply-blended canvas (`.sw-block-ink`) darkens the faces to charcoal. Heights follow the camera, which drops close to the terrain on the second Block scroll stop. Colours and heights are named constants at the top, ready for a switch to concept 06.
+- **Control** `tools/site/sections/control.js`: white letters (`sw-control`) kept a fixed distance below the camera, plus six frosted DOM cards from the `CARDS` array (generic placeholder names, not real products). Allow is a cyan tick and Block a violet ring; there is no red or green. Depth comes from scale and blur.
+- **Shared rules**: every section follows its heading's own show and hide, so the 3D pieces appear only in that section. It hides the DOM heading with `color: transparent` only once its 3D version draws, and the heading stays in the accessibility tree. Under `prefers-reduced-motion: reduce` nothing is added.
+
+Known limits: the site's chromatic aberration softens letter edges, most on a phone. In concept 01 the terrain's own coloured contours hug each letter; here grey terraces hug them and the coloured bands bend further out. Not tested in Safari, Firefox, without WebGL, or on real phones.
 
 ## Vocabulary
 
