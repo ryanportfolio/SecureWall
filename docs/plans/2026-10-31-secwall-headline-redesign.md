@@ -82,13 +82,13 @@ Concept 09 used `chrome.exe Allow`, `steam.exe Allow`, `svchost.exe Allow`, `tel
 ## Build constraints
 
 - No source exists, so every change is a patch on the live deployment's files: an anchored string replacement in the bundle, where each anchor must match exactly once or the patch fails, plus new standalone files where possible. A patched bundle gets a new hashed name (`/build/*` is cached `immutable` for a year) and `index.html` is updated to match.
-- `tools/release/update-secwall-site.mjs` starts from the live deployment, so a deployed patch carries into later release updates. Run it with `--out` on the patched output before deploying, to prove it still finds and replaces every version string.
+- `tools/release/update-secwall-site.mjs` starts from the live deployment, so a deployed patch carries into later release updates. It cannot check a local patched build as it stands: `update()` always downloads production, and `downloadLive()` deletes the `--out` directory first (`fs.rmSync(out, { recursive: true, force: true })`). Never point `--out` at the patched output. Before deploying, run the updater's version replacement and checks against the patched files through a local-input mode (for example `--from <dir>`, which reads a directory instead of downloading and writes to a separate `--out`). Adding that mode is part of step 1 and changes a release script, so it gets its own review.
 - New data or backend: none. Everything is static.
 - Production deploys to secwall.org need the owner's go-ahead. Use a Vercel preview deployment for review.
 
 ## Build order
 
-1. Patch tooling: download the live deployment (reuse the SHA-1-checked download in `update-secwall-site.mjs`), apply anchored patches, rename changed bundles, serve the result locally. Capture the unpatched site at 1440x900 and 390x844 as a baseline, and record its frame rate.
+1. Patch tooling: download the live deployment (reuse the SHA-1-checked download in `update-secwall-site.mjs`), apply anchored patches, rename changed bundles, serve the result locally. Add the updater's local-input mode. Capture the unpatched site at 1440x900 and 390x844 as a baseline, and record its frame rate.
 2. Text height map in the layer shader: the uniforms, the canvas texture, and the DOM-rect projection. Hero only, static. Check legibility against concept 01.
 3. Hero motion and the tagline layout fix.
 4. Block section: charcoal letter mask, rise and sink on the title tracks, ridge pile-up in front. Compare with concept 05 and decide whether the extruded-mesh fallback is needed.
@@ -103,4 +103,4 @@ Concept 09 used `chrome.exe Allow`, `steam.exe Allow`, `svchost.exe Allow`, `tel
 - Reduced motion and WebGL-off both show the current DOM headlines with no blank screen.
 - Frame rate and frame time on the terrain sections are within 10% of the baseline from step 1, on the same machine.
 - No console errors. Every bundle patch anchor matched exactly once.
-- `update-secwall-site.mjs --out` runs cleanly on the patched output.
+- `update-secwall-site.mjs` in local-input mode runs cleanly on a copy of the patched output, written to a separate directory, and leaves the patched output untouched.
