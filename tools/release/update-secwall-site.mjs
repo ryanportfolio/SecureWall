@@ -10,9 +10,19 @@
 //   node tools/release/update-secwall-site.mjs --version 0.5.0 --out <dir>
 //   node tools/release/update-secwall-site.mjs --check-live 0.5.0
 //
-// Environment: VERCEL_TOKEN, VERCEL_ORG_ID (team id). Writes changed=true|false
-// to $GITHUB_OUTPUT when set.
+// Local use only, never in the release workflow:
+//
+//   --download <dir>      replace <dir> with the live deployment and stop
+//   --from <dir>          update a copy of <dir> (a patched site) instead of
+//                         downloading; <dir> itself is never written
+//   --skip-link-check     skip the GitHub link checks, for a version that has
+//                         no published release yet
+//
+// Environment: VERCEL_TOKEN, VERCEL_ORG_ID (team id). Outside CI, a missing
+// VERCEL_TOKEN falls back to the logged-in Vercel CLI (`vercel api`). Writes
+// changed=true|false to $GITHUB_OUTPUT when set.
 
+import { execSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -68,8 +78,22 @@ function request(url, options = {}) {
 async function vercel(apiPath) {
   const token = process.env.VERCEL_TOKEN;
   const team = process.env.VERCEL_ORG_ID;
-  if (!token || !team) fail("VERCEL_TOKEN and VERCEL_ORG_ID must be set");
+  if (!team || (!token && process.env.CI)) fail("VERCEL_TOKEN and VERCEL_ORG_ID must be set");
   const sep = apiPath.includes("?") ? "&" : "?";
+  if (!token) {
+    // The quotes keep the shell from splitting the query string at "&".
+    let out;
+    try {
+      out = execSync(`vercel api --raw "${apiPath}${sep}teamId=${team}"`, {
+        encoding: "utf8",
+        maxBuffer: 256 * 1024 * 1024,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    } catch {
+      fail(`vercel api ${apiPath.split("?")[0]} failed; is the Vercel CLI installed and logged in?`);
+    }
+    return JSON.parse(out);
+  }
   const res = await request(`https://api.vercel.com${apiPath}${sep}teamId=${team}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -142,9 +166,23 @@ async function checkUrl(url) {
   console.log(`ok ${res.status} ${url}`);
 }
 
-async function update(version, out) {
+// Copies a local site into out. out is deleted first, so it may not overlap from.
+function copyLocal(from, out) {
+  const inside = (a, b) => {
+    const rel = path.relative(b, a);
+    return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+  };
+  if (inside(out, from) || inside(from, out)) fail(`--out ${out} must not overlap --from ${from}`);
+  if (!fs.existsSync(path.join(from, "index.html"))) fail(`${from} has no index.html`);
+  fs.rmSync(out, { recursive: true, force: true });
+  fs.cpSync(from, out, { recursive: true });
+  console.log(`copied ${from}`);
+}
+
+async function update(version, out, { from, skipLinks } = {}) {
   parseVersion(version);
-  await downloadLive(out);
+  if (from) copyLocal(from, out);
+  else await downloadLive(out);
   const read = rel => fs.readFileSync(path.join(out, rel), "utf8");
   const pageText = () => {
     const html = read("index.html");
@@ -219,7 +257,8 @@ async function update(version, out) {
   // a truncated ".../SecureWall_" match. Check the published assets instead.
   for (const url of links) if (/\/releases\/download\//.test(url) && !/\.[a-z]+$/i.test(url)) links.delete(url);
   for (const arch of ["x64", "arm64", "x86"]) links.add(`${REPO_URL}/releases/download/v${version}/SecureWall_${arch}.msi`);
-  for (const url of links) await checkUrl(url);
+  if (skipLinks) console.log(`skipped checking ${links.size} links`);
+  else for (const url of links) await checkUrl(url);
 
   setOutput("changed", "true");
   console.log(`site ready in ${out}`);
@@ -261,11 +300,17 @@ async function checkLive(version) {
 
 try {
   if (arg("--check-live")) await checkLive(arg("--check-live"));
+  else if (arg("--download")) await downloadLive(path.resolve(arg("--download")));
   else {
     const version = arg("--version");
     const out = arg("--out");
-    if (!version || !out) fail("usage: --version <x.y.z> --out <dir> | --check-live <x.y.z>");
-    await update(version, path.resolve(out));
+    if (!version || !out) {
+      fail("usage: --version <x.y.z> --out <dir> [--from <dir>] [--skip-link-check] | --download <dir> | --check-live <x.y.z>");
+    }
+    const from = arg("--from");
+    const skipLinks = process.argv.includes("--skip-link-check");
+    if (skipLinks && process.env.CI) fail("--skip-link-check is for local use only");
+    await update(version, path.resolve(out), { from: from && path.resolve(from), skipLinks });
   }
 } catch (err) {
   if (!(err instanceof Failure)) throw err;

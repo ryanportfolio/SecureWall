@@ -1,6 +1,6 @@
 # secwall.org headline redesign
 
-Status: plan, nothing built. Written 2026-10-31 from a `/redesign-concepts` run.
+Status: hero built (steps 1 to 3 and the hero part of 6), on a Vercel preview only. Block and Control sections not started. Written 2026-10-31 from a `/redesign-concepts` run.
 
 ## Goal
 
@@ -35,7 +35,7 @@ This changes how cheaply concept 01 can be built: anything added to the height t
 
 ## Decisions
 
-**One technique for all three sections: a text height map.** Draw the headline into a canvas with the site's headline font, blur it into a soft height ramp, upload it as a texture, and add it to the height inside the layer shader's `sampleNoise` and shadow lookup, scaled by a `uTextAmount` uniform. Sample it in the layer shader at full resolution rather than baking it into the 256x256 `tHeightNoise`, which is too coarse for letter edges. Place it by projecting the DOM heading's bounding box onto the terrain plane, so the letters land where the heading is and follow resizes and the mobile layout.
+**One technique for all three sections: a text height map.** Draw the headline into a canvas with the site's headline font, blur it into a soft edge, upload it as a texture, and feed it into the height inside the layer shader's `sampleNoise` and shadow lookup. Sample it in the layer shader at full resolution rather than baking it into the 256x256 `tHeightNoise`, which is too coarse for letter edges. Place it by projecting the DOM heading's bounding box onto the terrain plane, so the letters land where the heading is and follow resizes and the mobile layout.
 
 **Font.** The concept images drifted to a rounded grotesk. The build keeps the site's heavy monospace headline face. `index.html` preloads `/fonts/GeistMono-Bold.woff2`; confirm in the browser which face the `h1` and `h2` actually render before drawing the height map.
 
@@ -45,13 +45,22 @@ This changes how cheaply concept 01 can be built: anything added to the height t
 - Block letters: charcoal `#1a1a1a`, the color of the sections that follow, using a letter mask in the layer shader's color step.
 - Chips: an Allow chip gets a thin rainbow edge; a Block chip is muted charcoal. No red and green, which concept 09 introduced and the site never uses.
 
-**The Block wall is terraced first.** Concept 05 shows a solid extruded slab. A height-map letter is a stack of 20 terraces, which in charcoal should read as a solid wall from a distance. Build that first and compare it with the concept. If it doesn't hold up, the fallback is a real extruded text mesh (three.js `TextGeometry` with the font converted to typeface JSON, roughly 100 KB more), placed in the same scene.
+**The Block wall needs real geometry.** Concept 05 shows a solid extruded slab. The hero build showed that terraced letters do not work in this scene (see "What the hero build showed"), so the wall needs a real extruded text mesh (three.js `TextGeometry` with the font converted to typeface JSON, roughly 100 KB more) placed in the same scene. The owner also likes concept 06, the charcoal panel with the words cut out as windows onto the terrain, and may switch to it after seeing the hero live. Concept 06 needs no 3D text: a DOM or SVG mask over the canvas.
 
 **Chips are DOM, not WebGL.** Concept 09's chips are small frosted cards with text. Build them as HTML in a fixed layer with CSS 3D transforms at three depths, so text stays sharp and selectable and costs no shader work. No third-party logos: concept 09 used the Chrome, Steam and Windows marks. Use a plain monochrome glyph or none.
 
 **Headings stay real.** The `h1` and `h2` stay in the DOM as real headings, visually hidden (the existing `.sw-static` pattern) only while the WebGL text is drawn. With reduced motion, no WebGL, or a failed font load, the current DOM text shows as it does today. Remove the heavy `text-shadow` from the DOM fallback only if it stays legible on the terrain without it.
 
 **Hero tagline.** "A default-deny firewall for Windows. Decide which apps connect." moves into its own space at bottom left, as in concept 01, with no overlap at any width.
+
+## What the hero build showed
+
+- The terrain instance is named `Layers Hero` (the footer has its own, `Layers Footer`). The camera sits about 0.23 units above the top layer, close and steep, so layers 0.05 apart land about 80 px apart on screen.
+- Adding height to the terrain does not make terraced letters. Each letter's top lands on whatever layer the ground under it reaches, and every layer a letter crosses prints its own offset copy. Readable letters must sit on a single layer, as a flat plate at a fixed level.
+- An affine map from three box corners is far off on this camera; the text needs a four-corner homography onto the top-layer plane.
+- The shader wobbles uv by up to 0.024 (`heightNoiseOffset`), about a fifth of the headline's width in uv, so the text is looked up without it.
+- The scene's post-processing lifts the bright side of the terrain toward white after the layer shader runs, so darkening (shadows) does not separate white letters there. A rainbow rim around the letters, in the terrain's own band colors, does.
+- The hero's intro animation translates the characters, so the canvas is redrawn whenever a character moves.
 
 ## Vocabulary
 
@@ -69,7 +78,7 @@ One name per thing in code, checks and review notes:
 
 | Section | In | Out |
 |---|---|---|
-| Hero | letters already raised at first paint | letters sink back into the terrain as `herohide` runs (`uTextAmount` 1 to 0) |
+| Hero | letters rise to the top layer once the hero shows | letters sink to a low layer as `herohide` fades the hero; built to follow the hero's computed opacity, which `herohide` drives |
 | Block section | on `title0show` the charcoal letters rise from the terrain and the terrain in front of them piles into tighter ridges | on `title0hide` they sink |
 | Control section | on `title1show` the white letters rise; chips enter one after another and drift at speeds set by their depth | on `title1hide` letters sink and chips leave |
 
