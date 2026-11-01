@@ -27,6 +27,7 @@ namespace pylorak.TinyWall.Prompting
         void DeleteFile(string path);
         void CreateDirectory(string path);
         void DeleteDirectory(string path);
+        void MoveDirectory(string path, string destination);
         string[] Directories(string path);
     }
 
@@ -105,17 +106,26 @@ namespace pylorak.TinyWall.Prompting
 
         // Step 3. Refuses before any change until the marker is written; after that a
         // failure returns to the MSI, which rolls back and runs /msi-upgrade-restore.
-        // The snapshot is taken last: the running service saves config while applying
-        // a change, so only a stopped service with no controller left gives a
-        // consistent copy.
+        // A snapshot left by an earlier attempt of the same transaction (a retried MSI
+        // keeps its ProductCode) is set aside first, so this attempt's rollback can
+        // only restore a snapshot this attempt took. The snapshot is taken last: the
+        // running service saves config while applying a change, so only a stopped
+        // service with no controller left gives a consistent copy.
         internal static void Stop(string transaction, IUpgradeService service,
-            Action authenticate, Action requirePrerequisites, Action<string> writeMarker,
+            Action authenticate, Action setAsidePriorSnapshot, Action requirePrerequisites, Action<string> writeMarker,
             Func<TimeSpan> elapsed, Action<TimeSpan> delay,
             Action terminateControllers, Action snapshot)
         {
             authenticate();
+            setAsidePriorSnapshot();
             if (!service.Registered)
                 throw new InvalidOperationException("The SecureWall service is not registered, so this installation cannot be upgraded in place. Remove SecureWall explicitly, then install the new version.");
+            // A service stopped after a failure may have an SCM restart queued, and
+            // clearing the failure actions does not cancel it; it could start the
+            // service in the middle of the swap. Only a running service is stopped
+            // here, by request, which queues nothing.
+            if (service.State == LifecycleServiceState.Stopped)
+                throw new InvalidOperationException("The SecureWall service is not running. Start it (sc start SecureWall from an elevated prompt, or restart Windows), then run setup again.");
             requirePrerequisites();
             writeMarker(transaction);
             // The start mode stays Automatic so a reboot still starts whatever
@@ -169,9 +179,20 @@ namespace pylorak.TinyWall.Prompting
             return RestoreAction.RestoreAndStart;
         }
 
-        // Replaces any earlier snapshot of the same transaction (a retried MSI keeps
-        // its ProductCode). The manifest is written last, so a snapshot cut short by a
-        // power loss is never restored.
+        // Moves an earlier attempt's snapshot of this transaction to
+        // "<transaction>.previous-<suffix>". It is never restored or cleaned up
+        // automatically (not a GUID name); it stays as recovery evidence.
+        internal static string? SetAsidePriorSnapshot(IUpgradeFiles files, string dataDirectory, string transaction, string suffix)
+        {
+            string directory = SnapshotDirectory(dataDirectory, transaction);
+            if (!files.DirectoryExists(directory)) return null;
+            string kept = directory + ".previous-" + suffix;
+            files.MoveDirectory(directory, kept);
+            return kept;
+        }
+
+        // The manifest is written last, so a snapshot cut short by a power loss is
+        // never restored.
         internal static void TakeSnapshot(IUpgradeFiles files, string dataDirectory, string transaction)
         {
             string directory = SnapshotDirectory(dataDirectory, transaction);

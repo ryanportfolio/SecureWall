@@ -147,6 +147,7 @@ namespace pylorak.TinyWall.Installer
         public void DeleteFile(string path) => File.Delete(path);
         public void CreateDirectory(string path) => Directory.CreateDirectory(path);
         public void DeleteDirectory(string path) => Directory.Delete(path, true);
+        public void MoveDirectory(string path, string destination) => Directory.Move(path, destination);
         public string[] Directories(string path) => Directory.GetDirectories(path);
     }
 }

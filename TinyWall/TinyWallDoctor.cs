@@ -224,6 +224,13 @@ namespace pylorak.TinyWall
                         RequireServiceNotPendingDeletion();
                         ValidateRegisteredServiceImage(true);
                     },
+                    setAsidePriorSnapshot: () =>
+                    {
+                        string? kept = UpgradeLifecyclePolicy.SetAsidePriorSnapshot(new MachineDataUpgradeFiles(), Utils.AppDataPath,
+                            transaction, DateTime.UtcNow.ToString("yyyyMMddHHmmss", System.Globalization.CultureInfo.InvariantCulture));
+                        if (kept != null)
+                            Warn("Upgrade " + transaction + ": an earlier attempt's policy snapshot was moved to " + kept + " and will not be restored. Review and delete it by hand.");
+                    },
                     requirePrerequisites: () =>
                     {
                         // The new service cannot start without them; refuse while

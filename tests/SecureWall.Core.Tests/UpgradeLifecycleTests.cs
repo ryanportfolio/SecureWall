@@ -9,7 +9,7 @@ internal static class UpgradeLifecycleTests
     {
         ("upgrade transaction argument is exactly one braced GUID", TransactionArgument),
         ("upgrade stop runs checks, marker, restart suppression, stop, controllers, then snapshot", StopOrder),
-        ("upgrade stop refuses before any change when unregistered or checks fail", StopRefusesEarly),
+        ("upgrade stop refuses before any change when unregistered, already stopped or checks fail", StopRefusesEarly),
         ("upgrade stop never snapshots a service that did not stop", StopTimeoutSkipsSnapshot),
         ("upgrade start requires registration, stopped service, snapshot and own marker", StartPreconditions),
         ("upgrade start waits for Running and fails fast on Stopped", WaitForRunning),
@@ -17,7 +17,7 @@ internal static class UpgradeLifecycleTests
         ("upgrade restore refuses a foreign marker and restarts without a snapshot", RestoreDecision),
         ("upgrade snapshot names the transaction and is complete only with its manifest", SnapshotNaming),
         ("upgrade snapshot round trip restores bytes, absent files and secret protection", SnapshotRoundTrip),
-        ("upgrade snapshot replaces an earlier snapshot of the same transaction", SnapshotRetry),
+        ("upgrade retry sets an earlier snapshot of the same transaction aside, never restoring it", SnapshotRetry),
         ("upgrade snapshot manifest rejects unknown formats and names", ManifestValidation),
         ("upgrade stale snapshot cleanup keeps only the named transaction", StaleSnapshots),
         ("upgrade commit keeps only a snapshot a foreign marker points at", CommitKeeps),
@@ -72,6 +72,20 @@ internal static class UpgradeLifecycleTests
             foreach (string dir in Dirs.Where(d => d.Equals(path, StringComparison.OrdinalIgnoreCase) || d.StartsWith(path + "\\", StringComparison.OrdinalIgnoreCase)).ToArray()) Dirs.Remove(dir);
             Log.Add("rmdir " + Path.GetFileName(path));
         }
+        public void MoveDirectory(string path, string destination)
+        {
+            foreach (string file in Files.Keys.Where(f => f.StartsWith(path + "\\", StringComparison.OrdinalIgnoreCase)).ToArray())
+            {
+                Files[destination + file.Substring(path.Length)] = Files[file];
+                Files.Remove(file);
+            }
+            foreach (string dir in Dirs.Where(d => d.Equals(path, StringComparison.OrdinalIgnoreCase) || d.StartsWith(path + "\\", StringComparison.OrdinalIgnoreCase)).ToArray())
+            {
+                Dirs.Remove(dir);
+                Dirs.Add(destination + dir.Substring(path.Length));
+            }
+            Log.Add("move " + Path.GetFileName(path));
+        }
         public string[] Directories(string path) =>
             Dirs.Where(d => string.Equals(Path.GetDirectoryName(d), path, StringComparison.OrdinalIgnoreCase)).ToArray();
 
@@ -110,6 +124,7 @@ internal static class UpgradeLifecycleTests
         var clock = TimeSpan.Zero;
         UpgradeLifecyclePolicy.Stop(Txn, service,
             authenticate ?? (() => log.Add("authenticate")),
+            () => log.Add("set aside"),
             prerequisites ?? (() => log.Add("prerequisites")),
             txn => log.Add("marker " + txn),
             () => clock, delay => clock += delay,
@@ -122,15 +137,18 @@ internal static class UpgradeLifecycleTests
         var log = new List<string>();
         var service = new FakeService(log);
         RunStop(log, service);
-        AssertEx.SequenceEqual(new[] { "authenticate", "prerequisites", "marker " + Txn, "restart=False", "stop", "controllers", "snapshot" }, log);
+        AssertEx.SequenceEqual(new[] { "authenticate", "set aside", "prerequisites", "marker " + Txn, "restart=False", "stop", "controllers", "snapshot" }, log);
         AssertEx.Equal(false, service.Restart);
 
-        // An already stopped service is not asked to stop again.
+        // A service still starting (a restart that just fired) settles and is stopped.
         log.Clear();
-        service = new FakeService(log) { Current = LifecycleServiceState.Stopped };
-        RunStop(log, service);
-        AssertEx.False(log.Contains("stop"));
-        AssertEx.Equal("snapshot", log.Last());
+        int polls = 0;
+        service = new FakeService(log) { Current = LifecycleServiceState.StartPending };
+        var clock = TimeSpan.Zero;
+        UpgradeLifecyclePolicy.Stop(Txn, service, () => { }, () => { }, () => { }, _ => { },
+            () => { if (++polls == 3) service.Current = LifecycleServiceState.Running; return clock; }, delay => clock += delay,
+            () => { }, () => log.Add("snapshot"));
+        AssertEx.SequenceEqual(new[] { "restart=False", "stop", "snapshot" }, log);
     }
 
     private static void StopRefusesEarly()
@@ -138,7 +156,14 @@ internal static class UpgradeLifecycleTests
         var log = new List<string>();
         var service = new FakeService(log) { IsRegistered = false };
         Fails(() => RunStop(log, service));
-        AssertEx.SequenceEqual(new[] { "authenticate" }, log);
+        AssertEx.SequenceEqual(new[] { "authenticate", "set aside" }, log);
+
+        // A stopped service may have an SCM restart queued that clearing the
+        // failure actions does not cancel: refuse before any change.
+        log.Clear();
+        service = new FakeService(log) { Current = LifecycleServiceState.Stopped };
+        Fails(() => RunStop(log, service));
+        AssertEx.SequenceEqual(new[] { "authenticate", "set aside" }, log);
 
         foreach (bool failAuthentication in new[] { true, false })
         {
@@ -276,6 +301,17 @@ internal static class UpgradeLifecycleTests
         UpgradeLifecyclePolicy.TakeSnapshot(files, Data, Txn);
         AssertEx.False(files.FileExists(Path.Combine(directory, "hosts.orig")), "a retry must not keep files from the earlier snapshot");
         AssertEx.SequenceEqual(new byte[] { 6 }, files.Files[Path.Combine(directory, "config")]);
+
+        // A retried MSI (same ProductCode) sets the earlier attempt's snapshot aside
+        // before it can fail, so its own rollback never restores the stale copy.
+        string? kept = UpgradeLifecyclePolicy.SetAsidePriorSnapshot(files, Data, Txn, "20261101000000");
+        AssertEx.Equal<string?>(directory + ".previous-20261101000000", kept);
+        AssertEx.False(UpgradeLifecyclePolicy.SnapshotComplete(files, Data, Txn));
+        AssertEx.Equal(UpgradeLifecyclePolicy.RestoreAction.StartOnly, UpgradeLifecyclePolicy.Restore(Txn, Txn, UpgradeLifecyclePolicy.SnapshotComplete(files, Data, Txn)));
+        AssertEx.SequenceEqual(new byte[] { 6 }, files.Files[Path.Combine(kept!, "config")], "the earlier snapshot stays as evidence");
+        UpgradeLifecyclePolicy.DeleteStaleSnapshots(files, Data, null);
+        AssertEx.True(files.DirectoryExists(kept!), "set-aside snapshots are never cleaned up automatically");
+        AssertEx.Equal<string?>(null, UpgradeLifecyclePolicy.SetAsidePriorSnapshot(files, Data, Txn, "x"));
     }
 
     private static void ManifestValidation()
@@ -364,6 +400,7 @@ internal static class UpgradeLifecycleTests
         string stop = Body("internal static int UpgradeStopForMsi(string transaction)");
         InOrder(stop, "stop", "UpgradeLifecyclePolicy.Stop(transaction, service,", "InstallationSafety.RequireSystemMaintenance();",
             "InstallationSafety.RequireProtectedMachineData();", "ValidateRegisteredServiceImage(true);",
+            "UpgradeLifecyclePolicy.SetAsidePriorSnapshot(new MachineDataUpgradeFiles(), Utils.AppDataPath,",
             "WindowsFirewall.RequireServiceRunning();", "\"BFE\"", "writeMarker: UpgradeMarker.Write",
             "terminateControllers: TerminateInstallationControllers", "UpgradeLifecyclePolicy.TakeSnapshot(new MachineDataUpgradeFiles(), Utils.AppDataPath, transaction);");
         AssertEx.False(stop.Contains("CleanupForMsi") || stop.Contains("RemoveWfpObjects") || stop.Contains("RestoreOwnedState") || stop.Contains("DisableHostsFile"));
