@@ -2,7 +2,8 @@
 //
 // patch-secwall-site.mjs serves this classic script as /build/sw-swtext-<hash>.js
 // ahead of the section scripts (tools/site/sections/*.js) and the entry bundle,
-// and patches the bundle to push each terrain instance onto window.__swLayers.
+// and patches the bundle to push each terrain instance onto window.__swLayers
+// and to keep its final composite pass in window.__swComposite.
 // Sections use only the API below. three.js is not loaded separately: its
 // classes are taken from objects the site already built.
 //
@@ -50,11 +51,15 @@
 //     section hides them itself when its frames stop. dt is in seconds since
 //     that terrain's previous frame, capped at 0.1; now is performance.now().
 //     The terrain is transparent, so it draws after opaque meshes: changes
-//     made here to an opaque mesh (SliceText) show from the next frame, while
-//     terrain uniforms (setMound) apply to this frame. A throwing fn is
+//     made here to an opaque mesh (a SliceText without blend) show from the
+//     next frame, while terrain uniforms (setMound) and the uniforms of meshes
+//     drawn after the terrain (a SliceText with blend: setFade, place's
+//     homography) take them in this frame; instance matrices and visibility
+//     (setAmount, place's footprint) always apply from the next frame. A
+//     throwing fn is
 //     unsubscribed.
 //
-//   glyphMask(element, { pad = 0.15, width = 2048, edge = 0.05 })
+//   glyphMask(element, { pad = 0.15, width = 2048, edge = 0.05, bold = 0 })
 //     -> { canvas, texture, update(), box }
 //     A canvas alpha mask of the element's text, each character drawn with the
 //     element's computed font where the page lays it out (measured with Range
@@ -63,7 +68,9 @@
 //     side by pad x the larger of its width and height, so blurred lookups are
 //     not clipped. The canvas keeps the box's aspect, at most width px wide
 //     and 2048 px tall. edge is the blur radius as a fraction of the font
-//     size: alpha 0.5 sits on the glyph outline. update() re-measures, moves
+//     size: alpha 0.5 sits on the glyph outline. bold (font sizes) widens
+//     every stroke by that much on each side, round-joined, for a heavier
+//     face than the font has. update() re-measures, moves
 //     box to the element's current rect, redraws only when a glyph position
 //     (relative to the box), the box size or the font changed, and returns
 //     true when the mask is valid (false while the element has no size).
@@ -79,7 +86,8 @@
 //     rect cannot be mapped.
 //
 //   new SliceText(layer, { mask, slices = 48, baseZ, topZ, face = [1,1,1],
-//                          sides = "rainbow", stripe = 2, bevel = 1 })
+//                          sides = "rainbow", stripe = 2, bevel = 1,
+//                          shade = 0, blend = false })
 //     Extruded text on layer's terrain (either one; mesh-local z and the
 //     placement below are that terrain's): an InstancedMesh of `slices`
 //     PlaneGeometry(1,1) planes
@@ -90,8 +98,14 @@
 //     blurred mask (a soft bevel; bevel scales it, 0 = flat). The lower slices
 //     are `sides`: an [r,g,b] color, or "rainbow" for thin stripes (`stripe`
 //     slices each) cycling orange, yellow, white, cyan, violet, pink. Both
-//     darken toward the base. Opaque and depth-tested, so terrain above it
-//     hides it. Added to layer, hidden until placed.
+//     darken toward the base; shade (0..1) also darkens the sides by the
+//     direction the outline faces, against the face's light (0 = off).
+//     Opaque and depth-tested, so terrain above it hides it. Added to layer,
+//     hidden until placed. With blend, it is drawn with the transparent
+//     objects after the terrain (renderOrder 2), face first, so each pixel
+//     takes only its nearest slice and setFade fades it as one surface;
+//     setFade and place's homography made in onFrame then show in the same
+//     frame (see onFrame).
 //     .mesh                     the InstancedMesh
 //     .map                      homography from the last place(), or null
 //     .place(camera, renderer)  maps mask.box onto the plane at topZ, so the
@@ -103,6 +117,8 @@
 //                               lower values sink it in z below the terrain;
 //                               at 0 it is hidden. Not eased: ease in the
 //                               caller.
+//     .setFade(f)               0..1 (default 1): its opacity; only with
+//                               blend.
 //     .dispose()                removes and frees it.
 //     Each mesh is in SWText.debug.slices until disposed.
 //
@@ -132,6 +148,17 @@
 //     uniform the material has when the sheet is built (these included) and
 //     resets them whenever its animated values change.
 //   clearMound(owner)
+//
+//   lens({ texture, rect, strength = 0, reach = 0.25 }) -> bool
+//     Calms the site's chromatic aberration (its final composite pass splits
+//     colours and bends the image more toward the screen's edges) around a
+//     headline, so letters away from the centre keep clean faces. texture's
+//     red channel is a distance from the glyphs (0 on them, 1 far away) over
+//     rect (viewport CSS px, top-left origin, the canvas's top row at its
+//     top); the aberration is scaled by 1 - strength where it is 0 and back
+//     to full where it reaches reach. strength 0 turns it off. One lens for
+//     the page. False until the composite pass exists (call again), and
+//     for good if its shader no longer matches (one console.warn).
 //
 //   debug: { slices: [], mound: null, mounds: {} }
 //     mound = the hero terrain's active setMound entry; mounds = the active
@@ -337,7 +364,7 @@
     t.pending.splice(0).forEach(cb => run(cb, layer));
   }
 
-  function glyphMask(element, { pad = 0.15, width = 2048, edge = 0.05 } = {}) {
+  function glyphMask(element, { pad = 0.15, width = 2048, edge = 0.05, bold = 0 } = {}) {
     const { Texture } = three(anyLayer());
     const canvas = document.createElement("canvas");
     const range = document.createRange();
@@ -392,7 +419,13 @@
       ctx.shadowColor = "#000";
       ctx.shadowBlur = edge > 0 ? size * edge : 0;
       ctx.shadowOffsetX = shift;
-      for (const [c, x, y] of glyphs) ctx.fillText(c, x * scale - shift, y * scale - descent);
+      ctx.strokeStyle = "#000";
+      ctx.lineJoin = "round";
+      ctx.lineWidth = 2 * bold * size;
+      for (const [c, x, y] of glyphs) {
+        ctx.fillText(c, x * scale - shift, y * scale - descent);
+        if (bold > 0) ctx.strokeText(c, x * scale - shift, y * scale - descent);
+      }
       ctx.shadowColor = "transparent";
       mask.texture.needsUpdate = true;
       drawnFor = key;
@@ -469,7 +502,7 @@ p=instanceMatrix*p;
 vLocal=p.xyz;vSlice=float(gl_InstanceID);gl_Position=projectionMatrix*modelViewMatrix*p;}`;
 
   const SLICE_FRAGMENT = `uniform sampler2D tMask;uniform mat3 uMap;uniform vec2 uTexel;uniform float uCount;
-uniform vec3 uFace;uniform vec3 uSide;uniform float uRainbow;uniform float uStripe;uniform float uBevel;
+uniform vec3 uFace;uniform vec3 uSide;uniform float uRainbow;uniform float uStripe;uniform float uBevel;uniform float uShade;uniform float uFade;
 varying vec3 vLocal;varying float vSlice;
 float maskAt(vec2 t,float lod){return textureLod(tMask,t,lod).a;}
 vec3 band(float i){float k=mod(floor(i/uStripe),6.);
@@ -489,13 +522,21 @@ c=uFace*mix(1.,.62+.42*lit,clamp(uBevel,0.,1.));
 }else{
 float f=(vSlice-1.)/max(uCount-2.,1.);
 c=(uRainbow>.5?band(vSlice-1.):uSide)*mix(.95,.3,f);
+if(uShade>0.){
+// Walls lit by the direction they face: the outward outline normal from
+// the mask gradient, against the face's light.
+vec2 d=uTexel*6.;
+vec2 g=vec2(maskAt(t+vec2(d.x,0.),2.)-maskAt(t-vec2(d.x,0.),2.),maskAt(t+vec2(0.,d.y),2.)-maskAt(t-vec2(0.,d.y),2.));
+float k=length(g)>1e-4?dot(-normalize(g),normalize(vec2(-.45,.55))):0.;
+c*=mix(1.,.72+.38*k,uShade);
 }
-gl_FragColor=vec4(c,1.);
+}
+gl_FragColor=vec4(c,uFade);
 #include <colorspace_fragment>
 }`;
 
   class SliceText {
-    constructor(layer, { mask, slices = 48, baseZ, topZ, face = [1, 1, 1], sides = "rainbow", stripe = 2, bevel = 1 } = {}) {
+    constructor(layer, { mask, slices = 48, baseZ, topZ, face = [1, 1, 1], sides = "rainbow", stripe = 2, bevel = 1, shade = 0, blend = false } = {}) {
       if (!mask) throw new Error("SliceText needs a mask");
       if (!(topZ > baseZ)) throw new Error("SliceText needs topZ > baseZ");
       const T = three(layer);
@@ -519,17 +560,20 @@ gl_FragColor=vec4(c,1.);
         uRainbow: { value: rainbow ? 1 : 0 },
         uStripe: { value: Math.max(1, stripe) },
         uBevel: { value: bevel },
+        uShade: { value: shade },
+        uFade: { value: 1 },
       };
       const material = new T.ShaderMaterial({
         vertexShader: SLICE_VERTEX,
         fragmentShader: SLICE_FRAGMENT,
         uniforms: this.uniforms,
-        transparent: false,
+        transparent: blend,
         depthTest: true,
         depthWrite: true,
       });
       const mesh = (this.mesh = new T.InstancedMesh(new T.PlaneGeometry(1, 1), material, this.count));
       mesh.name = "SWText slices";
+      if (blend) mesh.renderOrder = 2;
       mesh.frustumCulled = false;
       mesh.visible = false;
       mesh.position.copy(layer.mesh.position);
@@ -564,6 +608,10 @@ gl_FragColor=vec4(c,1.);
     setAmount(a) {
       this.amount = Math.min(1, Math.max(0, a || 0));
       this._write();
+    }
+
+    setFade(f) {
+      this.uniforms.uFade.value = Math.min(1, Math.max(0, f));
     }
 
     _write() {
@@ -639,7 +687,60 @@ gl_FragColor=vec4(c,1.);
     for (const t of terrains.values()) if (t.mounds.delete(owner)) applyMound(t);
   }
 
-  window.SWText = { onTerrain, three, onFrame, glyphMask, planeMap, SliceText, setMound, clearMound, debug };
+  // The composite pass's aberration samples the frame at
+  // barrelDistortion(vUv, amount * t) for t in 0..1; swLens scales amount.
+  let lensBroken = false;
+  function patchLens(m) {
+    let src = replace(
+      m.fragmentShader,
+      "void main(){if(uEnabled){",
+      "uniform sampler2D tSwLens;uniform vec4 uSwLensRect;uniform float uSwLens;uniform float uSwLensReach;" +
+        "float swLens(vec2 uv){if(uSwLens<=0.)return 1.;vec2 t=(uv-uSwLensRect.xy)/(uSwLensRect.zw-uSwLensRect.xy);" +
+        "if(t.x<0.||t.y<0.||t.x>1.||t.y>1.)return 1.;" +
+        "return 1.-uSwLens*(1.-smoothstep(0.,uSwLensReach,texture2D(tSwLens,t).r));}" +
+        "void main(){if(uEnabled){",
+      1,
+    );
+    src = replace(src, "barrelDistortion(vUv,uBendAmount*uMaxDistort*t)", "barrelDistortion(vUv,uBendAmount*uMaxDistort*t*swLens(vUv))", 1);
+    const u = m.uniforms;
+    u.tSwLens = { value: null };
+    u.uSwLensRect = { value: [0, 0, 1, 1] };
+    u.uSwLens = { value: 0 };
+    u.uSwLensReach = { value: 0.25 };
+    m.fragmentShader = src;
+    m.needsUpdate = true;
+  }
+
+  function lens({ texture = null, rect = null, strength = 0, reach = 0.25 } = {}) {
+    const m = window.__swComposite?.material;
+    if (!m?.uniforms || lensBroken) return false;
+    const u = m.uniforms;
+    if (!u.tSwLens) {
+      try {
+        patchLens(m);
+      } catch (err) {
+        lensBroken = true;
+        console.warn("SWText lens off:", err);
+        return false;
+      }
+    }
+    const on = !!(texture && rect && strength > 0);
+    u.uSwLens.value = on ? Math.min(1, strength) : 0;
+    if (on) {
+      // vUv has its origin at the bottom left; the texture's v runs up from
+      // the canvas's bottom row (flipY).
+      u.tSwLens.value = texture;
+      const r = u.uSwLensRect.value;
+      r[0] = rect.left / innerWidth;
+      r[1] = 1 - rect.bottom / innerHeight;
+      r[2] = rect.right / innerWidth;
+      r[3] = 1 - rect.top / innerHeight;
+      u.uSwLensReach.value = reach;
+    }
+    return true;
+  }
+
+  window.SWText = { onTerrain, three, onFrame, glyphMask, planeMap, SliceText, setMound, clearMound, lens, debug };
 
   const queue = (window.__swLayers = window.__swLayers || []);
   queue.forEach(attach);
