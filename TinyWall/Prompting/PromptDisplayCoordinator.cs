@@ -375,10 +375,12 @@ namespace pylorak.TinyWall.Prompting
                 CompleteCurrent();
                 return;
             }
-            Guid token = _current.Token;
+            PromptWireDto prompt = _current;
+            Guid token = prompt.Token;
             IPromptView view = _currentView;
             if (!_actionsInFlight.Add(token)) return;
             PromptActionStatus status = await PerformAction(() => remember ? _actions.Ignore(token) : _actions.Dismiss(token));
+            bool unlockAsked = false;
             if (remember && status == PromptActionStatus.Locked)
             {
                 // Saving to the Ignored list needs the password, so Ignore unlocks, retries and
@@ -387,6 +389,7 @@ namespace pylorak.TinyWall.Prompting
                 bool relock = false;
                 if (IsCurrent(token, view) && _current!.ExpiresUtc > _utcNow())
                 {
+                    unlockAsked = true;
                     PromptUnlockResult unlock = TryUnlock();
                     relock = unlock != PromptUnlockResult.AlreadyUnlocked;
                     if (unlock != PromptUnlockResult.NotUnlocked && IsCurrent(token, view) &&
@@ -395,23 +398,35 @@ namespace pylorak.TinyWall.Prompting
                         status = await PerformAction(() => _actions.Ignore(token));
                     }
                 }
-                if (status == PromptActionStatus.Locked && IsCurrent(token, view) && _current!.ExpiresUtc > _utcNow())
-                    status = await PerformAction(() => _actions.Dismiss(token));
+                // Still Locked: either the prompt expired or closed during the password dialog,
+                // or the unlock did not happen.
+                if (status == PromptActionStatus.Locked)
+                    status = IsCurrent(token, view) && _current!.ExpiresUtc > _utcNow()
+                        ? await PerformAction(() => _actions.Dismiss(token))
+                        : PromptActionStatus.Expired;
                 if (relock)
                     TryRelock();
             }
             _actionsInFlight.Remove(token);
-            if (_disposed || _current?.Token != token || !ReferenceEquals(view, _currentView)) return;
-            if (status == PromptActionStatus.Dismissed ||
-                status == PromptActionStatus.Expired ||
-                status == PromptActionStatus.UnknownToken)
+            if (_disposed) return;
+            bool current = IsCurrent(token, view);
+            if (current &&
+                status != PromptActionStatus.Dismissed &&
+                status != PromptActionStatus.Expired &&
+                status != PromptActionStatus.UnknownToken)
             {
+                _currentView!.ShowActionFailure(status);
+                return;
+            }
+            // The owner gave the password to save this Ignore. If the prompt closed or expired
+            // first, nothing was saved: keep it reachable from the missed list, as Allow does.
+            if (unlockAsked && status != PromptActionStatus.Dismissed)
+            {
+                RecordMissed(prompt);
+                NotifyMissed();
+            }
+            if (current)
                 CompleteCurrent();
-            }
-            else
-            {
-                _currentView.ShowActionFailure(status);
-            }
         }
 
         private async Task<PromptActionStatus> PerformAction(Func<PromptActionStatus> action)

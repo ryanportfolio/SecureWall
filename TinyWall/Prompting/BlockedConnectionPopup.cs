@@ -136,7 +136,7 @@ namespace pylorak.TinyWall.Prompting
                 prompt.SubjectKind == PromptIdentityKind.AmbiguousService
                     ? "Keep blocking. SecureWall cannot tell which service this is, so it asks again after five minutes."
                     : "Keep blocking and stop asking about this app. It is listed under Manage, Ignored; remove it there to be asked again. " +
-                        "While SecureWall is locked, Ignore asks for the password first; cancel it and Ignore only stops asking for five minutes.");
+                        "While SecureWall is locked, Ignore asks for the password first. If you cancel or the password is wrong, Ignore only stops asking for five minutes.");
             FitNoticeLabel();
 
             PositionBottomRight();
@@ -149,7 +149,7 @@ namespace pylorak.TinyWall.Prompting
         {
             statusLabel.Text = status switch
             {
-                PromptActionStatus.Locked => "SecureWall is locked. Enter the password to allow this app, or choose Ignore.",
+                PromptActionStatus.Locked => "SecureWall is locked. Enter the password to allow this app, or close this prompt to keep it blocked.",
                 PromptActionStatus.NotAllowable => "SecureWall cannot safely allow this identity.",
                 PromptActionStatus.Expired => "This prompt expired; the connection remains blocked.",
                 _ => "The request could not be completed. The connection remains blocked.",

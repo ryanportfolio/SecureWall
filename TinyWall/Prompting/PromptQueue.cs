@@ -218,7 +218,7 @@ namespace pylorak.TinyWall.Prompting
         internal PromptIdentity? PendingIdentity(Guid token)
         {
             lock (_guard)
-                return _byToken.TryGetValue(token, out Entry? entry) ? entry.Identity : null;
+                return _byToken.TryGetValue(token, out Entry? entry) && !IsExpired(entry, _clock.UtcNow) ? entry.Identity : null;
         }
 
         internal PromptActionResult Allow(Guid token) => Allow(token, _ => true);
