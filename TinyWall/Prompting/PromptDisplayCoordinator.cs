@@ -375,22 +375,57 @@ namespace pylorak.TinyWall.Prompting
                 CompleteCurrent();
                 return;
             }
-            Guid token = _current.Token;
+            PromptWireDto prompt = _current;
+            Guid token = prompt.Token;
             IPromptView view = _currentView;
             if (!_actionsInFlight.Add(token)) return;
             PromptActionStatus status = await PerformAction(() => remember ? _actions.Ignore(token) : _actions.Dismiss(token));
+            bool lockedIgnore = remember && status == PromptActionStatus.Locked;
+            if (lockedIgnore)
+            {
+                // Saving to the Ignored list needs the password, so Ignore unlocks, retries and
+                // relocks the way Allow does. A cancelled or failed unlock falls back to a plain
+                // dismissal: the app stays blocked and is asked about again after five minutes.
+                bool relock = false;
+                if (IsCurrent(token, view) && _current!.ExpiresUtc > _utcNow())
+                {
+                    PromptUnlockResult unlock = TryUnlock();
+                    relock = unlock != PromptUnlockResult.AlreadyUnlocked;
+                    if (unlock != PromptUnlockResult.NotUnlocked && IsCurrent(token, view) &&
+                        _current!.ExpiresUtc > _utcNow())
+                    {
+                        status = await PerformAction(() => _actions.Ignore(token));
+                    }
+                }
+                // Still Locked: either the prompt expired or closed during the password dialog,
+                // or the unlock did not happen.
+                if (status == PromptActionStatus.Locked)
+                    status = IsCurrent(token, view) && _current!.ExpiresUtc > _utcNow()
+                        ? await PerformAction(() => _actions.Dismiss(token))
+                        : PromptActionStatus.Expired;
+                if (relock)
+                    TryRelock();
+            }
             _actionsInFlight.Remove(token);
-            if (_disposed || _current?.Token != token || !ReferenceEquals(view, _currentView)) return;
-            if (status == PromptActionStatus.Dismissed ||
-                status == PromptActionStatus.Expired ||
-                status == PromptActionStatus.UnknownToken)
+            if (_disposed) return;
+            bool current = IsCurrent(token, view);
+            if (current &&
+                status != PromptActionStatus.Dismissed &&
+                status != PromptActionStatus.Expired &&
+                status != PromptActionStatus.UnknownToken)
             {
+                _currentView!.ShowActionFailure(status);
+                return;
+            }
+            // A locked Ignore that was neither saved nor dismissed, because the prompt closed or
+            // expired first, left the prompt unanswered: keep it in the missed list, as Allow does.
+            if (lockedIgnore && status != PromptActionStatus.Dismissed)
+            {
+                RecordMissed(prompt);
+                NotifyMissed();
+            }
+            if (current)
                 CompleteCurrent();
-            }
-            else
-            {
-                _currentView.ShowActionFailure(status);
-            }
         }
 
         private async Task<PromptActionStatus> PerformAction(Func<PromptActionStatus> action)

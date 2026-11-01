@@ -1554,12 +1554,23 @@ namespace pylorak.TinyWall
             }
         }
 
+        // The entry the popup's Ignore button would add for this identity, or null when Ignore
+        // saves nothing: a shared service host, a mode other than Normal, or an app already listed.
+        private IgnoredApp? IgnoredEntryToAdd(PromptIdentity? identity)
+        {
+            IgnoredApp? app = identity == null ? null : IgnoredApp.FromIdentity(identity);
+            if (app == null || !app.IsValid || VisibleState.Mode != FirewallMode.Normal || RuntimeSessionRevoked ||
+                ActiveConfig.Service.ActiveProfile.IgnoredApps.Exists(existing => existing != null && existing.SameEntry(app)))
+                return null;
+            return app;
+        }
+
         // The popup's Ignore button. The Ignored list is a saved setting, so it changes only while
-        // the service is unlocked; locked, Ignore keeps just the five-minute cooldown.
+        // the service is unlocked; IGNORE_PROMPT answers Locked first so the popup can ask for the password.
         private void RememberIgnored(PromptIdentity identity)
         {
-            IgnoredApp? app = IgnoredApp.FromIdentity(identity);
-            if (app == null || PasswordLock.Locked || VisibleState.Mode != FirewallMode.Normal || RuntimeSessionRevoked)
+            IgnoredApp? app = IgnoredEntryToAdd(identity);
+            if (app == null || PasswordLock.Locked)
                 return;
             var candidate = Utils.DeepClone(ActiveConfig.Service);
             if (!IgnoredApp.AddTo(candidate.ActiveProfile.IgnoredApps, app))
@@ -1950,6 +1961,13 @@ namespace pylorak.TinyWall
                 case MessageType.IGNORE_PROMPT:
                     {
                         var args = (TwMessagePromptAction)req;
+                        // Locked and there is an entry to save: keep the prompt pending and answer
+                        // Locked, so the popup asks for the password and retries, as Allow does.
+                        if (PasswordLock.Locked && IgnoredEntryToAdd(BlockedPromptQueue.PendingIdentity(args.Token)) != null)
+                        {
+                            Diagnostics.Emit(RuntimeEvent.prompt_ignore, RuntimeResult.locked);
+                            return args.CreateResponse(PromptActionStatus.Locked);
+                        }
                         PromptActionResult result = BlockedPromptQueue.Dismiss(args.Token);
                         Diagnostics.Emit(RuntimeEvent.prompt_ignore, RuntimeJournal.PromptResult(result.Status));
                         // Saved after the queue lock is released. A failed save still leaves the cooldown.
