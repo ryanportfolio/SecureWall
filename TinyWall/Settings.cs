@@ -89,7 +89,8 @@ namespace pylorak.TinyWall
         [DataMember(EmitDefaultValue = false)]
         public string AiExplainBaseUrl = AiExplainSettings.DefaultBaseUrl;
         [DataMember(EmitDefaultValue = false)]
-        public string AiExplainModel = AiExplainSettings.DefaultModel;
+        // Empty means AiExplainSettings.DefaultModel; read it through EffectiveModel.
+        public string AiExplainModel = string.Empty;
         // Minimal privacy posture by default: only the executable name and publisher are sent.
         // Opt-in to also include the attempted remote endpoint.
         [DataMember(EmitDefaultValue = false)]

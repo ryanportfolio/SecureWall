@@ -2,7 +2,6 @@ using System;
 using System.IO;
 using System.Net.Http;
 using System.Text;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using pylorak.TinyWall.Prompting;
@@ -10,8 +9,9 @@ using pylorak.TinyWall.Prompting;
 namespace pylorak.TinyWall
 {
     // Controller-side HTTP client for an OpenAI-compatible /chat/completions endpoint.
-    // Reflection-free: the request body is written with Utf8JsonWriter and the response is
-    // parsed by AiExplainResponseParser (JsonDocument), so no source-gen/trim setup is needed.
+    // Reflection-free: the request body is written by AiExplainRequest (Utf8JsonWriter) and the
+    // response is parsed by AiExplainResponseParser (JsonDocument), so no source-gen/trim setup
+    // is needed.
     // This type lives in the controller process only; the service never makes this call and
     // never sees the API key.
     internal sealed class OpenAiCompatibleExplainClient
@@ -44,7 +44,8 @@ namespace pylorak.TinyWall
                 return AiExplainResult.Fail("No API key is configured.");
 
             AiExplainPrompt prompt = AiExplainComposer.Compose(subject);
-            string requestJson = BuildRequestJson(_model, prompt);
+            string requestJson = AiExplainRequest.BuildJson(
+                _model, AiExplainSettings.ReasoningEffortFor(_baseUrl, _model), prompt);
 
             // One deadline covers connect, headers and body. HttpClient.Timeout alone stops at the
             // headers when the body is read as a stream.
@@ -110,32 +111,5 @@ namespace pylorak.TinyWall
         private static AiExplainResult TooLarge() => AiExplainResult.Fail(
             "The AI response was larger than " + (AiExplainText.MaxResponseBytes / 1024) +
             " KiB and was discarded.");
-
-        private static string BuildRequestJson(string model, AiExplainPrompt prompt)
-        {
-            using var buffer = new MemoryStream();
-            using (var writer = new Utf8JsonWriter(buffer))
-            {
-                writer.WriteStartObject();
-                writer.WriteString("model", model);
-                writer.WriteNumber("temperature", 0.2);
-                writer.WriteStartArray("messages");
-
-                writer.WriteStartObject();
-                writer.WriteString("role", "system");
-                writer.WriteString("content", prompt.SystemPrompt);
-                writer.WriteEndObject();
-
-                writer.WriteStartObject();
-                writer.WriteString("role", "user");
-                writer.WriteString("content", prompt.UserPrompt);
-                writer.WriteEndObject();
-
-                writer.WriteEndArray();
-                writer.WriteEndObject();
-            }
-
-            return Encoding.UTF8.GetString(buffer.ToArray());
-        }
     }
 }

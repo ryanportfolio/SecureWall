@@ -8,8 +8,48 @@ namespace pylorak.TinyWall.Prompting
     internal static class AiExplainSettings
     {
         internal const string DefaultBaseUrl = "https://api.openai.com/v1";
-        internal const string DefaultModel = "gpt-4o-mini";
+        internal const string DefaultModel = "gpt-6.1-sol";
         internal const string ChatCompletionsPath = "chat/completions";
+
+        // Sent as reasoning_effort with DefaultModel on OpenAI's API. Medium is also the model's
+        // own default; sending it keeps cost and latency fixed if that default changes.
+        internal const string DefaultReasoningEffort = "medium";
+        internal const string OpenAiHost = "api.openai.com";
+
+        // Earlier defaults. The settings form saved whatever model box it showed, so a stored
+        // value equal to one of these was never typed by the user and follows the current
+        // default. Since this change the form stores an empty model for the default instead.
+        private static readonly string[] RetiredDefaultModels = { "gpt-4o-mini" };
+
+        // The model to request for a stored setting: empty or a retired default means
+        // DefaultModel; anything else is the user's own choice and is kept.
+        internal static string EffectiveModel(string? storedModel)
+        {
+            string trimmed = storedModel?.Trim() ?? string.Empty;
+            if (trimmed.Length == 0 || Array.IndexOf(RetiredDefaultModels, trimmed) >= 0)
+                return DefaultModel;
+            return trimmed;
+        }
+
+        // The value to store for a model typed in the settings form. The default is stored as
+        // empty so a later default change reaches users who never picked a model.
+        internal static string ModelToStore(string? typedModel)
+        {
+            string trimmed = typedModel?.Trim() ?? string.Empty;
+            return trimmed == DefaultModel ? string.Empty : trimmed;
+        }
+
+        // reasoning_effort for this endpoint and model, or null to leave it out. Only the default
+        // model on OpenAI's own API gets it: other OpenAI models (gpt-4o-mini, for example) and
+        // other OpenAI-compatible endpoints can reject the field.
+        internal static string? ReasoningEffortFor(string? baseUrl, string? model)
+        {
+            if (model?.Trim() != DefaultModel || !TryBuildChatCompletionsUri(baseUrl, out Uri? uri))
+                return null;
+            return string.Equals(uri!.Host, OpenAiHost, StringComparison.OrdinalIgnoreCase)
+                ? DefaultReasoningEffort
+                : null;
+        }
 
         internal static bool Validate(string? baseUrl, string? model, out string? error)
         {

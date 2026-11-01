@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using pylorak.TinyWall.Prompting;
 using pylorak.Windows.WFP;
@@ -29,6 +30,10 @@ namespace SecureWall.Core.Tests
                 yield return ("ai endpoint must use port 443 like the egress permit", EndpointPortMatchesPermit);
                 yield return ("ai permit change never trusts a cached or failed settings read", ServiceAccessPlanNeedsFreshRead);
                 yield return ("popup ai permit offer reads the service, not the controller cache", PopupOfferReadsServiceSettings);
+                yield return ("ai default is gpt-6.1-sol on openai at medium effort", DefaultModelIsGptSolAtMediumEffort);
+                yield return ("ai stored model follows the default unless the user chose one", StoredModelFollowsDefaultUnlessUserChoseOne);
+                yield return ("ai reasoning effort only for the default model on openai", ReasoningEffortOnlyForDefaultModelOnOpenAi);
+                yield return ("ai request sends effort without temperature, else the original shape", RequestShapeMatchesReasoningEffort);
             }
         }
 
@@ -285,6 +290,92 @@ namespace SecureWall.Core.Tests
             AssertEx.True(read > 0, "The popup must read the service settings before offering the permit.");
             AssertEx.True(offer > read, "The offer must use the fresh read.");
             AssertEx.False(popup.Contains("ActiveConfig.Service"), "The popup must not use the controller's cached service settings.");
+        }
+
+        private static void DefaultModelIsGptSolAtMediumEffort()
+        {
+            AssertEx.Equal("gpt-6.1-sol", AiExplainSettings.DefaultModel);
+            AssertEx.Equal("medium", AiExplainSettings.DefaultReasoningEffort);
+            AssertEx.Equal("https://api.openai.com/v1", AiExplainSettings.DefaultBaseUrl);
+            string settings = PromptTransactionIntegrationTests.Source("TinyWall/Settings.cs");
+            AssertEx.True(settings.Contains("public string AiExplainModel = string.Empty;"),
+                "A fresh config stores no model, so it follows the default.");
+        }
+
+        private static void StoredModelFollowsDefaultUnlessUserChoseOne()
+        {
+            const string sol = AiExplainSettings.DefaultModel;
+            AssertEx.Equal(sol, AiExplainSettings.EffectiveModel(null));
+            AssertEx.Equal(sol, AiExplainSettings.EffectiveModel("  "));
+            AssertEx.Equal(sol, AiExplainSettings.EffectiveModel("gpt-4o-mini"), "The retired default moves to the new one.");
+            AssertEx.Equal(sol, AiExplainSettings.EffectiveModel(" gpt-4o-mini "));
+            AssertEx.Equal("gpt-4o", AiExplainSettings.EffectiveModel("gpt-4o"), "A model the user typed is kept.");
+            AssertEx.Equal("llama3.1:8b", AiExplainSettings.EffectiveModel(" llama3.1:8b "));
+
+            AssertEx.Equal(string.Empty, AiExplainSettings.ModelToStore(sol), "The default is stored as empty.");
+            AssertEx.Equal(string.Empty, AiExplainSettings.ModelToStore(" " + sol + " "));
+            AssertEx.Equal("gpt-4o", AiExplainSettings.ModelToStore(" gpt-4o "));
+
+            string form = PromptTransactionIntegrationTests.Source("TinyWall/AiExplainSettingsForm.cs");
+            AssertEx.True(form.Contains("AiExplainSettings.EffectiveModel(cfg.AiExplainModel)"), "The form shows the effective model.");
+            AssertEx.True(form.Contains("cfg.AiExplainModel = AiExplainSettings.ModelToStore(model)"), "The form stores the default as empty.");
+            string popup = PromptTransactionIntegrationTests.Source("TinyWall/Prompting/BlockedConnectionPopup.AiExplain.cs");
+            AssertEx.True(popup.Contains("string model = AiExplainSettings.EffectiveModel(cfg.AiExplainModel)"), "The lookup requests the effective model.");
+        }
+
+        private static void ReasoningEffortOnlyForDefaultModelOnOpenAi()
+        {
+            const string sol = AiExplainSettings.DefaultModel;
+            AssertEx.Equal("medium", AiExplainSettings.ReasoningEffortFor("https://api.openai.com/v1", sol));
+            AssertEx.Equal("medium", AiExplainSettings.ReasoningEffortFor("https://API.OpenAI.com/v1/", " " + sol));
+            AssertEx.Equal<string?>(null, AiExplainSettings.ReasoningEffortFor("https://api.openai.com/v1", "gpt-4o-mini"),
+                "A user-chosen OpenAI model may not take reasoning_effort.");
+            AssertEx.Equal<string?>(null, AiExplainSettings.ReasoningEffortFor("https://provider.example/v1", sol),
+                "Other OpenAI-compatible endpoints may reject reasoning_effort.");
+            AssertEx.Equal<string?>(null, AiExplainSettings.ReasoningEffortFor("https://api.openai.com.example/v1", sol));
+            AssertEx.Equal<string?>(null, AiExplainSettings.ReasoningEffortFor("https://api.openai.com:8443/v1", sol));
+            AssertEx.Equal<string?>(null, AiExplainSettings.ReasoningEffortFor(null, sol));
+
+            string client = PromptTransactionIntegrationTests.Source("TinyWall/OpenAiCompatibleExplainClient.cs");
+            AssertEx.True(client.Contains("AiExplainSettings.ReasoningEffortFor(_baseUrl, _model)"),
+                "The client must pick the effort from its endpoint and model.");
+        }
+
+        private static void RequestShapeMatchesReasoningEffort()
+        {
+            AiExplainPrompt prompt = AiExplainComposer.Compose(
+                new AiExplainSubject(PromptIdentityKind.Executable, "app.exe", null, null, null, null));
+
+            using (JsonDocument sol = JsonDocument.Parse(AiExplainRequest.BuildJson(AiExplainSettings.DefaultModel, "medium", prompt)))
+            {
+                JsonElement root = sol.RootElement;
+                AssertEx.Equal("gpt-6.1-sol", root.GetProperty("model").GetString());
+                AssertEx.Equal("medium", root.GetProperty("reasoning_effort").GetString());
+                AssertEx.False(root.TryGetProperty("temperature", out _), "Reasoning requests omit temperature.");
+                AssertEx.False(root.TryGetProperty("max_tokens", out _), "max_tokens is not accepted by reasoning models.");
+                AssertMessages(root, prompt);
+            }
+
+            using (JsonDocument other = JsonDocument.Parse(AiExplainRequest.BuildJson("llama3.1:8b", null, prompt)))
+            {
+                JsonElement root = other.RootElement;
+                AssertEx.Equal("llama3.1:8b", root.GetProperty("model").GetString());
+                AssertEx.Equal(0.2, root.GetProperty("temperature").GetDouble());
+                AssertEx.False(root.TryGetProperty("reasoning_effort", out _), "Other models keep the original request.");
+                AssertEx.SequenceEqual(new[] { "model", "temperature", "messages" },
+                    root.EnumerateObject().Select(p => p.Name).ToArray());
+                AssertMessages(root, prompt);
+            }
+        }
+
+        private static void AssertMessages(JsonElement root, AiExplainPrompt prompt)
+        {
+            JsonElement[] messages = root.GetProperty("messages").EnumerateArray().ToArray();
+            AssertEx.Equal(2, messages.Length);
+            AssertEx.Equal("system", messages[0].GetProperty("role").GetString());
+            AssertEx.Equal(prompt.SystemPrompt, messages[0].GetProperty("content").GetString());
+            AssertEx.Equal("user", messages[1].GetProperty("role").GetString());
+            AssertEx.Equal(prompt.UserPrompt, messages[1].GetProperty("content").GetString());
         }
 
         // Returns at most 7 bytes per read so the bounded reader must loop.

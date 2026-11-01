@@ -1103,16 +1103,16 @@ internal static class Program
 
     private static void AiExplainSettingsValidateUrlAndModel()
     {
-        AssertEx.True(AiExplainSettings.Validate("https://api.openai.com/v1", "gpt-4o-mini", out _),
+        AssertEx.True(AiExplainSettings.Validate("https://api.openai.com/v1", AiExplainSettings.DefaultModel, out _),
             "A valid https URL and model must pass.");
 
-        AssertEx.False(AiExplainSettings.Validate("not a url", "gpt-4o-mini", out string? urlError));
+        AssertEx.False(AiExplainSettings.Validate("not a url", AiExplainSettings.DefaultModel, out string? urlError));
         AssertEx.True(urlError != null && urlError.Length > 0);
 
         AssertEx.False(AiExplainSettings.Validate("https://api.openai.com/v1", "  ", out _),
             "An empty model must fail.");
 
-        AssertEx.False(AiExplainSettings.Validate("ftp://example.com", "gpt-4o-mini", out _),
+        AssertEx.False(AiExplainSettings.Validate("ftp://example.com", AiExplainSettings.DefaultModel, out _),
             "Non-http(s) schemes must fail.");
 
         AssertEx.True(AiExplainSettings.TryBuildChatCompletionsUri("https://host/v1/", out Uri? uri));

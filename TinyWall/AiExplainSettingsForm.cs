@@ -97,9 +97,7 @@ namespace pylorak.TinyWall
         {
             ControllerSettings cfg = ActiveConfig.Controller;
             _enabled.Checked = cfg.AiExplainEnabled;
-            _model.Text = string.IsNullOrWhiteSpace(cfg.AiExplainModel)
-                ? AiExplainSettings.DefaultModel
-                : cfg.AiExplainModel;
+            _model.Text = AiExplainSettings.EffectiveModel(cfg.AiExplainModel);
             _baseUrl.Text = string.IsNullOrWhiteSpace(cfg.AiExplainBaseUrl)
                 ? AiExplainSettings.DefaultBaseUrl
                 : cfg.AiExplainBaseUrl;
@@ -124,7 +122,7 @@ namespace pylorak.TinyWall
             ControllerSettings cfg = ActiveConfig.Controller;
             cfg.AiExplainEnabled = _enabled.Checked;
             cfg.AiExplainBaseUrl = baseUrl;
-            cfg.AiExplainModel = model;
+            cfg.AiExplainModel = AiExplainSettings.ModelToStore(model);
             cfg.AiExplainIncludeRemoteEndpoint = _includeRemote.Checked;
 
             // Only replace the stored key when the user typed a new one (not the placeholder).
