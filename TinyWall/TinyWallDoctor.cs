@@ -293,9 +293,11 @@ namespace pylorak.TinyWall
                 // The old version's profiles.json and hosts.bck.
                 MachineDataGuard.InstallDefaults();
 #endif
-                // Restores the restart policy step 3 removed, also when the stop
-                // step failed before stopping anything. EnsureHealth only logs SCM
-                // write failures, so the restart actions are set here first.
+                // Restores the start type the abort step disabled and the restart
+                // policy step 3 removed, also when the stop step failed before
+                // stopping anything. EnsureHealth only logs SCM write failures, so
+                // both are set here first.
+                SetAutomaticStart();
                 service.SetRestartOnFailure(true);
                 EnsureHealth(Utils.LOG_ID_INSTALLER, strictGuards: true);
                 if (!EnsureServiceInstalledAndRunning(Utils.LOG_ID_INSTALLER, true, transaction))
@@ -309,6 +311,19 @@ namespace pylorak.TinyWall
                 LogFailure(exception);
                 return -1;
             }
+            finally
+            {
+                // The old files are back whatever failed above, so a reboot must
+                // start the service the abort step disabled.
+                try { if (ServiceExists()) SetAutomaticStart(); }
+                catch (Exception exception) { LogFailure(exception); }
+            }
+        }
+
+        private static void SetAutomaticStart()
+        {
+            using var scm = new ServiceControlManager();
+            scm.SetStartupMode(TinyWallService.SERVICE_NAME, ServiceStartMode.Automatic);
         }
 
         // Step 7, new executable, after its files and registry values are installed.
@@ -370,35 +385,26 @@ namespace pylorak.TinyWall
                 using var service = new ScmUpgradeService(ServiceExists);
                 if (service.Registered)
                 {
+                    // The upgraded service reapplies its restart actions once it runs, so
+                    // a crash may have queued an SCM restart that clearing them does not
+                    // cancel. Disabled blocks it until the restore step, which runs last
+                    // with the old files back, sets the start type to Automatic again.
                     service.SetRestartOnFailure(false);
+                    using (var scm = new ServiceControlManager())
+                        scm.SetStartupMode(TinyWallService.SERVICE_NAME, ServiceStartMode.Disabled);
                     var timer = Stopwatch.StartNew();
-                    bool terminated = false;
-                    try
-                    {
-                        // The files are about to be removed, so a service that ignores
-                        // the stop request is terminated like a failed first install.
-                        ServiceLifecyclePolicy.Cleanup(true,
-                            () => ServiceLifecyclePolicy.StopGracefully(() => service.State, service.Stop, () => timer.Elapsed, System.Threading.Thread.Sleep),
-                            () =>
-                            {
-                                terminated = true;
-                                ValidateRegisteredServiceImage();
-                                InstallationSafety.TerminateFailedInstallService();
-                            },
-                            () => ServiceLifecyclePolicy.WaitUntil(() => service.State == LifecycleServiceState.Stopped,
-                                ServiceLifecyclePolicy.CleanupGrace, () => timer.Elapsed, System.Threading.Thread.Sleep),
-                            () => { });
-                    }
-                    finally
-                    {
-                        // Termination disabled the service. A reboot must still start
-                        // whatever version the rollback leaves in place.
-                        if (terminated)
+                    // The files are about to be removed, so a service that ignores
+                    // the stop request is terminated like a failed first install.
+                    ServiceLifecyclePolicy.Cleanup(true,
+                        () => ServiceLifecyclePolicy.StopGracefully(() => service.State, service.Stop, () => timer.Elapsed, System.Threading.Thread.Sleep),
+                        () =>
                         {
-                            using var scm = new ServiceControlManager();
-                            scm.SetStartupMode(TinyWallService.SERVICE_NAME, ServiceStartMode.Automatic);
-                        }
-                    }
+                            ValidateRegisteredServiceImage();
+                            InstallationSafety.TerminateFailedInstallService();
+                        },
+                        () => ServiceLifecyclePolicy.WaitUntil(() => service.State == LifecycleServiceState.Stopped,
+                            ServiceLifecyclePolicy.CleanupGrace, () => timer.Elapsed, System.Threading.Thread.Sleep),
+                        () => { });
                 }
                 TerminateInstallationControllers();
                 Utils.Log("Upgrade " + transaction + " is rolling back: upgraded service stopped.", Utils.LOG_ID_INSTALLER);

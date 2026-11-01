@@ -412,12 +412,14 @@ internal static class UpgradeLifecycleTests
 
         InOrder(Body("internal static int UpgradeRestoreForMsi(string transaction)"), "restore",
             "UpgradeLifecyclePolicy.Restore(transaction, marker,", "StopGracefully(", "UpgradeLifecyclePolicy.RestoreSnapshot(files, data, transaction);",
-            "MachineDataGuard.InstallDefaults();", "service.SetRestartOnFailure(true);",
-            "EnsureServiceInstalledAndRunning(Utils.LOG_ID_INSTALLER, true, transaction)", "CleanUpAfterUpgrade(transaction,");
+            "MachineDataGuard.InstallDefaults();", "SetAutomaticStart();", "service.SetRestartOnFailure(true);",
+            "EnsureServiceInstalledAndRunning(Utils.LOG_ID_INSTALLER, true, transaction)", "CleanUpAfterUpgrade(transaction,",
+            "finally", "if (ServiceExists()) SetAutomaticStart();");
 
         string abort = Body("internal static int UpgradeAbortForMsi(string transaction)");
-        InOrder(abort, "abort", "service.SetRestartOnFailure(false);", "StopGracefully(", "InstallationSafety.TerminateFailedInstallService();",
-            "ServiceStartMode.Automatic", "TerminateInstallationControllers();");
+        InOrder(abort, "abort", "service.SetRestartOnFailure(false);", "ServiceStartMode.Disabled", "StopGracefully(",
+            "InstallationSafety.TerminateFailedInstallService();", "TerminateInstallationControllers();");
+        AssertEx.False(abort.Contains("ServiceStartMode.Automatic"), "abort must leave the service disabled for the restore step");
         AssertEx.False(abort.Contains("UpgradeMarker.Clear") || abort.Contains("CleanUpAfterUpgrade"), "abort must leave the marker for the restore step");
 
         string commit = Body("internal static int UpgradeCommitForMsi(string transaction)");
