@@ -287,6 +287,29 @@ namespace pylorak.TinyWall
             return result;
         }
 
+        // In-place upgrade steps take the MSI transaction ID as their only argument.
+        private static int RunUpgradeStep(string[] args, string mode, Func<string, int> step)
+        {
+            return RunMaintenance(mode, () =>
+            {
+                string transaction;
+                try { transaction = UpgradeLifecyclePolicy.Transaction(args, mode); }
+                catch (ArgumentException exception)
+                {
+                    Console.Error.WriteLine(exception.Message);
+                    return -1;
+                }
+                return step(transaction);
+            });
+        }
+
+        private static bool IsUpgradeStep(string[] args)
+        {
+            foreach (string mode in UpgradeLifecyclePolicy.Modes)
+                if (Utils.StringArrayContains(args, mode)) return true;
+            return false;
+        }
+
         /// <summary>
         /// Der Haupteinstiegspunkt für die Anwendung.
         /// </summary>
@@ -324,11 +347,16 @@ namespace pylorak.TinyWall
                     return TinyWallDoctor.ReleaseForMsiWithRejectedMachineData(false);
                 if (Utils.StringArrayContains(args, "/msi-rollback-install"))
                     return TinyWallDoctor.ReleaseForMsiWithRejectedMachineData(true);
+                // Upgrade rollback still stops the upgraded service before its files
+                // go; that step reads no machine data.
+                if (Utils.StringArrayContains(args, UpgradeLifecyclePolicy.AbortMode))
+                    return RunUpgradeStep(args, UpgradeLifecyclePolicy.AbortMode, TinyWallDoctor.UpgradeAbortForMsi);
                 bool maintenance = Utils.StringArrayContains(args, "/install") ||
                     Utils.StringArrayContains(args, "/uninstall") ||
                     Utils.StringArrayContains(args, "/msi-cleanup") ||
                     Utils.StringArrayContains(args, "/msi-rollback-install") ||
-                    Utils.StringArrayContains(args, "/service");
+                    Utils.StringArrayContains(args, "/service") ||
+                    IsUpgradeStep(args);
                 if (!maintenance) Utils.ShowControllerFailure(diagnostic);
                 return -1;
             }
@@ -360,6 +388,16 @@ namespace pylorak.TinyWall
                 return RunMaintenance("/msi-cleanup", () => TinyWallDoctor.UninstallForMsi());
             if (Utils.StringArrayContains(args, "/msi-rollback-install"))
                 return RunMaintenance("/msi-rollback-install", () => TinyWallDoctor.RollbackFailedInstallForMsi());
+            if (Utils.StringArrayContains(args, UpgradeLifecyclePolicy.StopMode))
+                return RunUpgradeStep(args, UpgradeLifecyclePolicy.StopMode, TinyWallDoctor.UpgradeStopForMsi);
+            if (Utils.StringArrayContains(args, UpgradeLifecyclePolicy.RestoreMode))
+                return RunUpgradeStep(args, UpgradeLifecyclePolicy.RestoreMode, TinyWallDoctor.UpgradeRestoreForMsi);
+            if (Utils.StringArrayContains(args, UpgradeLifecyclePolicy.StartMode))
+                return RunUpgradeStep(args, UpgradeLifecyclePolicy.StartMode, TinyWallDoctor.UpgradeStartForMsi);
+            if (Utils.StringArrayContains(args, UpgradeLifecyclePolicy.AbortMode))
+                return RunUpgradeStep(args, UpgradeLifecyclePolicy.AbortMode, TinyWallDoctor.UpgradeAbortForMsi);
+            if (Utils.StringArrayContains(args, UpgradeLifecyclePolicy.CommitMode))
+                return RunUpgradeStep(args, UpgradeLifecyclePolicy.CommitMode, TinyWallDoctor.UpgradeCommitForMsi);
 
             var opts = new CmdLineArgs();
             if (!Environment.UserInteractive || Utils.StringArrayContains(args, "/service"))

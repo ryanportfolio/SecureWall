@@ -1391,7 +1391,11 @@ namespace pylorak.TinyWall
 #if !DEBUG
             if (comError)
             {
-                if (TinyWallDoctor.EnsureServiceInstalledAndRunning(Utils.LOG_ID_GUI, false))
+                // During an in-place upgrade the service is stopped on purpose and
+                // must not be started until setup does it.
+                if (TinyWallDoctor.ServiceStartBlockedByUpgrade())
+                    MessageBox.Show(Prompting.UpgradeLifecyclePolicy.InProgressMessage, Resources.Messages.TinyWall, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                else if (TinyWallDoctor.EnsureServiceInstalledAndRunning(Utils.LOG_ID_GUI, false))
                     LoadSettingsFromServer(out comError, true);
                 else
                     MessageBox.Show(Resources.Messages.TheTinyWallServiceIsUnavailable, Resources.Messages.TinyWall, MessageBoxButtons.OK, MessageBoxIcon.Error);

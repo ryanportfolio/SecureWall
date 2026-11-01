@@ -80,6 +80,7 @@ internal static class Program
         tests = tests.Concat(RuntimeJournalTests.Cases).Concat(RuntimeDiagnosticCoverageTests.Cases)
             .Concat(WfpCoexistenceTests.Cases)
             .Concat(ProtectionReleaseTests.Cases)
+            .Concat(UpgradeLifecycleTests.Cases)
             .Concat(ServiceRecoveryTests.Cases)
             .Concat(ServiceStartupRobustnessTests.Cases)
             .Concat(LearningRemovalTests.Cases)
