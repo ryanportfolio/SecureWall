@@ -13,7 +13,7 @@
   <?else ?>
     <?define PackageName="$(var.ProductName)" ?>
   <?endif ?>
-  <?define Manufacturer="Károly Pados and SecureWall contributors" ?>
+  <?define Manufacturer="CoreWise" ?>
   <?define Description="A default-deny Windows firewall with explicit outbound prompts." ?>
   <?define ProductVersion="!(bind.fileVersion.SecureWallEXE)" ?>
   <!-- v0.5.0 is the first package whose own removal can run inside another package's

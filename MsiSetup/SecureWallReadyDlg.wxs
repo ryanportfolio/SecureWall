@@ -54,7 +54,7 @@ step. License.rtf is also installed beside SecureWall.exe.
                     <Condition Action="show">OLDER_UPGRADEABLE_FOUND</Condition>
                 </Control>
                 <Control Id="LicenseLine" Type="Line" X="25" Y="140" Width="320" Height="0" />
-                <Control Id="LicenseNotice" Type="Text" X="25" Y="150" Width="320" Height="40" NoPrefix="yes" Text="SecureWall is free software under the GNU General Public License version 3 and comes with no warranty. Copyright © [Manufacturer]." />
+                <Control Id="LicenseNotice" Type="Text" X="25" Y="150" Width="320" Height="40" NoPrefix="yes" Text="SecureWall is free software under the GNU General Public License version 3 and comes with no warranty. TinyWall copyright © 2011 Károly Pados; SecureWall modifications © 2026 [Manufacturer]." />
             </Dialog>
 
             <Dialog Id="SecureWallLicenseDlg" Width="370" Height="270" Title="[ProductName] Setup">
