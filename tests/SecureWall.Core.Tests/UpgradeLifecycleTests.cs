@@ -567,7 +567,8 @@ internal static class UpgradeLifecycleTests
         AssertEx.False(abort.Contains("UpgradeMarker.Clear") || abort.Contains("CleanUpAfterUpgrade"), "abort must leave the marker for the restore step");
 
         string commit = Body("internal static int UpgradeCommitForMsi(string transaction)");
-        InOrder(commit, "commit", "service.SetRestartOnFailure(true);", "UpgradeLifecyclePolicy.CommitKeeps(UpgradeMarker.Read(), transaction)",
+        InOrder(commit, "commit", "service.SetRestartOnFailure(true);",
+            "if (service.State == LifecycleServiceState.Stopped)", "service.Start();", "UpgradeLifecyclePolicy.CommitKeeps(UpgradeMarker.Read(), transaction)",
             "CleanUpAfterUpgrade(transaction,", "private static void CleanUpAfterUpgrade(", "deleteSnapshots();", "UpgradeMarker.Clear(transaction);");
 
         string health = Body("internal static bool EnsureHealth(string logContext, bool strictGuards)");

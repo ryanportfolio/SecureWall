@@ -467,7 +467,16 @@ namespace pylorak.TinyWall
             {
                 InstallationSafety.RequireSystemMaintenance();
                 using (var service = new ScmUpgradeService(ServiceExists))
+                {
                     service.SetRestartOnFailure(true);
+                    // The new service can exit after step 7 saw it Running, while its
+                    // restart actions were still off, so nothing would restart it.
+                    if (service.State == LifecycleServiceState.Stopped)
+                    {
+                        try { service.Start(); }
+                        catch (Exception exception) { Warn("Upgrade " + transaction + ": the upgraded SecureWall service stopped before the upgrade committed and could not be started. " + exception.Message); }
+                    }
+                }
                 string? keep = UpgradeLifecyclePolicy.CommitKeeps(UpgradeMarker.Read(), transaction);
                 CleanUpAfterUpgrade(transaction, () => UpgradeLifecyclePolicy.DeleteStaleSnapshots(new MachineDataUpgradeFiles(), Utils.AppDataPath, keep));
                 Utils.Log("Upgrade " + transaction + " committed.", Utils.LOG_ID_INSTALLER);
