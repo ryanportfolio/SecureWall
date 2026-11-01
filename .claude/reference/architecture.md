@@ -2,7 +2,7 @@
 
 - `TinyWall/TinyWallService.cs`: LocalSystem enforcement owner, WFP provider/sublayers, weighted filters, prompt service handlers.
 - `pylorak.Windows.WFP/`: direct Windows Filtering Platform wrappers; no custom kernel driver.
-- `TinyWall/FirewallLogWatcher.cs`: subscribes only to Security event 5157, parses it by field name for prompt attribution, and leases failure auditing with the exact prior flags restored. `AuditPolicyLease.cs` journals the original flags to `HKLM\SOFTWARE\SecureWall\AuditRecovery` (`RegistryAuditPolicyJournal.cs`) before the first change; service start, `/uninstall`, and `/msi-cleanup` restore stale entries.
+- `TinyWall/FirewallLogWatcher.cs`: subscribes only to Security events 5157 and 5159, parses them by field name for prompt attribution (5157 only) and for the process ID on blocked Network Activity rows, and leases failure auditing with the exact prior flags restored. `AuditPolicyLease.cs` journals the original flags to `HKLM\SOFTWARE\SecureWall\AuditRecovery` (`RegistryAuditPolicyJournal.cs`) before the first change; service start, `/uninstall`, and `/msi-cleanup` restore stale entries.
 - `TinyWall/Prompting/`: pure identity, correlation, bounded queue, token DTO, display coordinator, and WinForms popup. `ExecutableRiskAssessment.cs` is the pure warning classifier; `TinyWall/ExecutableRiskProbe.cs` gathers signature (WinVerifyTrust plus catalog), directory DACL, and last-write facts in the controller at display time.
 - `TinyWall/ConnectionsForm.cs`: one-second live Network Activity view combining bounded WFP allow/drop observations with Windows TCP/UDP endpoint tables. `Allowed` and `Blocked` are observed decisions; `Listening (local endpoint)` is not a reachability claim.
 - `TinyWall/TinyWallController.cs`: unprivileged tray client and asynchronous 750 ms prompt polling. Network Activity and Manage are modeless and may be open together; Manage saves against the settings changeset it opened with, so the service's stale-changeset check refuses a save that would drop a rule added meanwhile. On a refusal Manage applies nothing else (controller options, password change), and on OK it copies only the controller fields it edits:
@@ -29,6 +29,17 @@ flowchart LR
     V -->|no| P
     V -->|yes| Q[AUTO_ALLOW_SIGNED on the request queue]
     Q --> W[Worker: exact-path outbound exception, ApplyConfiguration]
+```
+
+Network Activity rows come from WFP net events, which carry no PID. The service matches each blocked row to a Security-log 5157 (connection) or 5159 (bind, including raw sockets) event and stores its PID on the row only when every audit that could pair with it (in any arrival order) names one process and no such row lacks an audit, deciding it once after the 5 s window when Network Activity reads the log (`ResolveActivityPids`; the event callbacks only record audits); the tray app keeps it while a process with that path and an earlier start time holds it, names that PID's services, and looks up a remote host name in the Windows DNS client cache (`DnsCacheNames`). Not used by prompts; Network Activity's Unblock and Close process act on the matched PID and its services. When Always allow adds an exception, the service marks that path's default-deny rows since the first handled drop, shown as "Blocked, then allowed by Always allow".
+
+```mermaid
+flowchart LR
+    N[WFP net event: drop, no PID] --> L[Service log row]
+    A[Security log 5157 / 5159: PID] -->|one process in the matching group: filter, path, protocol, ports, addresses, within 5 s| L
+    W[Always allow adds exception] -->|mark outbound TCP/UDP rows since first drop| L
+    L --> C[Network Activity: PID if process still matches, services from SCM]
+    K[DNS client cache] --> C
 ```
 
 Normal mode is default deny. Only committed runtime IDs for outbound ALE default-block filters are promptable. The service maps an opaque token to an immutable subject; the controller never supplies an executable path, package SID, or service name as authority.

@@ -35,10 +35,13 @@ namespace pylorak.TinyWall.Prompting
 
         // The group comes from the committed filter ID that WFP reported for the drop.
         // Unknown (another provider's filter, a replaced policy, or a failed map) claims no reason.
-        internal static string ToDisplayText(NetworkActivityStatus status, FilterGroup blockedBy)
+        // allowedByAlwaysAllow: Always allow added an exception for the app after this drop.
+        internal static string ToDisplayText(NetworkActivityStatus status, FilterGroup blockedBy, bool allowedByAlwaysAllow = false)
         {
             if (status != NetworkActivityStatus.Blocked)
                 return ToDisplayText(status);
+            if (allowedByAlwaysAllow && blockedBy == FilterGroup.DefaultAction)
+                return "Blocked, then allowed by Always allow";
 
             return blockedBy switch
             {
