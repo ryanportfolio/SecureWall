@@ -15,6 +15,9 @@ namespace pylorak.TinyWall.Prompting
             foreach (string mode in new[] { "/install", "/uninstall", "/msi-cleanup", "/msi-rollback-install", "/service" })
                 foreach (string arg in args)
                     if (string.Equals(arg, mode, StringComparison.OrdinalIgnoreCase)) return mode;
+            foreach (string mode in UpgradeLifecyclePolicy.Modes)
+                foreach (string arg in args)
+                    if (string.Equals(arg, mode, StringComparison.OrdinalIgnoreCase)) return mode;
             return "controller";
         }
 

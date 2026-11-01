@@ -3251,6 +3251,7 @@ namespace pylorak.TinyWall
             Exception? failure = null;
             try
             {
+                Installer.UpgradeFault.Trip("service-start-fail");
                 using (Server = new TinyWallServer(diagnostics))
                 {
                     Server.Run(this);

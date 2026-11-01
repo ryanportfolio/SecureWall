@@ -17,7 +17,7 @@ Every finding below must have a code change or explicit safe behavior that remov
 | SW7 | All activation entry points reject TinyWall coexistence | Shared activation guard, installer, program | Shared-guard tests and caller checks; elevated-controller VM case |
 | SW8 | LocalSystem cannot be registered from a user-writable payload tree | Installation path/ACL checks | Pure path/trust decisions and source wiring; VM ACL cases |
 | SW9 | MSI privileged cleanup is noninteractive and failure-aware | Program/Doctor/MSI custom actions | Installer contract checks; silent/full-UI rollback VM cases |
-| SW10 | Unsupported repair and in-place upgrade fail before side effects | MSI launch/execute conditions | XML contract tests; real MSI rejection tests |
+| SW10 | Unsupported repair and in-place upgrade fail before side effects (from v0.5.0: repair, equal version and downgrade only; see the note under "Deliberate behavior choices") | MSI launch/execute conditions | XML contract tests; real MSI rejection tests |
 | SW11 | Pipe server is authenticated before any credential/request is sent | Pipe client/server identity and self-tests | Pure identity decisions and hostile-server synthetic pipe test |
 | SW12 | Controller reconciles, expires and bounds prompts | Display coordinator/popup | Fake-clock expiry, replaced snapshot, overflow and paused UI tests |
 | SW13 | Remote AI requires HTTPS; actual payload matches disclosure | AI settings, transport and UI | URI/redirect/payload regressions; no paid/network call needed |
@@ -34,6 +34,8 @@ Every finding below must have a code change or explicit safe behavior that remov
 The persistent baseline contains restrictive filters. Runtime allowances belong to a dynamic WFP session and disappear when that session ends. This favors blocking traffic on service failure, including traffic previously allowed by saved exceptions, until the service restores policy. Baseline priority must remain below the live default-block filters in the same sublayer so promptable runtime IDs still identify normal drops.
 
 The current MSI cannot safely restore a removed prior version. This change rejects repair and in-place upgrades before mutation. Installing a later release requires explicit uninstall followed by a fresh installation until a separately tested transactional upgrade design exists. That limitation must be visible in release/recovery documentation.
+
+Superseded for upgrades from v0.5.0 on by `docs/plans/2026-11-01-in-place-upgrade-and-updater.md`: SW10 now covers only repair, modification, equal-version and downgrade refusal. v0.4.2 and older keep this section's behavior and need one explicit uninstall.
 
 Direct installation must use a protected payload directory; extracting a bundle to Downloads does not authorize running a LocalSystem service from that directory. MSI cleanup is a distinct privileged operation with no dialog in the system context. Ordinary interactive removal retains its user-facing confirmation path.
 

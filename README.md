@@ -16,7 +16,9 @@ Prerelease builds provide standard per-machine Windows installers:
 - `SecureWall_arm64.msi` for Windows on ARM.
 - `SecureWall_x86.msi` only for 32-bit Windows.
 
-The installer copies the complete runtime, installs and starts the LocalSystem service, and starts the tray controller for interactive installations. It refuses to install while TinyWall is present. Repair, modification and in-place upgrades are currently rejected; remove the old installation before installing a new build. Keep TinyWall active on your real machine while testing SecureWall in a disposable VM.
+The installer copies the complete runtime, installs and starts the LocalSystem service, and starts the tray controller for interactive installations. It refuses to install while TinyWall is present. Repair and modification are rejected.
+
+To upgrade from v0.5.0 or later, run the newer MSI for the same architecture at the computer's own keyboard and screen. Setup stops SecureWall, replaces its files in the same directory and starts the new version; rules, settings and the password are kept. All connections to other computers stay blocked until the new version starts, usually for less than a minute, and open connections drop. If anything fails, setup rolls back to the previous version and its policy; if that version then cannot start, connections stay blocked until a restart or `sc start SecureWall` from an elevated prompt. v0.4.2 and older cannot be upgraded in place: uninstall them in Settings > Apps first, then install the new version. That is a one-time step; [docs/SECURITY.md](docs/SECURITY.md#in-place-upgrade) has the details and the recovery steps. Keep TinyWall active on your real machine while testing SecureWall in a disposable VM.
 
 Alpha installers are unsigned. Windows may show an unknown-publisher warning. Verify the MSI against the release's `SHA256SUMS.txt` before running it. Real WFP, reboot, and audit-policy behavior remains unverified until the matrices in [docs/TESTING.md](docs/TESTING.md) and [docs/HARDENING-VALIDATION.md](docs/HARDENING-VALIDATION.md) are complete.
 

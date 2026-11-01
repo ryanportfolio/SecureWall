@@ -27,6 +27,15 @@
     <Copyright>Copyright © 2011 Károly Pados; SecureWall modifications © 2026 SecureWall contributors</Copyright>
     <Version>0.4.2</Version>
   </PropertyGroup>
+  <!-- In-place upgrade VM test build: Release code plus the fault points in
+       Installer/UpgradeFault.cs. The marked informational version lets the release
+       builder refuse it; tools/release/Build-SecureWallRelease.ps1 -Configuration
+       UpgradeFaultTest packages it apart from release artifacts. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'UpgradeFaultTest'">
+    <Optimize>true</Optimize>
+    <DefineConstants>$(DefineConstants);UPGRADE_FAULT_TEST</DefineConstants>
+    <InformationalVersion>$(Version)+upgrade-fault-test</InformationalVersion>
+  </PropertyGroup>
   <PropertyGroup>
     <ApplicationIcon>Resources\img\firewall.ico</ApplicationIcon>
   </PropertyGroup>

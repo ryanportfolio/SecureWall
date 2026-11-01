@@ -84,11 +84,91 @@ Assert-True ($installAction.Execute -eq 'deferred' -and $installAction.Return -e
 Assert-True ($installRollback.Execute -eq 'rollback' -and $installRollback.Impersonate -eq 'no' -and $installRollback.ExeCommand -eq '/msi-rollback-install') 'failed first install has a distinct SYSTEM rollback entry'
 Assert-True ($removeAction.Impersonate -eq 'no' -and $removeAction.ExeCommand -eq '/msi-cleanup') 'MSI cleanup uses LocalSystem noninteractive entry'
 Assert-True ($removeSequence.InnerText -eq 'Installed AND REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE') 'teardown only runs on explicit full removal'
-Assert-True ($removeSequence.Before -eq 'UnpublishFeatures') 'cleanup precedes both registry journal removal and file removal'
-Assert-True ($null -eq $wix.SelectSingleNode('//w:RemoveExistingProducts', $ns)) 'automatic old-product teardown is absent'
+Assert-True ($removeSequence.Before -eq 'UnpublishFeatures') 'cleanup precedes MSI registry value removal and file removal'
 Assert-True ($product.Contains('NOT Installed OR (REMOVE="ALL" AND NOT REINSTALL)')) 'launch condition rejects repair before transaction'
-Assert-True ($product.Contains('Installed OR (NOT OLDER_UPGRADEABLE_FOUND AND NOT SELF_FOUND')) 'launch condition rejects upgrades and equal-version replacement'
 Assert-True ($product.Contains('NOT EXISTINGSECUREWALLSERVICE AND SECUREWALLDELETEPENDING <> "#1"')) 'fresh MSI rejects existing and delete-pending service registrations'
+
+# In-place upgrade contract (docs/plans/2026-11-01-in-place-upgrade-and-updater.md,
+# replacing the SW10 "no in-place upgrade" assertions from v0.5.0 on).
+function Get-SequenceCondition {
+    param([string]$Action, [string]$Sequence = 'InstallExecuteSequence')
+    $node = $wix.SelectSingleNode("//w:$Sequence/w:Custom[@Action='$Action']", $ns)
+    if ($null -eq $node) { return $null }
+    return $node.InnerText.Trim()
+}
+$launchConditions = @($wix.SelectNodes('/w:Wix/w:Product/w:Condition', $ns) | ForEach-Object { $_.InnerText.Trim() })
+Assert-True ($product -match '<\?define OldestUpgradeableVersion="0\.5\.0" \?>') 'v0.5.0 is the oldest version upgradeable in place'
+Assert-True (($launchConditions | Where-Object { $_ -match 'UPGRADINGPRODUCTCODE' }).Count -eq 0) 'no launch condition refuses removal inside a newer package''s upgrade'
+$upgradeRows = @{}
+foreach ($row in $wix.SelectNodes('//w:Upgrade[@Id="{D257A00C-9D9B-4948-910F-5524F20819D0}"]/w:UpgradeVersion', $ns)) { $upgradeRows[$row.Property] = $row }
+$incompatible = $upgradeRows['OLDER_INCOMPATIBLE_FOUND']
+$upgradeable = $upgradeRows['OLDER_UPGRADEABLE_FOUND']
+$self = $upgradeRows['SELF_FOUND']
+$newer = $upgradeRows['NEWER_FOUND']
+Assert-True ($upgradeRows.Count -eq 4) 'Upgrade table has exactly the incompatible, upgradeable, equal and newer rows'
+Assert-True ($null -ne $incompatible -and $incompatible.OnlyDetect -eq 'yes' -and $incompatible.Maximum -eq '$(var.OldestUpgradeableVersion)' -and $incompatible.IncludeMaximum -eq 'no' -and -not $incompatible.Minimum) 'versions below the upgradeable floor are only detected'
+Assert-True ($null -ne $upgradeable -and $upgradeable.OnlyDetect -eq 'no' -and $upgradeable.MigrateFeatures -eq 'yes' -and $upgradeable.Minimum -eq '$(var.OldestUpgradeableVersion)' -and $upgradeable.IncludeMinimum -eq 'yes' -and $upgradeable.Maximum -eq '$(var.ProductVersion)' -and $upgradeable.IncludeMaximum -eq 'no') 'only the older upgradeable range is removed'
+Assert-True ($null -ne $self -and $self.OnlyDetect -eq 'yes' -and $self.Minimum -eq '$(var.ProductVersion)' -and $self.IncludeMinimum -eq 'yes' -and $self.Maximum -eq '$(var.ProductVersion)' -and $self.IncludeMaximum -eq 'yes') 'an equal version is only detected'
+Assert-True ($null -ne $newer -and $newer.OnlyDetect -eq 'yes' -and $newer.Minimum -eq '$(var.ProductVersion)' -and $newer.IncludeMinimum -eq 'no') 'a newer version is only detected'
+Assert-True ($launchConditions -contains 'Installed OR NOT SELF_FOUND') 'equal-version rebuild is refused before any action'
+Assert-True ($launchConditions -contains 'Installed OR (NOT OLDER_INCOMPATIBLE_FOUND AND NOT NEWER_FOUND)') 'downgrade and pre-0.5.0 installations are refused before any action'
+Assert-True ((Get-SequenceCondition 'FoundNewerVersion') -eq 'NEWER_FOUND' -and (Get-SequenceCondition 'FoundIncompatibleVersion') -eq 'OLDER_INCOMPATIBLE_FOUND') 'newer and incompatible products keep their specific errors'
+Assert-True ($project -match '<Version>\d+\.\d+\.\d+</Version>') 'product version has three fields, the ones Windows Installer compares'
+$rep = $wix.SelectSingleNode('//w:InstallExecuteSequence/w:RemoveExistingProducts', $ns)
+Assert-True ($null -ne $rep -and $rep.After -eq 'InstallInitialize' -and -not $rep.Before -and -not $rep.Sequence) 'old product removal shares the new installation''s transaction and rollback script'
+Assert-True ($launchConditions -contains 'Installed OR OLDER_UPGRADEABLE_FOUND OR (NOT EXISTINGSECUREWALLSERVICE AND SECUREWALLDELETEPENDING <> "#1")') 'existing service registration is allowed only for an upgradeable installation'
+Assert-True ($launchConditions -contains 'Installed OR SECUREWALLDELETEPENDING <> "#1"') 'a delete-pending service is refused for upgrades too'
+$upgradeDir = $wix.SelectSingleNode('//w:Property[@Id="UPGRADEINSTALLDIR"]/w:RegistrySearch', $ns)
+$upgradePlatform = $wix.SelectSingleNode('//w:Property[@Id="UPGRADEPLATFORM"]/w:RegistrySearch', $ns)
+Assert-True ($null -ne $upgradeDir -and $upgradeDir.Root -eq 'HKLM' -and $upgradeDir.Key -eq 'Software\SecureWall' -and $upgradeDir.Name -eq 'InstallDir' -and $upgradeDir.Win64 -eq '$(var.Win64)') 'upgrade reads the recorded INSTALLDIR in its own registry view'
+Assert-True ($null -ne $upgradePlatform -and $upgradePlatform.Name -eq 'Platform' -and $upgradePlatform.Win64 -eq '$(var.Win64)') 'upgrade reads the recorded package platform'
+$setDir = $wix.SelectSingleNode('//w:CustomAction[@Id="SetInstallDirFromRegistry"]', $ns)
+Assert-True ($null -ne $setDir -and $setDir.Property -eq 'INSTALLDIR' -and $setDir.Value -eq '[UPGRADEINSTALLDIR]') 'upgrade installs into the recorded directory'
+foreach ($sequence in 'InstallExecuteSequence', 'InstallUISequence') {
+    $node = $wix.SelectSingleNode("//w:$sequence/w:Custom[@Action='SetInstallDirFromRegistry']", $ns)
+    Assert-True ($null -ne $node -and $node.After -eq 'AppSearch' -and $node.InnerText.Trim() -eq 'OLDER_UPGRADEABLE_FOUND AND UPGRADEINSTALLDIR AND NOT Installed') "$sequence sets INSTALLDIR from the registry only for an upgrade, before costing"
+}
+Assert-True ($launchConditions -contains 'Installed OR NOT OLDER_UPGRADEABLE_FOUND OR (UPGRADEINSTALLDIR AND UPGRADEPLATFORM = "$(var.BuildArch)")') 'upgrade requires a recorded directory and the same package platform'
+
+$freshOnly = 'NOT Installed AND NOT OLDER_UPGRADEABLE_FOUND'
+Assert-True ((Get-SequenceCondition 'InstallCustom') -eq $freshOnly -and (Get-SequenceCondition 'InstallCustomRollback') -eq $freshOnly) 'first-install activation and its teardown rollback never run during an upgrade'
+$detect = $wix.SelectSingleNode('//w:CustomAction[@Id="StartControllerAndDetect"]', $ns)
+Assert-True ($detect.ExeCommand -eq '/autowhitelist' -and (Get-SequenceCondition 'StartControllerAndDetect') -eq "$freshOnly AND UILevel=5") 'autowhitelist runs only on a fresh full-UI install'
+$autowhitelistActions = @($wix.SelectNodes('//w:CustomAction[contains(@ExeCommand, "/autowhitelist")]', $ns))
+Assert-True ($autowhitelistActions.Count -eq 1 -and @($autowhitelistActions | Where-Object { (Get-SequenceCondition $_.Id) -notmatch 'NOT OLDER_UPGRADEABLE_FOUND' }).Count -eq 0) 'every /autowhitelist action excludes upgrades'
+$upgradeActions = @(
+    @{ Id = 'UpgradeStop'; Command = '/msi-upgrade-stop [UPGRADINGPRODUCTCODE]'; Execute = 'deferred'; Condition = 'Installed AND REMOVE="ALL" AND UPGRADINGPRODUCTCODE' },
+    @{ Id = 'UpgradeStopRollback'; Command = '/msi-upgrade-restore [UPGRADINGPRODUCTCODE]'; Execute = 'rollback'; Condition = 'Installed AND REMOVE="ALL" AND UPGRADINGPRODUCTCODE' },
+    @{ Id = 'UpgradeStart'; Command = '/msi-upgrade-start [ProductCode]'; Execute = 'deferred'; Condition = 'NOT Installed AND OLDER_UPGRADEABLE_FOUND' },
+    @{ Id = 'UpgradeStartRollback'; Command = '/msi-upgrade-abort [ProductCode]'; Execute = 'rollback'; Condition = 'NOT Installed AND OLDER_UPGRADEABLE_FOUND' },
+    @{ Id = 'UpgradeCommit'; Command = '/msi-upgrade-commit [ProductCode]'; Execute = 'commit'; Condition = 'NOT Installed AND OLDER_UPGRADEABLE_FOUND' }
+)
+foreach ($expected in $upgradeActions) {
+    $action = $wix.SelectSingleNode("//w:CustomAction[@Id='$($expected.Id)']", $ns)
+    Assert-True ($null -ne $action -and $action.FileKey -eq 'SecureWallEXE' -and $action.ExeCommand -eq $expected.Command -and $action.Execute -eq $expected.Execute -and $action.Impersonate -eq 'no') "$($expected.Id) runs $($expected.Command) as SYSTEM $($expected.Execute) action"
+    Assert-True ((Get-SequenceCondition $expected.Id) -eq $expected.Condition) "$($expected.Id) runs only on its side of an upgrade"
+}
+Assert-True ($wix.SelectSingleNode('//w:CustomAction[@Id="UpgradeStop"]', $ns).Return -eq 'check' -and $wix.SelectSingleNode('//w:CustomAction[@Id="UpgradeStart"]', $ns).Return -eq 'check') 'a failed stop or start rolls the upgrade back'
+Assert-True ($wix.SelectSingleNode('//w:InstallExecuteSequence/w:Custom[@Action="UpgradeStopRollback"]', $ns).Before -eq 'UpgradeStop' -and $wix.SelectSingleNode('//w:InstallExecuteSequence/w:Custom[@Action="UpgradeStartRollback"]', $ns).Before -eq 'UpgradeStart') 'each upgrade rollback twin is registered before its step'
+Assert-True ($wix.SelectSingleNode('//w:InstallExecuteSequence/w:Custom[@Action="UpgradeStop"]', $ns).Before -eq 'UninstallCustomRollback') 'old package stops itself before its files and registry values are removed'
+Assert-True ($wix.SelectSingleNode('//w:InstallExecuteSequence/w:Custom[@Action="UpgradeStart"]', $ns).Before -eq 'InstallCustomRollback') 'new package starts itself after its files and registry values are installed'
+$startController = $wix.SelectSingleNode('//w:CustomAction[@Id="StartController"]', $ns)
+Assert-True ($startController.ExeCommand -eq '' -and $startController.Execute -eq 'commit' -and -not $startController.Impersonate -and (Get-SequenceCondition 'StartController') -eq 'NOT Installed AND OLDER_UPGRADEABLE_FOUND AND UILevel=5' -and $wix.SelectSingleNode('//w:InstallExecuteSequence/w:Custom[@Action="UpgradeCommit"]', $ns).Before -eq 'StartController') 'upgrade restarts the installing user''s tray without autowhitelist after the commit step'
+$registryKey = $wix.SelectSingleNode('//w:Component[@Id="RegistryKeys"]/w:RegistryKey', $ns)
+Assert-True ($null -ne $registryKey -and $registryKey.Key -eq 'Software\SecureWall' -and -not $registryKey.ForceDeleteOnUninstall -and -not $registryKey.Action) 'MSI never deletes HKLM\Software\SecureWall, which holds the recovery journals'
+$registryValues = @{}
+foreach ($value in $registryKey.SelectNodes('w:RegistryValue', $ns)) { $registryValues[$value.Name] = $value.Value }
+Assert-True ($registryValues.Count -eq 2 -and $registryValues['InstallDir'] -eq '[INSTALLDIR]' -and $registryValues['Platform'] -eq '$(var.BuildArch)') 'MSI owns only the InstallDir and Platform values'
+Assert-True ($null -eq $wix.SelectSingleNode('//*[@ForceDeleteOnUninstall="yes"]', $ns)) 'no MSI registry key is force-deleted on uninstall'
+$wixProject = Read-RepoFile 'MsiSetup\MsiSetup.wixproj'
+Assert-True ($product -match '(?s)<\?ifdef PreUpgradeVersion \?>\s*<\?undef OldestUpgradeableVersion \?>\s*<\?define OldestUpgradeableVersion="\$\(var\.PreUpgradeVersion\)" \?>' -and $product -match "(?s)<\?ifndef PreUpgradeVersion \?>\s*<UpgradeVersion OnlyDetect='no' MigrateFeatures='yes' Property='OLDER_UPGRADEABLE_FOUND'.*?/>\s*<\?endif \?>" -and $wixProject -match "VersionLessThanOrEquals\('\`$\(SecureWallVersion\)', '0\.5\.0'\)") 'builds at or below 0.5.0, v0.5.0 included, keep a valid Upgrade table with no upgradeable range'
+
+# Fault injection for the upgrade VM cases lives only in the UpgradeFaultTest configuration.
+Assert-True ($product -match '(?s)<\?ifdef UpgradeFaultTest \?>\s*<!--.*?-->\s*<Property Id="SECUREWALLUPGRADEFAULTTEST" Value="1" />\s*<\?endif \?>') 'fault-test packages carry a property release checks can refuse'
+Assert-True ($wixProject -match "(?s)Condition="" '\`$\(Configuration\)' == 'UpgradeFaultTest' "">\s*<DefineConstants>UpgradeFaultTest</DefineConstants>") 'only the UpgradeFaultTest installer configuration defines the fault property'
+Assert-True ($project -match "(?s)<PropertyGroup Condition=""'\`$\(Configuration\)' == 'UpgradeFaultTest'"">.*?UPGRADE_FAULT_TEST.*?\+upgrade-fault-test</InformationalVersion>" -and ([regex]::Matches($project, 'UPGRADE_FAULT_TEST')).Count -eq 1) 'only the UpgradeFaultTest application configuration compiles fault points and marks its version'
+$faultSource = Read-RepoFile 'TinyWall\Installer\UpgradeFault.cs'
+Assert-True ($faultSource -match '\[Conditional\("UPGRADE_FAULT_TEST"\)\]' -and $faultSource -match '(?s)static void Trip\(string point\)\s*\{\s*#if UPGRADE_FAULT_TEST') 'other builds drop every fault call and the fault body'
 Assert-True ($product -match 'Name="DeleteFlag" Type="raw"' -and $product.Contains('SECUREWALLDELETEPENDING <> "#1"')) 'MSI recognizes raw DWORD delete-pending flag and requires completed deletion before reinstall'
 Assert-True ($product.Contains('Close Services and other service-management tools, or restart Windows')) 'pending service deletion has an actionable installer message'
 Assert-True ($product.Contains('NOT RollbackDisabled')) 'launch condition rejects disabled rollback'
@@ -101,6 +181,11 @@ $firewall = Read-RepoFile 'TinyWall\WindowsFirewall.cs'
 $program = Read-RepoFile 'TinyWall\Program.cs'
 Assert-True ($program.Contains('RollbackFailedInstallForMsi()') -and $program.Contains('/msi-rollback-install')) 'Program routes failed-install rollback to dedicated lifecycle'
 Assert-True ($doctor.Contains('UninstallForMsi() => CleanupForMsi(false)') -and $doctor.Contains('RollbackFailedInstallForMsi() => CleanupForMsi(true)')) 'only failed-install rollback enables forced service recovery'
+Assert-True ($doctor -match '(?s)ProtectionReleasePolicy\.Release\(.*?RemoveProductRegistry\(\);\s*return released \? 0 : -1;') 'explicit removal deletes the product key last, after the journals were restored'
+foreach ($mode in 'StopMode', 'RestoreMode', 'StartMode', 'AbortMode', 'CommitMode') {
+    Assert-True ($program.Contains("RunUpgradeStep(args, UpgradeLifecyclePolicy.$mode, TinyWallDoctor.Upgrade")) "Program dispatches upgrade step $mode"
+}
+Assert-True ($doctor -match '(?s)internal static bool EnsureServiceInstalledAndRunning\(.*?UpgradeLifecyclePolicy\.BlocksStart\(UpgradeMarker\.Read\(\), UpgradeMarker\.InstallerRunning\(\), upgradeTransaction\).*?if \(mayInstall\)') 'controller repair and /install refuse to start the service during an upgrade'
 Assert-True ($doctor.Contains('ServiceLifecyclePolicy.StartupTimeout')) 'activation uses shared startup allowance'
 Assert-True ($safety -match '(?s)using var process = OpenProcess.*?IsRollbackProcess.*?SetStartupMode.*?TerminateProcess\(process.*?WaitForSingleObject\(process') 'rollback authenticates and retains exact process handle through restart suppression and exit wait'
 Assert-True ($firewall -match '(?s)AcquireForRules\(ReadRuleIdentities\(policy\).*?OpenRecoveryKey\(\).*?NotificationsDisabled\[profile\] = true') 'production collection acquisition preflights foreign names before journal or firewall mutation'
@@ -174,6 +259,7 @@ Assert-True ($guardCatch -match 'Console\.Error\.WriteLine\(diagnostic\)' -and $
 Assert-True ($guardCatch -notmatch 'Utils\.(AppDataPath|Log|LogException)\b|File\.(Write|Copy|Move|Delete|Create)|Directory\.Create') 'guard rejection performs no file logging or machine-data writes'
 Assert-True ($guardCatch -match 'if \(!maintenance\) Utils.ShowControllerFailure\(diagnostic\);' -and @('/install', '/uninstall', '/msi-cleanup', '/msi-rollback-install', '/service').Where({ -not $guardCatch.Contains('"' + $_ + '"') }).Count -eq 0) 'guard failure dialog excludes every maintenance and service entry mode'
 Assert-True ($guardCatch -match '(?s)"/msi-cleanup"\)\)\s*return TinyWallDoctor.ReleaseForMsiWithRejectedMachineData\(false\);.*?"/msi-rollback-install"\)\)\s*return TinyWallDoctor.ReleaseForMsiWithRejectedMachineData\(true\);' -and $guardCatch -notmatch '"/(uninstall|service)"\)\)\s*return TinyWallDoctor') 'only SYSTEM MSI removal and failed-install rollback reach emergency release after guard rejection'
+Assert-True ($guardCatch -match 'IsUpgradeStep\(args\);' -and $guardCatch -match '(?s)UpgradeLifecyclePolicy\.AbortMode\)\)\s*return RunUpgradeStep\(args, UpgradeLifecyclePolicy\.AbortMode, TinyWallDoctor\.UpgradeAbortForMsi\);') 'upgrade steps open no dialog on guard failure; only upgrade rollback still stops the upgraded service'
 Assert-True ($utils -match '(?s)SpecialFolder.CommonApplicationData.*?MachineDataGuard.Require\(\);\s*return dir;') 'production AppDataPath access enters shared guard'
 $shippedPolicy = Read-RepoFile 'TinyWall\Prompting\ShippedDataPolicy.cs'
 Assert-True ($machineData -match '(?s)void InstallDefaults\(\)\s*\{\s*Require\(true, true\);.*?"data-defaults".*?foreach \(string name in ShippedDataPolicy.Names\).*?Require\(\);.*?ShippedDataPolicy.Refresh\(source, PathName, name\);.*?Require\(false, true\);') 'default refresh validates full tree first, refreshes shipped data only, then revalidates'
@@ -252,12 +338,20 @@ Assert-True ($builder -match 'ValidateSet\(''x86'', ''x64'', ''arm64''\)') 'rele
 Assert-True ($builder -match 'SHA256SUMS\.txt') 'release builder emits SHA-256 manifest'
 Assert-True ($builder -match '\[switch\]\$SuppressValidation') 'release builder exposes explicit sandbox ICE bypass'
 Assert-True ($builder -notmatch '(?im)^\s*(Start-Process\s+msiexec|&\s*msiexec|msiexec\.exe)') 'release builder never installs generated MSI files'
+Assert-True ($builder -match "upgrade-fault-test" -and $builder -match '\$isFaultBuild -ne \(\$Configuration -eq ''UpgradeFaultTest''\)') 'release builder refuses a fault-test executable outside the UpgradeFaultTest configuration'
+Assert-True ($builder -match "(?s)if \(\`$Configuration -eq 'UpgradeFaultTest'\) \{\s*Join-Path \`$repoRoot 'artifacts\\upgrade-fault-test'") 'fault-test packages never land in artifacts\release by default'
 
 $releaseWorkflow = Read-RepoFile '.github\workflows\release.yml'
 Assert-True ($releaseWorkflow -match 'contents:\s*write') 'release workflow grants upload job write access'
 Assert-True ($releaseWorkflow -match 'Build-SecureWallRelease\.ps1') 'release workflow uses repository release builder'
 Assert-True ($releaseWorkflow -match 'SHA256SUMS\.txt') 'release workflow publishes hash manifest'
 Assert-True ($releaseWorkflow -notmatch 'SuppressValidation') 'release workflow never bypasses MSI ICE validation'
+$ciWorkflow = Read-RepoFile '.github\workflows\ci.yml'
+Assert-True ($releaseWorkflow -notmatch 'UpgradeFaultTest' -and $ciWorkflow -notmatch 'UpgradeFaultTest') 'release and CI workflows never build the fault-test configuration'
+$stagedExecutable = Join-Path $repoRoot 'MsiSetup\Sources\ProgramFiles\SecureWall\SecureWall.exe'
+if (Test-Path -LiteralPath $stagedExecutable -PathType Leaf) {
+    Assert-True ((Get-Item -LiteralPath $stagedExecutable).VersionInfo.ProductVersion -notmatch 'upgrade-fault-test') 'staged installer payload is not a fault-test build'
+}
 
 if ($ArtifactsDirectory) {
     $artifactRoot = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $ArtifactsDirectory))
@@ -288,6 +382,7 @@ if ($ArtifactsDirectory) {
             Assert-True ((Get-MsiProperty $installer $msiPath 'ProductName') -eq 'SecureWall') "$name ProductName is SecureWall"
             Assert-True ((Get-MsiProperty $installer $msiPath 'ProductVersion') -eq '0.4.2.0') "$name ProductVersion is 0.4.2.0"
             Assert-True ((Get-MsiProperty $installer $msiPath 'ALLUSERS') -eq '1') "$name is per-machine"
+            Assert-True ($null -eq (Get-MsiProperty $installer $msiPath 'SECUREWALLUPGRADEFAULTTEST')) "$name is not an upgrade fault-test package"
         }
     }
 }
