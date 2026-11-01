@@ -16,8 +16,11 @@ param(
 
     # CI builds the packages as a later version so ICE validates the
     # Upgrade row that builds at or below 0.5.0 leave out. Those packages go
-    # to artifacts\version-check and are never attached to a release.
-    [ValidatePattern('^\d+\.\d+\.\d+$')]
+    # to artifacts\version-check and are never attached to a release. The
+    # shared outputs in TinyWall\bin, MsiSetup\Sources and MsiSetup\bin keep
+    # this version until the next build without it; the bundle builders in
+    # tools\manual and tools\vm refuse such an executable.
+    [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+\z')]
     [string]$ValidationVersion
 )
 
@@ -56,6 +59,11 @@ $OutputDirectory = [System.IO.Path]::GetFullPath($OutputDirectory)
 if ($ValidationVersion -and
     $OutputDirectory.TrimEnd('\') -eq [System.IO.Path]::GetFullPath((Join-Path $repoRoot 'artifacts\release')).TrimEnd('\')) {
     throw '-ValidationVersion packages must not be written to artifacts\release.'
+}
+# MsiSetup.wixproj leaves out the Upgrade row at or below 0.5.0, so such a
+# version would validate nothing this switch exists for.
+if ($ValidationVersion -and [version]$ValidationVersion -le [version]'0.5.0') {
+    throw '-ValidationVersion must be above 0.5.0; builds at or below it have no upgradeable row to validate.'
 }
 if ($ValidationVersion -and $SuppressValidation) {
     throw '-ValidationVersion exists for ICE validation; do not combine it with -SuppressValidation.'
