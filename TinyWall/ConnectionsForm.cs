@@ -52,6 +52,8 @@ namespace pylorak.TinyWall
             this.Close();
         }
 
+        private readonly DnsCacheNames DnsNames = new();
+
         private static string GetPathFromPidCached(Dictionary<uint, string> cache, uint pid)
         {
             if (cache.TryGetValue(pid, out string path))
@@ -72,6 +74,7 @@ namespace pylorak.TinyWall
             }
 
             IconScanner.CancelScan();
+            DnsNames.RefreshIfStale();
             var fwLogRequest = GlobalInstances.Controller.BeginReadFwLog();
 
             var packageList = new UwpPackageList();
@@ -155,7 +158,8 @@ namespace pylorak.TinyWall
 
                 foreach (var e in fwLog)
                 {
-                    if (e.AppPath is null) continue;
+                    // The service names the process for blocks it matched to a Security-log event.
+                    if (e.AppPath is null || e.ProcessId != 0) continue;
 
                     var key = e.AppPath.ToLowerInvariant();
                     if (!ProcessPathInfoMap.ContainsKey(key))
@@ -332,7 +336,8 @@ namespace pylorak.TinyWall
                 li.SubItems.Add(localEP.Port.ToString(CultureInfo.InvariantCulture).PadLeft(5));
                 li.SubItems.Add(localEP.Address.ToString());
                 li.SubItems.Add(remoteEP.Port.ToString(CultureInfo.InvariantCulture).PadLeft(5));
-                li.SubItems.Add(remoteEP.Address.ToString());
+                string? host = DnsNames.Lookup(remoteEP.Address);
+                li.SubItems.Add(host == null ? remoteEP.Address.ToString() : $"{remoteEP.Address} ({host})");
                 li.SubItems.Add(state);
                 switch (dir)
                 {
@@ -522,10 +527,13 @@ namespace pylorak.TinyWall
             Controller.WhitelistProcesses(selection);
         }
 
+        // The remote address cell can end with " (host name)"; actions use the address alone.
+        private static string RemoteAddressOf(ListViewItem li) => li.SubItems[6].Text.Split(' ')[0];
+
         private void mnuCopyRemoteAddress_Click(object sender, EventArgs e)
         {
             ListViewItem li = list.SelectedItems[0];
-            string clipboardData = li.SubItems[6].Text;
+            string clipboardData = RemoteAddressOf(li);
 
             var dataObject = new DataObject();
             dataObject.SetData(DataFormats.UnicodeText, false, clipboardData);
@@ -581,7 +589,7 @@ namespace pylorak.TinyWall
                 ListViewItem li = list.SelectedItems[0];
 
                 const string urlTemplate = @"www.google.com/search?q={0}";
-                string address = li.SubItems[6].Text;
+                string address = RemoteAddressOf(li);
                 string url = string.Format(CultureInfo.InvariantCulture, urlTemplate, address);
                 Utils.StartProcessAndForget(url, string.Empty, false);
             }

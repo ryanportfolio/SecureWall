@@ -40,7 +40,7 @@ Do not run this matrix on the development host. Use an expendable Windows VM wit
 | Case | Expected result |
 |---|---|
 | Unknown executable makes outbound TCP connection | One bottom-right prompt; connection stays blocked until Allow |
-| Network Activity live view | Fresh install shows allowed, blocked, active, and listening filters; rows refresh within about one second |
+| Network Activity live view | Fresh install shows allowed, blocked, active, and listening filters; rows refresh within about one second. A blocked `svchost.exe` row (default deny or raw socket) shows its PID and, in the Services column, the services in that process; a remote address a program looked up shows its host name in brackets within 30 seconds; Copy remote address and the web search copy the address alone |
 | Network Activity beside Manage | Both windows open and usable at once, and a prompt popup still takes clicks; unblock an app from Network Activity, then press OK in Manage after also changing the theme and the password: the save is refused with the retry warning, the new rule stays, and the theme and password are unchanged. Close Network Activity before pressing OK in an unrefused Manage: its window size and columns are kept. Click the popup while Manage is in front, then press Space and Alt+F4: the popup stays unanswered |
 | Allowed / blocked evidence | WFP permit is labeled Allowed; WFP drop is labeled Blocked; app/service, protocol, endpoints, direction, and timestamp are visible |
 | Local listener | TCP/UDP endpoint is labeled Listening (local endpoint); UI does not claim external reachability |

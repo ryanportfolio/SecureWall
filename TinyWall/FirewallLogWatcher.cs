@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.Eventing.Reader;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Xml.Linq;
@@ -11,6 +12,11 @@ using pylorak.Windows;
 
 namespace pylorak.TinyWall
 {
+    // A blocked connection (5157) or bind (5159) from the Security log. RemotePort is null
+    // for a bind, which has no remote endpoint.
+    internal sealed record ActivityAudit(DateTimeOffset TimestampUtc, uint ProcessId, string ApplicationPath,
+        byte Protocol, int LocalPort, int? RemotePort, ulong FilterRuntimeId);
+
     internal sealed class FirewallLogWatcher : Disposable
     {
         private static readonly Guid ConnectionLoggingAuditSubcategory =
@@ -26,6 +32,9 @@ namespace pylorak.TinyWall
 
         internal delegate void BlockedConnectionDelegate(FirewallLogWatcher sender, BlockedConnectionAuditEvent blockedConnection);
         internal event BlockedConnectionDelegate? BlockedConnection;
+        internal delegate void ActivityAuditDelegate(FirewallLogWatcher sender, ActivityAudit audit);
+        // Every blocked connection or bind, for naming the process behind a Network Activity row.
+        internal event ActivityAuditDelegate? ActivityAudited;
 
         private readonly Action<RuntimeEvent, RuntimeResult, int>? diagnostic;
         private int subscriptionHResult;
@@ -60,8 +69,9 @@ namespace pylorak.TinyWall
             Report(RuntimeEvent.audit_subscribe, RuntimeResult.attempt);
             try
             {
-                // Prompt attribution reads only 5157 (connection blocked by WFP).
-                var query = new EventLogQuery("Security", PathType.LogName, "*[System[(EventID=5157)]]");
+                // Prompt attribution reads only 5157 (connection blocked by WFP). Network Activity
+                // also uses 5159 (bind blocked, including raw sockets) to name the blocking process.
+                var query = new EventLogQuery("Security", PathType.LogName, "*[System[(EventID=5157 or EventID=5159)]]");
                 var watcher = new EventLogWatcher(query);
                 if (!_lifetime.Attach(watcher)) { watcher.Dispose(); return; }
                 _logWatcher = watcher;
@@ -137,7 +147,17 @@ namespace pylorak.TinyWall
                     SecurityEvent5157Parser.TryParse(fields, timestamp.ToUniversalTime(), out BlockedConnectionAuditEvent parsed))
                 {
                     BlockedConnectionAuditEvent normalized = Normalize(parsed);
-                    if (_lifetime.Accept(sender) && AuditEnrichmentAvailable) BlockedConnection?.Invoke(this, normalized);
+                    if (_lifetime.Accept(sender) && AuditEnrichmentAvailable)
+                    {
+                        BlockedConnection?.Invoke(this, normalized);
+                        ActivityAudited?.Invoke(this, new ActivityAudit(normalized.TimestampUtc, normalized.ProcessId,
+                            normalized.ApplicationPath, normalized.Protocol, normalized.LocalPort, normalized.RemotePort,
+                            normalized.FilterRuntimeId));
+                    }
+                }
+                else if (record.Id == 5159 && TryParseBind(fields, timestamp.ToUniversalTime(), out ActivityAudit? bind))
+                {
+                    if (_lifetime.Accept(sender) && AuditEnrichmentAvailable) ActivityAudited?.Invoke(this, bind!);
                 }
             }
             catch (Exception exception)
@@ -165,6 +185,24 @@ namespace pylorak.TinyWall
             }
 
             return fields;
+        }
+
+        // 5159: a bind blocked by WFP. It has no remote endpoint or direction.
+        private static bool TryParseBind(IReadOnlyDictionary<string, string> fields, DateTimeOffset timestampUtc, out ActivityAudit? parsed)
+        {
+            parsed = null;
+            if (!fields.TryGetValue("ProcessId", out string? processText) ||
+                !uint.TryParse(processText, NumberStyles.None, CultureInfo.InvariantCulture, out uint processId) ||
+                !fields.TryGetValue("Application", out string? application) || string.IsNullOrWhiteSpace(application) ||
+                !fields.TryGetValue("SourcePort", out string? portText) ||
+                !int.TryParse(portText, NumberStyles.None, CultureInfo.InvariantCulture, out int localPort) ||
+                !fields.TryGetValue("Protocol", out string? protocolText) ||
+                !byte.TryParse(protocolText, NumberStyles.None, CultureInfo.InvariantCulture, out byte protocol) ||
+                !fields.TryGetValue("FilterRTID", out string? filterText) ||
+                !ulong.TryParse(filterText, NumberStyles.None, CultureInfo.InvariantCulture, out ulong filterRuntimeId))
+                return false;
+            parsed = new ActivityAudit(timestampUtc, processId, NormalizePath(application!), protocol, localPort, null, filterRuntimeId);
+            return true;
         }
 
         private static BlockedConnectionAuditEvent Normalize(BlockedConnectionAuditEvent parsed)

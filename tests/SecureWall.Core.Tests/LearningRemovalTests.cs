@@ -103,7 +103,7 @@ internal static class LearningRemovalTests
     private static void Event5157StillFeedsPromptAttribution()
     {
         string watcher = PromptTransactionIntegrationTests.Source("TinyWall/FirewallLogWatcher.cs");
-        AssertEx.True(watcher.Contains("\"*[System[(EventID=5157)]]\""));
+        AssertEx.True(watcher.Contains("\"*[System[(EventID=5157 or EventID=5159)]]\""));
         AssertEx.True(watcher.Contains("SecurityEvent5157Parser.TryParse(fields, timestamp.ToUniversalTime(), out BlockedConnectionAuditEvent parsed)"));
         AssertEx.True(watcher.Contains("BlockedConnection?.Invoke(this, normalized);"));
         string service = PromptTransactionIntegrationTests.Source("TinyWall/TinyWallService.cs");

@@ -2310,6 +2310,7 @@ namespace pylorak.TinyWall
                     PasswordLock.Locked = true;
 
                 LogWatcher.BlockedConnection += LogWatcherBlockedConnection;
+                LogWatcher.ActivityAudited += LogWatcherActivityAudited;
                 minuteTimer = new Timer(new TimerCallback(TimerCallback), null, Timeout.Infinite, Timeout.Infinite);
                 promptCandidateTimer = new Timer(
                     new TimerCallback(PromptCandidateTimerCallback),
@@ -2333,6 +2334,7 @@ namespace pylorak.TinyWall
                 minuteTimer?.Dispose();
                 promptCandidateTimer?.Dispose();
                 LogWatcher.BlockedConnection -= LogWatcherBlockedConnection;
+                LogWatcher.ActivityAudited -= LogWatcherActivityAudited;
                 LogWatcher.Dispose();
                 FileLocker.UnlockAll();
                 throw;
@@ -2568,6 +2570,8 @@ namespace pylorak.TinyWall
 
                 lock (FirewallLogEntries)
                 {
+                    if (eventType == EventLogEvent.BLOCKED)
+                        AttributeFromPendingAudit(entry);
                     FirewallLogEntries.Enqueue(entry);
                 }
 
@@ -2606,6 +2610,53 @@ namespace pylorak.TinyWall
                 Utils.LogException(exception, Utils.LOG_ID_SERVICE);
             }
         }
+
+        // Security-log events for blocks the WFP net event already logged, or is about to log.
+        // WFP net events carry no process ID, so a matching audit event is what lets Network
+        // Activity name the process (and so the services) behind a blocked row. Guarded by
+        // the FirewallLogEntries lock.
+        private readonly List<ActivityAudit> PendingActivityAudits = new();
+
+        private void LogWatcherActivityAudited(FirewallLogWatcher sender, ActivityAudit audit)
+        {
+            if (RuntimeStopping || audit.ProcessId == 0) return;
+            lock (FirewallLogEntries)
+            {
+                foreach (FirewallLogEntry entry in FirewallLogEntries)
+                {
+                    if (entry.ProcessId == 0 && entry.Event == EventLogEvent.BLOCKED && AuditMatches(audit, entry))
+                    {
+                        entry.ProcessId = audit.ProcessId;
+                        return;
+                    }
+                }
+                // The net event has not arrived yet: keep the audit briefly for it.
+                if (PendingActivityAudits.Count >= 64)
+                    PendingActivityAudits.RemoveAt(0);
+                PendingActivityAudits.Add(audit);
+            }
+        }
+
+        private void AttributeFromPendingAudit(FirewallLogEntry entry)
+        {
+            for (int i = 0; i < PendingActivityAudits.Count; ++i)
+            {
+                if (AuditMatches(PendingActivityAudits[i], entry))
+                {
+                    entry.ProcessId = PendingActivityAudits[i].ProcessId;
+                    PendingActivityAudits.RemoveAt(i);
+                    return;
+                }
+            }
+        }
+
+        private static bool AuditMatches(ActivityAudit audit, FirewallLogEntry entry) =>
+            audit.FilterRuntimeId == entry.FilterRuntimeId &&
+            audit.Protocol == (byte)entry.Protocol &&
+            audit.LocalPort == entry.LocalPort &&
+            (audit.RemotePort == null || audit.RemotePort == entry.RemotePort) &&
+            string.Equals(audit.ApplicationPath, entry.AppPath, StringComparison.OrdinalIgnoreCase) &&
+            Math.Abs((audit.TimestampUtc - new DateTimeOffset(entry.Timestamp).ToUniversalTime()).TotalSeconds) <= 5;
 
         private void LogWatcherBlockedConnection(
             FirewallLogWatcher sender,
@@ -2995,6 +3046,7 @@ namespace pylorak.TinyWall
             GatewayFilterConditions.Dispose();
             DnsFilterConditions.Dispose();
             LogWatcher.BlockedConnection -= LogWatcherBlockedConnection;
+            LogWatcher.ActivityAudited -= LogWatcherActivityAudited;
             LogWatcher.Dispose();
             HostsFileManager.Dispose();
             FileLocker.UnlockAll();
