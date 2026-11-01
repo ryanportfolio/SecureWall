@@ -36,7 +36,8 @@ SecureWall has no update feed: the TinyWall updater, its Settings button and the
 - TinyWall's Learning (Autolearn) mode is removed; these prompts replace it. A saved or imported configuration that names Learning starts in Normal mode. Exceptions learned by earlier builds stay until you delete them.
 - Only outbound drops caused by SecureWall's default-block filters may produce prompts.
 - **Allow outgoing** creates a permanent outbound TCP/UDP exception for the service-owned subject represented by the prompt token.
-- **Ignore**, closing the prompt, or prompt expiry leaves policy unchanged.
+- **Ignore** adds the app to the Ignored list in the saved profile (Manage, Ignored), so its later blocks do not prompt. The entry adds no WFP filter and grants no traffic; the app stays blocked. While SecureWall is locked, Ignore asks for the password; a cancel or wrong password adds nothing and only stops prompts for that app for five minutes.
+- Closing the prompt or prompt expiry leaves policy unchanged.
 - Explicit user blocks, blocklists, inbound drops, and ambiguous shared-service identities are never converted into broad allow rules.
 - A service whose SID type is NONE, or a program the service inventory cannot rule out as a service, is shown with Allow disabled and the reason; see [docs/SECURITY.md](docs/SECURITY.md).
 - The optional AI **?** lookup is off by default. Turning it on (SecureWall must be unlocked) adds a Normal-mode permit for `SecureWall.exe` limited to outbound TCP port 443 from signed-in (interactive) accounts; the LocalSystem service never matches it. Do not add a manual exception for `SecureWall.exe`: that would also cover the service. The endpoint must use HTTPS port 443; other ports and a system proxy on another port are not supported. Answers are labeled AI-generated, size-capped, and never change policy.
