@@ -380,8 +380,8 @@ namespace pylorak.TinyWall.Prompting
             IPromptView view = _currentView;
             if (!_actionsInFlight.Add(token)) return;
             PromptActionStatus status = await PerformAction(() => remember ? _actions.Ignore(token) : _actions.Dismiss(token));
-            bool unlockAsked = false;
-            if (remember && status == PromptActionStatus.Locked)
+            bool lockedIgnore = remember && status == PromptActionStatus.Locked;
+            if (lockedIgnore)
             {
                 // Saving to the Ignored list needs the password, so Ignore unlocks, retries and
                 // relocks the way Allow does. A cancelled or failed unlock falls back to a plain
@@ -389,7 +389,6 @@ namespace pylorak.TinyWall.Prompting
                 bool relock = false;
                 if (IsCurrent(token, view) && _current!.ExpiresUtc > _utcNow())
                 {
-                    unlockAsked = true;
                     PromptUnlockResult unlock = TryUnlock();
                     relock = unlock != PromptUnlockResult.AlreadyUnlocked;
                     if (unlock != PromptUnlockResult.NotUnlocked && IsCurrent(token, view) &&
@@ -418,9 +417,9 @@ namespace pylorak.TinyWall.Prompting
                 _currentView!.ShowActionFailure(status);
                 return;
             }
-            // The owner gave the password to save this Ignore. If the prompt closed or expired
-            // first, nothing was saved: keep it reachable from the missed list, as Allow does.
-            if (unlockAsked && status != PromptActionStatus.Dismissed)
+            // A locked Ignore that was neither saved nor dismissed, because the prompt closed or
+            // expired first, left the prompt unanswered: keep it in the missed list, as Allow does.
+            if (lockedIgnore && status != PromptActionStatus.Dismissed)
             {
                 RecordMissed(prompt);
                 NotifyMissed();
