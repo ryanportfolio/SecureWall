@@ -109,7 +109,7 @@ namespace pylorak.TinyWall.Prompting
             CancellationToken token = _aiCts.Token;
 
             string baseUrl = cfg.AiExplainBaseUrl;
-            string model = AiExplainSettings.EffectiveModel(cfg.AiExplainModel);
+            string model = AiExplainSettings.EffectiveModel(cfg.AiExplainModel, cfg.AiExplainModelSaved);
             bool includeRemote = cfg.AiExplainIncludeRemoteEndpoint;
 
             try

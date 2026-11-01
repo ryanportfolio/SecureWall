@@ -305,22 +305,34 @@ namespace SecureWall.Core.Tests
         private static void StoredModelFollowsDefaultUnlessUserChoseOne()
         {
             const string sol = AiExplainSettings.DefaultModel;
-            AssertEx.Equal(sol, AiExplainSettings.EffectiveModel(null));
-            AssertEx.Equal(sol, AiExplainSettings.EffectiveModel("  "));
-            AssertEx.Equal(sol, AiExplainSettings.EffectiveModel("gpt-4o-mini"), "The retired default moves to the new one.");
-            AssertEx.Equal(sol, AiExplainSettings.EffectiveModel(" gpt-4o-mini "));
-            AssertEx.Equal("gpt-4o", AiExplainSettings.EffectiveModel("gpt-4o"), "A model the user typed is kept.");
-            AssertEx.Equal("llama3.1:8b", AiExplainSettings.EffectiveModel(" llama3.1:8b "));
+            foreach (bool saved in new[] { false, true })
+            {
+                AssertEx.Equal(sol, AiExplainSettings.EffectiveModel(null, saved));
+                AssertEx.Equal(sol, AiExplainSettings.EffectiveModel("  ", saved));
+                AssertEx.Equal("gpt-4o", AiExplainSettings.EffectiveModel("gpt-4o", saved), "A model the user typed is kept.");
+                AssertEx.Equal("llama3.1:8b", AiExplainSettings.EffectiveModel(" llama3.1:8b ", saved));
+            }
+
+            // Older configs saved the form's shown default verbatim; the current form marks its saves.
+            AssertEx.Equal(sol, AiExplainSettings.EffectiveModel("gpt-4o-mini", false), "The retired default moves to the new one.");
+            AssertEx.Equal(sol, AiExplainSettings.EffectiveModel(" gpt-4o-mini ", false));
+            AssertEx.Equal("gpt-4o-mini", AiExplainSettings.EffectiveModel("gpt-4o-mini", true),
+                "gpt-4o-mini saved by the current form is the user's choice.");
 
             AssertEx.Equal(string.Empty, AiExplainSettings.ModelToStore(sol), "The default is stored as empty.");
             AssertEx.Equal(string.Empty, AiExplainSettings.ModelToStore(" " + sol + " "));
             AssertEx.Equal("gpt-4o", AiExplainSettings.ModelToStore(" gpt-4o "));
 
             string form = PromptTransactionIntegrationTests.Source("TinyWall/AiExplainSettingsForm.cs");
-            AssertEx.True(form.Contains("AiExplainSettings.EffectiveModel(cfg.AiExplainModel)"), "The form shows the effective model.");
-            AssertEx.True(form.Contains("cfg.AiExplainModel = AiExplainSettings.ModelToStore(model)"), "The form stores the default as empty.");
+            AssertEx.True(form.Contains("AiExplainSettings.EffectiveModel(cfg.AiExplainModel, cfg.AiExplainModelSaved)"), "The form shows the effective model.");
+            AssertEx.True(form.Contains("cfg.AiExplainModel = AiExplainSettings.ModelToStore(model);"), "The form stores the default as empty.");
+            AssertEx.True(form.Contains("cfg.AiExplainModelSaved = true;"), "The form marks its saves.");
             string popup = PromptTransactionIntegrationTests.Source("TinyWall/Prompting/BlockedConnectionPopup.AiExplain.cs");
-            AssertEx.True(popup.Contains("string model = AiExplainSettings.EffectiveModel(cfg.AiExplainModel)"), "The lookup requests the effective model.");
+            AssertEx.True(popup.Contains("string model = AiExplainSettings.EffectiveModel(cfg.AiExplainModel, cfg.AiExplainModelSaved)"),
+                "The lookup requests the effective model.");
+            string settings = PromptTransactionIntegrationTests.Source("TinyWall/Settings.cs");
+            AssertEx.True(settings.Contains("public bool AiExplainModelSaved = false;"),
+                "Configs without the flag are older ones whose gpt-4o-mini was the shown default.");
         }
 
         private static void ReasoningEffortOnlyForDefaultModelOnOpenAi()

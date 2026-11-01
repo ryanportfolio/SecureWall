@@ -16,17 +16,20 @@ namespace pylorak.TinyWall.Prompting
         internal const string DefaultReasoningEffort = "medium";
         internal const string OpenAiHost = "api.openai.com";
 
-        // Earlier defaults. The settings form saved whatever model box it showed, so a stored
-        // value equal to one of these was never typed by the user and follows the current
-        // default. Since this change the form stores an empty model for the default instead.
+        // Earlier defaults. Before ControllerSettings.AiExplainModelSaved existed, the settings
+        // form saved whatever model box it showed, so in such a config a stored value equal to
+        // one of these was never typed by the user and follows the current default.
         private static readonly string[] RetiredDefaultModels = { "gpt-4o-mini" };
 
-        // The model to request for a stored setting: empty or a retired default means
-        // DefaultModel; anything else is the user's own choice and is kept.
-        internal static string EffectiveModel(string? storedModel)
+        // The model to request for a stored setting. Empty means DefaultModel. A retired default
+        // means DefaultModel only in a config the current form has not saved (modelSaved false);
+        // once it has, the stored value is the user's choice and is kept, gpt-4o-mini included.
+        internal static string EffectiveModel(string? storedModel, bool modelSaved)
         {
             string trimmed = storedModel?.Trim() ?? string.Empty;
-            if (trimmed.Length == 0 || Array.IndexOf(RetiredDefaultModels, trimmed) >= 0)
+            if (trimmed.Length == 0)
+                return DefaultModel;
+            if (!modelSaved && Array.IndexOf(RetiredDefaultModels, trimmed) >= 0)
                 return DefaultModel;
             return trimmed;
         }
