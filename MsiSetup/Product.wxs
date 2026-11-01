@@ -442,7 +442,7 @@
          removes and rewrites only these values. Platform names the installed package
          for the architecture check above. -->
     <Component Id="RegistryKeys" Guid="*" Directory="INSTALLDIR" Win64="$(var.Win64)">
-      <RegistryKey Id='RegInstallDir' Root='HKLM' Key='Software\SecureWall'>
+      <RegistryKey Root='HKLM' Key='Software\SecureWall'>
         <RegistryValue Type='string' Name='InstallDir' Value='[INSTALLDIR]'/>
         <RegistryValue Type='string' Name='Platform' Value='$(var.BuildArch)'/>
       </RegistryKey>
