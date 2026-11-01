@@ -943,7 +943,7 @@ namespace pylorak.TinyWall
                 var taskService = new TaskScheduler.TaskScheduler();
                 taskService.Connect();
                 var td = taskService.NewTask(0);
-                td.RegistrationInfo.Author = "SecureWall contributors; based on TinyWall by Károly Pados";
+                td.RegistrationInfo.Author = "CoreWise; based on TinyWall by Károly Pados";
                 td.RegistrationInfo.Description = "This task starts the SecureWall tray icon when a user is logged in.";
                 td.Settings.Enabled = true;
                 td.Principal.GroupId = INTERACTIVE_GROUP_SID;
