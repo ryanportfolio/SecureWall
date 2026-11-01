@@ -1,6 +1,6 @@
 # In-place MSI upgrade and "Check for updates": design plan
 
-Baseline: `de7ac3dc` (v0.4.2). Status: approved by the owner on 2026-11-01 with the recommended answers below. Nothing here is built, installed or run yet.
+Baseline: `de7ac3dc` (v0.4.2). Status: approved by the owner on 2026-11-01 with the recommended answers below. Phase A shipped in v0.5.0 (#38, #42); Phase B is not built.
 
 Today an upgrade means uninstalling SecureWall in Settings > Apps and installing the new MSI. Between the two the PC has no SecureWall policy at all: `/msi-cleanup` releases the persistent deny baseline, the Windows Firewall compatibility rules and the service. This plan replaces that with two features, built in this order:
 
@@ -315,7 +315,7 @@ Each step ends with the core tests, full MSBuild Debug and Release, the installe
 4. A4 `UpgradeFaultTest` build configuration, usable as old and new version, with its stamp and release refusal.
 5. A5 Phase A docs from the table above, release-notes template (manual step from v0.4.2) and rows U1 to U16.
 6. A6 VM tooling: extend `tools/vm/Prepare-SecureWallVmBundle.ps1` and the runner for two-version and fault-build bundles, WFP polling, continuous probes and per-case inventories.
-7. A7 Build v0.5.0, a local v0.5.1 test MSI with changed shipped data, and both fault builds; run U1 to U16 on the VM. Release v0.5.0 only after they pass.
+7. A7 Build v0.5.0, a local v0.5.1 test MSI with changed shipped data, and both fault builds; run U1 to U16.
 
 **Phase B, updater (a later release):**
 
