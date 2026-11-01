@@ -19,7 +19,6 @@ namespace pylorak.TinyWall
                 Name = "lblAlwaysAllowHelp",
                 Dock = DockStyle.Top,
                 AutoSize = false,
-                Height = 48,
                 Text = "These apps are allowed outgoing connections from any folder, as long as the file has this name and a valid signature from this publisher. " +
                     "SecureWall adds an exact rule the first time each new copy is blocked; its first connection can fail once.",
             };
@@ -30,6 +29,7 @@ namespace pylorak.TinyWall
                 View = View.Details,
                 FullRowSelect = true,
                 HideSelection = false,
+                ShowItemToolTips = true,
                 TabIndex = 0,
             };
             listAlwaysAllow.Columns.Add("File name", 180);
@@ -60,6 +60,8 @@ namespace pylorak.TinyWall
             page.Controls.Add(buttons);
             page.Controls.Add(help);
             tabControl1.TabPages.Add(page);
+            // Added after the form scaled for DPI, so size by the inherited font: room for three lines.
+            help.Height = help.Font.Height * 3 + 4;
         }
 
         private void FillAlwaysAllowList()

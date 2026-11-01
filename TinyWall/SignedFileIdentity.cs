@@ -22,9 +22,25 @@ namespace pylorak.TinyWall
         // The subject's common name, for display.
         public string Name { get; }
 
+        // Only drive-letter paths on local fixed drives are read: opening a UNC or WebDAV path
+        // from the LocalSystem service would authenticate to whatever host the path names.
+        internal static bool IsLocalFixedPath(string? path)
+        {
+            if (path == null || path.Length < 3 || !char.IsLetter(path[0]) || path[1] != ':' || path[2] != '\\')
+                return false;
+            try
+            {
+                return new DriveInfo(path.Substring(0, 1)).DriveType == DriveType.Fixed;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         internal static SignedFileIdentity? TryRead(string? path)
         {
-            if (string.IsNullOrWhiteSpace(path))
+            if (!IsLocalFixedPath(path))
                 return null;
             try
             {

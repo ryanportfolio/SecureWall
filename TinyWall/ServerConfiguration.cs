@@ -50,8 +50,15 @@ namespace pylorak.TinyWall
         [DataMember(EmitDefaultValue = false)]
         public bool DisplayOffBlock { get; set; } = false;
 
+        // Never null and never holds null entries: older XML configs skip initializers, and a
+        // null here would stop every executable prompt.
         [DataMember(EmitDefaultValue = false)]
-        public List<AlwaysAllowRule> AlwaysAllowRules { get; set; } = new List<AlwaysAllowRule>();
+        public List<AlwaysAllowRule> AlwaysAllowRules
+        {
+            get => _alwaysAllowRules ??= new List<AlwaysAllowRule>();
+            set => _alwaysAllowRules = value?.FindAll(rule => rule != null) ?? new List<AlwaysAllowRule>();
+        }
+        private List<AlwaysAllowRule>? _alwaysAllowRules;
 
         public ServerProfileConfiguration()
         { }

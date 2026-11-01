@@ -4,8 +4,8 @@ using System.Threading.Tasks;
 
 namespace pylorak.TinyWall.Prompting
 {
-    // The Always allow button: shown for executable prompts, enabled once the file's embedded
-    // signature checks out (off the UI thread) and Allow itself is armed. The check here only
+    // The Always allow button: shown for executable prompts while the file's embedded signature
+    // is checked (off the UI thread), hidden if it fails, enabled once Allow itself is armed. The check here only
     // decides what the button offers; the service verifies the file again before saving.
     internal sealed partial class BlockedConnectionPopup
     {
@@ -48,9 +48,12 @@ namespace pylorak.TinyWall.Prompting
                     return;
                 SignedFileIdentity? signer = task.Status == TaskStatus.RanToCompletion ? task.Result : null;
                 _alwaysAllowSigner = signer?.Name;
-                toolTip.SetToolTip(alwaysAllowButton, signer == null
-                    ? "Always allow needs a valid embedded signature, so SecureWall can recognize this app after it moves. Use Allow instead."
-                    : $"Allow now, and from now on allow any file named {Path.GetFileName(path)} signed by {signer.Name}, in any folder. Outbound TCP/UDP only.");
+                // Without a valid embedded signature there is nothing to recognize the app by
+                // after it moves, so the button goes away rather than sit disabled.
+                alwaysAllowButton.Visible = signer != null;
+                if (signer != null)
+                    toolTip.SetToolTip(alwaysAllowButton,
+                        $"Allow now, and from now on allow any file named {Path.GetFileName(path)} signed by {signer.Name}, in any folder. Outbound TCP/UDP only.");
                 UpdateAllowButton();
             }, System.Threading.Tasks.TaskScheduler.FromCurrentSynchronizationContext());
         }

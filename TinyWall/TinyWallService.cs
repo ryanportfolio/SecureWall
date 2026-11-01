@@ -1473,8 +1473,8 @@ namespace pylorak.TinyWall
         }
 
         // alwaysAllow also saves an Always allow rule for the file name and the signer the
-        // service reads from the file itself; the controller supplies only the token.
-        private bool ApplyPromptAllow(BlockedConnectionPrompt prompt, bool alwaysAllow)
+        // service read from the prompt's file itself; the controller supplies only the token.
+        private bool ApplyPromptAllow(BlockedConnectionPrompt prompt, bool alwaysAllow, SignedFileIdentity? signer)
         {
             if (VisibleState.Mode != FirewallMode.Normal)
                 return false;
@@ -1523,10 +1523,7 @@ namespace pylorak.TinyWall
             if (alwaysAllow)
             {
                 string? path = allowPolicy.Identity.ExecutablePath;
-                SignedFileIdentity? signer = allowPolicy.Identity.Kind == PromptIdentityKind.Executable
-                    ? SignedFileIdentity.TryRead(path)
-                    : null;
-                if (signer == null)
+                if (signer == null || allowPolicy.Identity.Kind != PromptIdentityKind.Executable)
                 {
                     Utils.Log("Refused Always allow: " + (path ?? "the subject") +
                         " is not an executable with a valid embedded signature.", Utils.LOG_ID_SERVICE);
@@ -1538,6 +1535,9 @@ namespace pylorak.TinyWall
             try
             {
                 ApplyConfiguration(candidate, VisibleState.Mode);
+                if (alwaysAllow)
+                    Utils.Log("Always allow saved a rule for " + Path.GetFileName(allowPolicy.Identity.ExecutablePath) +
+                        " signed by " + signer!.Subject + ".", Utils.LOG_ID_SERVICE);
                 return true;
             }
             catch (Exception exceptionToLog)
@@ -1898,7 +1898,12 @@ namespace pylorak.TinyWall
                     {
                         var args = (TwMessagePromptAction)req;
                         bool alwaysAllow = args.Type == MessageType.ALLOW_PROMPT_ALWAYS;
-                        PromptActionResult result = BlockedPromptQueue.Allow(args.Token, prompt => ApplyPromptAllow(prompt, alwaysAllow));
+                        // The signature check hashes the whole file: run it before Allow takes the
+                        // queue lock, so drops arriving meanwhile still become prompts.
+                        SignedFileIdentity? signer = alwaysAllow
+                            ? SignedFileIdentity.TryRead(BlockedPromptQueue.PendingIdentity(args.Token)?.ExecutablePath)
+                            : null;
+                        PromptActionResult result = BlockedPromptQueue.Allow(args.Token, prompt => ApplyPromptAllow(prompt, alwaysAllow, signer));
                         Diagnostics.Emit(RuntimeEvent.prompt_allow, RuntimeJournal.PromptResult(result.Status));
                         return args.CreateResponse(result.Status);
                     }
@@ -2735,35 +2740,47 @@ namespace pylorak.TinyWall
             }
         }
 
-        // Paths waiting for the worker to add an Always allow exception. A later drop of the
-        // same path is neither prompted nor verified again while its exception is on its way.
-        private readonly ConcurrentDictionary<string, byte> AlwaysAllowQueued = new(StringComparer.OrdinalIgnoreCase);
+        // Paths waiting for the worker to add an Always allow exception, with the signer the
+        // check found. A later drop of the same path is neither prompted nor verified again
+        // while its exception is on its way.
+        private readonly ConcurrentDictionary<string, string> AlwaysAllowQueued = new(StringComparer.OrdinalIgnoreCase);
         // Paths whose name matched a rule but whose signature did not, logged once each.
         private readonly ConcurrentDictionary<string, byte> AlwaysAllowMismatchLogged = new(StringComparer.OrdinalIgnoreCase);
+        // Files that failed the check (or whose exception could not be added), by size and
+        // write time, so a retrying app is prompted without hashing the file on every drop.
+        private readonly ConcurrentDictionary<string, (long Length, DateTime WriteUtc, DateTime UntilUtc)> AlwaysAllowRejected =
+            new(StringComparer.OrdinalIgnoreCase);
 
         // Runs on the prompt timer thread outside the queue lock (signature checks are slow).
         // True when the drop is handled by an Always allow rule and must not become a prompt.
-        // Any doubt (name only, bad signature, full request queue) leaves it to the prompt.
+        // Any doubt (name only, bad signature, an existing rule for the path, full request
+        // queue) leaves it to the prompt.
         private bool TryQueueAlwaysAllow(PromptIdentity identity)
         {
             if (identity.Kind != PromptIdentityKind.Executable || !identity.CanAllow ||
                 identity.ExecutablePath is not string path || !PromptAllowPolicy.RequiresExistenceCheck(path))
                 return false;
             List<AlwaysAllowRule> rules = ActiveConfig.Service.ActiveProfile.AlwaysAllowRules;
-            if (!rules.Exists(rule => rule.NameMatches(path)))
+            if (!rules.Exists(rule => rule != null && rule.NameMatches(path)))
                 return false;
             if (AlwaysAllowQueued.ContainsKey(path))
                 return true;
+            if (!SignedFileIdentity.IsLocalFixedPath(path))
+                return false;
+            // An existing exception (a block, or an allow the owner narrowed) is never widened silently.
+            if (HasExceptionForSubject(new ExecutableSubject(path)) || WasRejected(path))
+                return false;
 
             SignedFileIdentity? signer = SignedFileIdentity.TryRead(path);
-            if (signer == null || !rules.Exists(rule => rule.Matches(path, signer.Subject)))
+            if (signer == null || !rules.Exists(rule => rule != null && rule.Matches(path, signer.Subject)))
             {
+                RememberRejected(path);
                 if (AlwaysAllowMismatchLogged.Count < 64 && AlwaysAllowMismatchLogged.TryAdd(path, 0))
-                    Utils.Log("Always allow did not apply to " + path + ": its name matches a rule, but it has no valid embedded signature from that rule's signer. It is prompted instead.", Utils.LOG_ID_SERVICE);
+                    Utils.Log("Always allow did not apply to " + path + ": its name matches a rule, but it is not a file on a local fixed drive with a valid embedded signature from that rule's signer. It is prompted instead.", Utils.LOG_ID_SERVICE);
                 return false;
             }
 
-            if (!AlwaysAllowQueued.TryAdd(path, 0))
+            if (!AlwaysAllowQueued.TryAdd(path, signer.Subject))
                 return true;
             // Never block here: the worker may need the prompt queue lock this thread's caller holds next.
             if (!Q.TryAdd(new TwRequest(TwMessageSimple.CreateRequest(MessageType.AUTO_ALLOW_SIGNED))))
@@ -2778,21 +2795,24 @@ namespace pylorak.TinyWall
         // queued path whose rule still exists, in one policy change.
         private void ApplyQueuedAlwaysAllows()
         {
-            string[] paths = AlwaysAllowQueued.Keys.ToArray();
-            if (paths.Length == 0)
+            KeyValuePair<string, string>[] queued = AlwaysAllowQueued.ToArray();
+            if (queued.Length == 0)
                 return;
+            string[] paths = queued.Select(entry => entry.Key).ToArray();
             try
             {
                 if (VisibleState.Mode != FirewallMode.Normal || RuntimeSessionRevoked)
                     return;
                 var added = new List<FirewallExceptionV3>();
-                foreach (string path in paths)
+                foreach (KeyValuePair<string, string> entry in queued)
                 {
+                    string path = entry.Key;
+                    // The rule must still trust the signer the check found, not just the name.
                     if (!File.Exists(path) ||
-                        !ActiveConfig.Service.ActiveProfile.AlwaysAllowRules.Exists(rule => rule.NameMatches(path)))
+                        !ActiveConfig.Service.ActiveProfile.AlwaysAllowRules.Exists(rule => rule != null && rule.Matches(path, entry.Value)))
                         continue;
                     var subject = new ExecutableSubject(path);
-                    if (HasExplicitBlockForSubject(subject))
+                    if (HasExceptionForSubject(subject))
                         continue;
                     added.Add(new FirewallExceptionV3(subject, new TcpUdpPolicy
                     {
@@ -2810,6 +2830,9 @@ namespace pylorak.TinyWall
             }
             catch (Exception exception)
             {
+                // Prompt these paths for a while instead of retrying the same failing change on every drop.
+                foreach (string path in paths)
+                    RememberRejected(path);
                 Utils.LogException(exception, Utils.LOG_ID_SERVICE);
             }
             finally
@@ -2817,6 +2840,39 @@ namespace pylorak.TinyWall
                 foreach (string path in paths)
                     AlwaysAllowQueued.TryRemove(path, out _);
             }
+        }
+
+        private static bool HasExceptionForSubject(ExceptionSubject subject) =>
+            ActiveConfig.Service.ActiveProfile.AppExceptions.Exists(existing => existing.Subject.Equals(subject));
+
+        private bool WasRejected(string path)
+        {
+            if (!AlwaysAllowRejected.TryGetValue(path, out var rejected))
+                return false;
+            try
+            {
+                var file = new FileInfo(path);
+                if (DateTime.UtcNow < rejected.UntilUtc && file.Exists &&
+                    file.Length == rejected.Length && file.LastWriteTimeUtc == rejected.WriteUtc)
+                    return true;
+            }
+            catch (Exception) { }
+            AlwaysAllowRejected.TryRemove(path, out _);
+            return false;
+        }
+
+        private void RememberRejected(string path)
+        {
+            try
+            {
+                var file = new FileInfo(path);
+                if (!file.Exists)
+                    return;
+                if (AlwaysAllowRejected.Count >= 256)
+                    AlwaysAllowRejected.Clear();
+                AlwaysAllowRejected[path] = (file.Length, file.LastWriteTimeUtc, DateTime.UtcNow.AddMinutes(10));
+            }
+            catch (Exception) { }
         }
 
         // Null when SCM cannot report the SID type; attribution then keeps Allow disabled.
@@ -2844,8 +2900,9 @@ namespace pylorak.TinyWall
         {
             if (((int)reqMsg.Type > 2047) && PasswordLock.Locked)
             {
-                if (reqMsg.Type == MessageType.ALLOW_PROMPT || reqMsg.Type == MessageType.DISMISS_PROMPT)
-                    Diagnostics.Emit(reqMsg.Type == MessageType.ALLOW_PROMPT ? RuntimeEvent.prompt_allow : RuntimeEvent.prompt_ignore,
+                if (reqMsg.Type == MessageType.ALLOW_PROMPT || reqMsg.Type == MessageType.ALLOW_PROMPT_ALWAYS ||
+                    reqMsg.Type == MessageType.DISMISS_PROMPT)
+                    Diagnostics.Emit(reqMsg.Type == MessageType.DISMISS_PROMPT ? RuntimeEvent.prompt_ignore : RuntimeEvent.prompt_allow,
                         RuntimeResult.locked);
                 // Notify that we need to be unlocked first
                 return TwMessageLocked.Instance;

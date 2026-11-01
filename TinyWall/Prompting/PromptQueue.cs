@@ -197,6 +197,13 @@ namespace pylorak.TinyWall.Prompting
             }
         }
 
+        // The identity behind a pending token, for slow checks that must run outside the lock.
+        internal PromptIdentity? PendingIdentity(Guid token)
+        {
+            lock (_guard)
+                return _byToken.TryGetValue(token, out Entry? entry) ? entry.Identity : null;
+        }
+
         internal PromptActionResult Allow(Guid token) => Allow(token, _ => true);
 
         internal PromptActionResult Allow(
