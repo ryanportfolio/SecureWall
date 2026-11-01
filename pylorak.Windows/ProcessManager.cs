@@ -15,17 +15,13 @@ namespace pylorak.Windows
         public readonly long CreationTime;
         public readonly uint ProcessId;
         public readonly uint ParentProcessId;
-        // The executable's file name from the snapshot itself, known even when ImagePath and
-        // CreationTime are not (a process the caller may not open).
-        public readonly string ExeName;
 
-        public ProcessSnapshotEntry(string path, long creationTime, uint pid, uint parentPid, string exeName = "")
+        public ProcessSnapshotEntry(string path, long creationTime, uint pid, uint parentPid)
         {
             ImagePath = path;
             CreationTime = creationTime;
             ProcessId = pid;
             ParentProcessId = parentPid;
-            ExeName = exeName;
         }
     }
 
@@ -44,6 +40,9 @@ namespace pylorak.Windows
 
             [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Unicode)]
             internal static unsafe extern bool QueryFullProcessImageName(SafeObjectHandle hProcess, QueryFullProcessImageNameFlags dwFlags, [Out] char* lpExeName, ref int size);
+
+            [DllImport("ntdll")]
+            internal static extern int NtQuerySystemInformation(int systemInformationClass, IntPtr systemInformation, int systemInformationLength, out int returnLength);
 
             [DllImport("ntdll")]
             internal static extern int NtQueryInformationProcess(SafeObjectHandle hProcess, int processInformationClass, [Out] out PROCESS_BASIC_INFORMATION processInformation, int processInformationLength, out int returnLength);
@@ -340,6 +339,50 @@ namespace pylorak.Windows
             return true;
         }
 
+        // Creation time (UTC FILETIME) of every process, from SystemProcessInformation, which
+        // needs no handle: known even for processes the caller may not open, such as service
+        // hosts for a process that is not elevated. Empty on failure.
+        private static Dictionary<uint, long> GetAllCreationTimes()
+        {
+            const int SystemProcessInformation = 5;
+            const int STATUS_INFO_LENGTH_MISMATCH = unchecked((int)0xC0000004);
+            // SYSTEM_PROCESS_INFORMATION: CreateTime at 32; UniqueProcessId follows ImageName
+            // (a pointer-sized UNICODE_STRING at 56) and BasePriority.
+            int pidOffset = (IntPtr.Size == 8) ? 80 : 68;
+            var times = new Dictionary<uint, long>();
+            int size = 1 << 20;
+            for (int attempt = 0; attempt < 4; ++attempt)
+            {
+                IntPtr buffer = Marshal.AllocHGlobal(size);
+                try
+                {
+                    int status = NativeMethods.NtQuerySystemInformation(SystemProcessInformation, buffer, size, out int needed);
+                    if (status == STATUS_INFO_LENGTH_MISMATCH)
+                    {
+                        size = Math.Max(size * 2, needed + (1 << 16));
+                        continue;
+                    }
+                    if (status < 0)
+                        return times;
+                    long offset = 0;
+                    while (true)
+                    {
+                        IntPtr entry = new IntPtr(buffer.ToInt64() + offset);
+                        times[unchecked((uint)Marshal.ReadIntPtr(entry, pidOffset).ToInt64())] = Marshal.ReadInt64(entry, 32);
+                        int next = Marshal.ReadInt32(entry, 0);
+                        if (next == 0)
+                            return times;
+                        offset += next;
+                    }
+                }
+                finally
+                {
+                    Marshal.FreeHGlobal(buffer);
+                }
+            }
+            return times;
+        }
+
         private static IEnumerable<PROCESSENTRY32> CreateToolhelp32Snapshot()
         {
             const int ERROR_NO_MORE_FILES = 18;
@@ -365,21 +408,23 @@ namespace pylorak.Windows
         public static IEnumerable<ProcessSnapshotEntry> CreateToolhelp32SnapshotExtended()
         {
             StringBuilder? sbuilder = null;
+            Dictionary<uint, long>? allCreationTimes = null;
             foreach (var p in CreateToolhelp32Snapshot())
             {
                 using var hProcess = NativeMethods.OpenProcess(ProcessAccessFlags.QueryLimitedInformation, false, p.th32ProcessID);
-                GetProcessCreationTime(hProcess, out long creationTime);
+                if (!GetProcessCreationTime(hProcess, out long creationTime))
+                {
+                    allCreationTimes ??= GetAllCreationTimes();
+                    allCreationTimes.TryGetValue(p.th32ProcessID, out creationTime);
+                }
                 yield return new ProcessSnapshotEntry(
                     (p.th32ProcessID != 0) ? GetProcessPath(hProcess, ref sbuilder) : "System",
                     creationTime,
                     p.th32ProcessID,
-                    p.th32ParentProcessID,
-                    ExeNameOf(p)
+                    p.th32ParentProcessID
                 );
             }
         }
-
-        private static unsafe string ExeNameOf(PROCESSENTRY32 entry) => new string(entry.szExeFile);
 
         public static void WakeMessageQueues(Process p)
         {

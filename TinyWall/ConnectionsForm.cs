@@ -145,15 +145,14 @@ namespace pylorak.TinyWall
             {
                 // Try to resolve PIDs heuristically
                 var ProcessPathInfoMap = new Dictionary<string, List<ProcessSnapshotEntry>>();
-                // Processes whose path this app cannot read, such as service hosts when it is not elevated.
-                var unreadable = new Dictionary<uint, string>();
+                // Creation times by PID, including processes this app may not open (the snapshot
+                // reads those without a handle).
+                var creationByPid = new Dictionary<uint, long>();
                 foreach (var p in ProcessManager.CreateToolhelp32SnapshotExtended())
                 {
+                    creationByPid[p.ProcessId] = p.CreationTime;
                     if (string.IsNullOrEmpty(p.ImagePath))
-                    {
-                        unreadable[p.ProcessId] = p.ExeName;
                         continue;
-                    }
 
                     var key = p.ImagePath.ToLowerInvariant();
                     if (!ProcessPathInfoMap.ContainsKey(key))
@@ -169,21 +168,13 @@ namespace pylorak.TinyWall
                     ProcessPathInfoMap.TryGetValue(key, out List<ProcessSnapshotEntry>? p);
 
                     // The service names the process for blocks it matched to a Security-log event,
-                    // and on every log read checks that the PID still belongs to that process. Keep
-                    // that PID only while it still belongs to a process with this path that started
-                    // before the block: Unblock and Close process act on it. A process whose path
-                    // this app cannot read is checked by file name alone, which the snapshot cuts
-                    // to 130 characters.
+                    // after checking its path and start time, and sends that process's creation
+                    // time. Keep the PID only while the process holding it has that exact creation
+                    // time: Unblock and Close process act on it.
                     if (e.ProcessId != 0)
                     {
-                        uint pid = e.ProcessId;
-                        if (p != null && p.Exists(s => s.ProcessId == pid && s.CreationTime < e.Timestamp.ToFileTime()))
-                            continue;
-                        string fileName = System.IO.Path.GetFileName(e.AppPath);
-                        if (unreadable.TryGetValue(pid, out string? exeName) && exeName.Length > 0 &&
-                            (exeName.Length >= 130
-                                ? fileName.StartsWith(exeName, StringComparison.OrdinalIgnoreCase)
-                                : string.Equals(exeName, fileName, StringComparison.OrdinalIgnoreCase)))
+                        if (e.ProcessCreation != 0 && creationByPid.TryGetValue(e.ProcessId, out long creation) &&
+                            creation == e.ProcessCreation)
                             continue;
                         e.ProcessId = 0;
                     }

@@ -46,9 +46,9 @@ namespace pylorak.TinyWall
         public bool PromptIgnored;
         // Service only, never serialized: the PID match for this row has been decided.
         internal bool PidResolved;
-        // Service only, never serialized: creation time (UTC FILETIME) of the process ProcessId
-        // named when it was matched, so a reused PID can be told apart.
-        internal long ProcessCreation;
+        // Creation time (UTC FILETIME) of the process ProcessId named when the service matched it,
+        // so the service and the tray app can tell a reused PID apart.
+        public long ProcessCreation;
 
         public int GetHashCode(bool includeTimestamp)
         {
