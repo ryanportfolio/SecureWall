@@ -42,6 +42,8 @@ namespace pylorak.TinyWall
         public FilterGroup FilterGroup;
         // A default-deny drop after which Always allow added an exception for the app.
         public bool AllowedByAlwaysAllow;
+        // A default-deny drop whose prompt was skipped because the app is on the Ignored list.
+        public bool PromptIgnored;
         // Service only, never serialized: the PID match for this row has been decided.
         internal bool PidResolved;
 
@@ -72,6 +74,7 @@ namespace pylorak.TinyWall
                 hash = (hash ^ FilterRuntimeId.GetHashCode()) * FNV_PRIME;
                 hash = (hash ^ FilterGroup.GetHashCode()) * FNV_PRIME;
                 hash = (hash ^ AllowedByAlwaysAllow.GetHashCode()) * FNV_PRIME;
+                hash = (hash ^ PromptIgnored.GetHashCode()) * FNV_PRIME;
 
                 return hash;
             }
@@ -101,7 +104,8 @@ namespace pylorak.TinyWall
                 string.Equals(PackageId, obj.PackageId) &&
                 (FilterRuntimeId == obj.FilterRuntimeId) &&
                 (FilterGroup == obj.FilterGroup) &&
-                (AllowedByAlwaysAllow == obj.AllowedByAlwaysAllow);
+                (AllowedByAlwaysAllow == obj.AllowedByAlwaysAllow) &&
+                (PromptIgnored == obj.PromptIgnored);
         }
 
         public bool Equals(FirewallLogEntry? other)

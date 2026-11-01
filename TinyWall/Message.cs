@@ -26,6 +26,7 @@ namespace pylorak.TinyWall
                 MessageType.UNLOCK => (TwMessage?)JsonSerializer.Deserialize<TwMessageUnlock>(ref reader, SourceGenerationContext.Default.TwMessageUnlock),
                 MessageType.DISMISS_PROMPT => (TwMessage?)JsonSerializer.Deserialize<TwMessagePromptAction>(ref reader, SourceGenerationContext.Default.TwMessagePromptAction),
                 MessageType.DISMISS_PROMPT_TIMEOUT => (TwMessage?)JsonSerializer.Deserialize<TwMessagePromptAction>(ref reader, SourceGenerationContext.Default.TwMessagePromptAction),
+                MessageType.IGNORE_PROMPT => (TwMessage?)JsonSerializer.Deserialize<TwMessagePromptAction>(ref reader, SourceGenerationContext.Default.TwMessagePromptAction),
                 MessageType.MODE_SWITCH => (TwMessage?)JsonSerializer.Deserialize<TwMessageModeSwitch>(ref reader, SourceGenerationContext.Default.TwMessageModeSwitch),
                 MessageType.SET_PASSPHRASE => (TwMessage?)JsonSerializer.Deserialize<TwMessageSetPassword>(ref reader, SourceGenerationContext.Default.TwMessageSetPassword),
                 MessageType.REINIT => (TwMessage?)JsonSerializer.Deserialize<TwMessageSimple>(ref reader, SourceGenerationContext.Default.TwMessageSimple),
@@ -303,7 +304,7 @@ namespace pylorak.TinyWall
             base(type)
         {
             if (type != MessageType.DISMISS_PROMPT && type != MessageType.DISMISS_PROMPT_TIMEOUT &&
-                type != MessageType.ALLOW_PROMPT && type != MessageType.ALLOW_PROMPT_ALWAYS)
+                type != MessageType.IGNORE_PROMPT && type != MessageType.ALLOW_PROMPT && type != MessageType.ALLOW_PROMPT_ALWAYS)
                 throw new ArgumentOutOfRangeException(nameof(type));
             Token = token;
             Status = status;
@@ -314,6 +315,9 @@ namespace pylorak.TinyWall
 
         internal static TwMessagePromptAction CreateTimeoutDismissRequest(Guid token) =>
             new TwMessagePromptAction(MessageType.DISMISS_PROMPT_TIMEOUT, token, PromptActionStatus.UnknownToken);
+
+        internal static TwMessagePromptAction CreateIgnoreRequest(Guid token) =>
+            new TwMessagePromptAction(MessageType.IGNORE_PROMPT, token, PromptActionStatus.UnknownToken);
 
         internal static TwMessagePromptAction CreateAllowRequest(Guid token) =>
             new TwMessagePromptAction(MessageType.ALLOW_PROMPT, token, PromptActionStatus.UnknownToken);

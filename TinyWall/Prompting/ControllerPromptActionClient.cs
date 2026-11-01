@@ -18,6 +18,7 @@ namespace pylorak.TinyWall.Prompting
         public PromptActionStatus Allow(Guid token) => _controller.AllowPrompt(token);
         public PromptActionStatus AllowAlways(Guid token) => _controller.AllowPromptAlways(token);
         public PromptActionStatus Dismiss(Guid token) => _controller.DismissPrompt(token);
+        public PromptActionStatus Ignore(Guid token) => _controller.IgnorePrompt(token);
         public PromptActionStatus DismissAfterTimeout(Guid token) => _controller.DismissPromptAfterTimeout(token);
         public PromptUnlockResult Unlock() => _unlock();
         public void Relock() => _relock();

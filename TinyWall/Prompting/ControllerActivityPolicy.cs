@@ -21,8 +21,9 @@ namespace pylorak.TinyWall.Prompting
                 case MessageType.SET_PASSPHRASE:
                     return true;
                 case MessageType.DISMISS_PROMPT:
+                case MessageType.IGNORE_PROMPT:
                     // Only an explicit dismissal that consumed a valid pending token.
-                    return responseType == MessageType.DISMISS_PROMPT && promptStatus == PromptActionStatus.Dismissed;
+                    return responseType == request && promptStatus == PromptActionStatus.Dismissed;
                 case MessageType.ALLOW_PROMPT:
                 case MessageType.ALLOW_PROMPT_ALWAYS:
                     return responseType == request && promptStatus == PromptActionStatus.Allowed;
