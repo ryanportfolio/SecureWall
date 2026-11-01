@@ -48,9 +48,12 @@ namespace pylorak.TinyWall
             mnuMissedPrompts.Text = $"{MissedPromptsMenuTitle} ({missed.Count})";
             mnuMissedPrompts.Visible = missed.Count > 0;
 
-            foreach (ToolStripItem old in mnuMissedPrompts.DropDownItems)
-                old.Dispose();
+            // Disposing an item removes it from DropDownItems, so take a copy first.
+            var oldItems = new ToolStripItem[mnuMissedPrompts.DropDownItems.Count];
+            mnuMissedPrompts.DropDownItems.CopyTo(oldItems, 0);
             mnuMissedPrompts.DropDownItems.Clear();
+            foreach (ToolStripItem old in oldItems)
+                old.Dispose();
             foreach (PromptWireDto prompt in missed)
             {
                 string destination = $"{prompt.RemoteAddress}:{prompt.RemotePort}";
@@ -125,17 +128,10 @@ namespace pylorak.TinyWall
                 AllowedRemoteTcpConnectPorts = "*",
                 AllowedRemoteUdpConnectPorts = "*",
             };
-            AddExceptions(new List<FirewallExceptionV3> { new FirewallExceptionV3(subject, policy) });
-
-            // AddExceptions reports its own result; drop the entry only once the rule is saved.
-            foreach (FirewallExceptionV3 ex in ActiveConfig.Service.ActiveProfile.AppExceptions)
-            {
-                if (ex.Subject.Equals(subject))
-                {
-                    PromptCoordinator?.RemoveMissed(prompt);
-                    break;
-                }
-            }
+            // AddExceptions reports failures itself. Keep the entry unless the service
+            // confirmed the save: a cancelled editor or password dialog leaves the app blocked.
+            if (AddExceptions(new List<FirewallExceptionV3> { new FirewallExceptionV3(subject, policy) }))
+                PromptCoordinator?.RemoveMissed(prompt);
         }
     }
 }

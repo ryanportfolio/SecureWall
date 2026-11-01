@@ -1029,11 +1029,12 @@ namespace pylorak.TinyWall
             AddExceptions(f.ExceptionSettings, false);
         }
 
-        internal void AddExceptions(List<FirewallExceptionV3> list, bool showEditUi = true)
+        // Returns true only when the service confirmed it saved the exceptions.
+        internal bool AddExceptions(List<FirewallExceptionV3> list, bool showEditUi = true)
         {
             if (list.Count == 0)
                 // Nothing to do
-                return;
+                return false;
 
             LoadSettingsFromServer();
 
@@ -1045,7 +1046,7 @@ namespace pylorak.TinyWall
             {
                 using var f = new ApplicationExceptionForm(list[0]);
                 if (f.ShowDialog() == DialogResult.Cancel)
-                    return;
+                    return false;
 
                 list.Clear();
                 list.AddRange(f.ExceptionSettings);
@@ -1063,7 +1064,7 @@ namespace pylorak.TinyWall
                     TaskDialogCommonButtons.Yes | TaskDialogCommonButtons.No,
                     TaskDialogIcon.Warning) != DialogResult.Yes)
             {
-                return;
+                return false;
             }
 
             ServerConfiguration confCopy = Utils.DeepClone(ActiveConfig.Service);
@@ -1071,8 +1072,8 @@ namespace pylorak.TinyWall
 
             if (!single)
             {
-                ApplyFirewallSettings(confCopy, true);
-                return;
+                TwMessage multiResp = ApplyFirewallSettings(confCopy, true);
+                return multiResp is TwMessagePutSettings { Warning: false };
             }
             
             var resp = ApplyFirewallSettings(confCopy, false);
@@ -1105,6 +1106,7 @@ namespace pylorak.TinyWall
                     LoadSettingsFromServer();
                     break;
             }
+            return resp is TwMessagePutSettings { Warning: false };
         }
 
         internal bool EnsureUnlockedServer(bool showUi = true)
