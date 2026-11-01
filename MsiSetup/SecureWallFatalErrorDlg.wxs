@@ -34,13 +34,14 @@ requesting user's desktop. The paths stay on the page.
                     <Publish Property="WixShellExecTarget" Value="[CommonAppDataFolder]SecureWall\logs\installer.log" Order="1">1</Publish>
                     <Publish Event="DoAction" Value="SecureWallOpenFailureLog" Order="2">1</Publish>
                     <Condition Action="hide">SECUREWALL_SUPPRESS_USER_ACTIONS</Condition>
+                    <Condition Action="disable">SECUREWALL_SUPPRESS_USER_ACTIONS</Condition>
                 </Control>
                 <Control Id="SecureWallLogPath" Type="Text" X="135" Y="165" Width="220" Height="12" Transparent="yes" NoPrefix="yes" Text="[CommonAppDataFolder]SecureWall\logs\installer.log" />
                 <Control Id="OpenSetupLog" Type="PushButton" X="135" Y="182" Width="120" Height="17" Text="Open setup &amp;log">
                     <Publish Property="WixShellExecTarget" Value="[MsiLogFileLocation]" Order="1">1</Publish>
                     <Publish Event="DoAction" Value="SecureWallOpenFailureLog" Order="2">1</Publish>
-                    <Condition Action="disable">NOT MsiLogFileLocation</Condition>
-                    <Condition Action="enable">MsiLogFileLocation</Condition>
+                    <Condition Action="disable">NOT MsiLogFileLocation OR SECUREWALL_SUPPRESS_USER_ACTIONS</Condition>
+                    <Condition Action="enable">MsiLogFileLocation AND NOT SECUREWALL_SUPPRESS_USER_ACTIONS</Condition>
                     <Condition Action="hide">SECUREWALL_SUPPRESS_USER_ACTIONS</Condition>
                 </Control>
                 <Control Id="SetupLogPath" Type="Text" X="135" Y="202" Width="220" Height="28" Transparent="yes" NoPrefix="yes" Text="[MsiLogFileLocation]" />

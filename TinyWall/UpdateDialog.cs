@@ -34,12 +34,15 @@ namespace pylorak.TinyWall
             MinimizeBox = false;
             MaximizeBox = false;
             ShowInTaskbar = true;
+            Font = SystemFonts.MessageBoxFont;
+            // Scales the fixed label heights below with the font and display scaling.
+            AutoScaleDimensions = new SizeF(7F, 15F);
+            AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(600, 470);
             MinimumSize = new Size(480, 360);
-            Font = SystemFonts.MessageBoxFont;
 
             Heading = new Label { Dock = DockStyle.Top, AutoSize = false, Height = 30, Font = new Font(Font.FontFamily, Font.Size * 1.3f, FontStyle.Bold) };
-            Details = new Label { Dock = DockStyle.Top, AutoSize = false, Height = 40 };
+            Details = new Label { Dock = DockStyle.Top, AutoSize = false, Height = 52 };
             NotesLabel = new Label
             {
                 Dock = DockStyle.Top,
@@ -62,7 +65,7 @@ namespace pylorak.TinyWall
             {
                 Dock = DockStyle.Bottom,
                 AutoSize = false,
-                Height = 50,
+                Height = 64,
                 Visible = false,
                 Text = "Installing stops SecureWall and blocks all connections to other computers until the new version starts, " +
                     "usually under a minute. Open connections drop. Windows asks for administrator permission, then setup shows its own window.",
@@ -125,7 +128,7 @@ namespace pylorak.TinyWall
             string published = release.PublishedAt?.ToLocalTime().ToString("d", CultureInfo.CurrentCulture) ?? "an unknown date";
             Details.Text = "Published " + published + (manifest.Prerelease ? " as a prerelease" : string.Empty) +
                 ". You have " + ReleaseVersion.Format(ReleaseVersion.Normalize(installed)) +
-                ". The installer's signature was verified with SecureWall's release key.";
+                ". The release's signed manifest was verified with SecureWall's release key; the installer is checked against it after download.";
             Notes.Text = ReleaseCheck.PlainNotes(release.Notes);
             NotesLabel.Visible = Notes.Visible = Notice.Visible = true;
             Progress.Visible = false;
@@ -133,6 +136,11 @@ namespace pylorak.TinyWall
             CloseButton.Text = "&Later";
             AcceptButton = InstallButton;
             InstallButton.Focus();
+        }
+
+        internal void ShowNote(string note)
+        {
+            Details.Text = note;
         }
 
         internal void ShowMessage(string heading, string message)

@@ -38,7 +38,8 @@ namespace pylorak.TinyWall.Installer
             }
             catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException ||
                 exception is Win32Exception || exception is InvalidOperationException || exception is ArgumentException ||
-                exception is NotSupportedException || exception is System.Security.SecurityException)
+                exception is NotSupportedException || exception is System.Security.SecurityException ||
+                exception is IdentityNotMappedException)
             {
                 Utils.LogException(exception, Utils.LOG_ID_INSTALLER);
                 Report("The update could not be prepared: " + exception.Message);
@@ -61,6 +62,13 @@ namespace pylorak.TinyWall.Installer
                 helperSid = identity.User!.Value;
             }
 
+            // The requesting user is the one signed in on this session, not whatever the command
+            // line says: another account's process could name an administrator's SID and so turn
+            // off the suppression below.
+            string sessionSid = SessionUserSid();
+            if (!string.Equals(sessionSid, request.UserSid, StringComparison.OrdinalIgnoreCase))
+                throw new UpdateRefusedException("The update was requested for an account other than the one signed in on this screen.");
+
             // 1. Source paths: plain local paths below the requesting user's updates folder.
             string profile = ProfileOf(request.UserSid);
             string updatesRoot = UpdateApplyPolicy.UserUpdatesRoot(Path.Combine(profile, "AppData", "Local"));
@@ -79,8 +87,31 @@ namespace pylorak.TinyWall.Installer
             string parent = PrepareStagingParent();
             RemoveExpiredStaging(parent);
             string staging = Path.Combine(parent, UpdateApplyPolicy.NewStagingName(DateTime.UtcNow, Guid.NewGuid()));
-            Directory.CreateDirectory(staging);
-            MachineDataGuard.Check(staging, false);
+            var stagingAcl = new DirectorySecurity();
+            stagingAcl.SetSecurityDescriptorSddlForm(UpdateApplyPolicy.StagingSddl);
+            Directory.CreateDirectory(staging, stagingAcl);
+            bool launched = false;
+            try
+            {
+                MachineDataGuard.Check(staging, false);
+                StageAndLaunch(staging, request, manifestBytes, signatureBytes, manifest, platform, expectedHash,
+                    suppressUserActions: !string.Equals(helperSid, sessionSid, StringComparison.OrdinalIgnoreCase));
+                launched = true;
+            }
+            finally
+            {
+                // A refused attempt leaves no copy behind.
+                if (!launched)
+                {
+                    try { DeleteTree(new DirectoryInfo(staging)); }
+                    catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException) { }
+                }
+            }
+        }
+
+        private static void StageAndLaunch(string staging, UpdateApplyPolicy.Arguments request, byte[] manifestBytes, byte[] signatureBytes,
+            SignedReleaseManifest manifest, string platform, string expectedHash, bool suppressUserActions)
+        {
             string stagedPackage = Path.Combine(staging, UpdateApplyPolicy.StagedPackage);
             string stagedManifest = Path.Combine(staging, UpdateApplyPolicy.StagedManifest);
             string stagedSignature = Path.Combine(staging, UpdateApplyPolicy.StagedSignature);
@@ -100,7 +131,6 @@ namespace pylorak.TinyWall.Installer
 
             // 7. Windows Installer, full UI. Another user's credentials (over-the-shoulder UAC)
             // suppress the package's actions that would run as that administrator.
-            bool suppressUserActions = !string.Equals(helperSid, request.UserSid, StringComparison.OrdinalIgnoreCase);
             var start = new ProcessStartInfo
             {
                 FileName = Path.Combine(Environment.SystemDirectory, "msiexec.exe"),
@@ -140,6 +170,34 @@ namespace pylorak.TinyWall.Installer
                     throw new UpdateRefusedException("The update files' folder contains a link: " + current);
             }
         }
+
+        // The SID of the user signed in on this process's session.
+        private static string SessionUserSid()
+        {
+            string user = QuerySession(WTSUserName), domain = QuerySession(WTSDomainName);
+            if (user.Length == 0)
+                throw new UpdateRefusedException("No user is signed in on this session.");
+            var account = new NTAccount(domain, user);
+            return ((SecurityIdentifier)account.Translate(typeof(SecurityIdentifier))).Value;
+        }
+
+        private static string QuerySession(int infoClass)
+        {
+            if (!WTSQuerySessionInformation(IntPtr.Zero, WTS_CURRENT_SESSION, infoClass, out IntPtr buffer, out _))
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            try { return Marshal.PtrToStringUni(buffer) ?? string.Empty; }
+            finally { WTSFreeMemory(buffer); }
+        }
+
+        private const int WTS_CURRENT_SESSION = -1;
+        private const int WTSUserName = 5;
+        private const int WTSDomainName = 7;
+
+        [DllImport("wtsapi32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "WTSQuerySessionInformationW")]
+        private static extern bool WTSQuerySessionInformation(IntPtr server, int sessionId, int infoClass, out IntPtr buffer, out int bytes);
+
+        [DllImport("wtsapi32.dll")]
+        private static extern void WTSFreeMemory(IntPtr memory);
 
         // The requesting user's profile folder; their %LOCALAPPDATA% is AppData\Local below it.
         private static string ProfileOf(string sid)

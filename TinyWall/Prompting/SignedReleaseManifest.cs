@@ -55,7 +55,7 @@ namespace pylorak.TinyWall.Prompting
         internal static string AssetName(string platform) => "SecureWall_" + platform + ".msi";
 
         internal string? HashFor(string platform) =>
-            Hashes.TryGetValue(AssetName(platform), out string? hash) ? hash : null;
+            Array.IndexOf(Platforms, platform) >= 0 && Hashes.TryGetValue(AssetName(platform), out string? hash) ? hash : null;
 
         internal static bool TryParse(byte[] bytes, out SignedReleaseManifest? manifest, out string error)
         {
@@ -135,11 +135,13 @@ namespace pylorak.TinyWall.Prompting
                     return false;
                 }
                 string name = line.Substring(66);
-                if (Array.IndexOf(Platforms, PlatformOf(name)) < 0 || hashes.ContainsKey(name))
+                if (hashes.ContainsKey(name))
                 {
-                    error = "The manifest names an unknown or repeated file.";
+                    error = "The manifest names a file twice.";
                     return false;
                 }
+                // Lines for other files are allowed, so a later release can list more assets
+                // without every installed version rejecting its manifest; only installers count.
                 hashes.Add(name, line.Substring(0, 64));
             }
 
@@ -243,15 +245,6 @@ namespace pylorak.TinyWall.Prompting
             foreach (byte b in bytes)
                 text.Append(b.ToString("x2", System.Globalization.CultureInfo.InvariantCulture));
             return text.ToString();
-        }
-
-        private static string PlatformOf(string assetName)
-        {
-            const string prefix = "SecureWall_", suffix = ".msi";
-            if (!assetName.StartsWith(prefix, StringComparison.Ordinal) || !assetName.EndsWith(suffix, StringComparison.Ordinal) ||
-                assetName.Length <= prefix.Length + suffix.Length)
-                return string.Empty;
-            return assetName.Substring(prefix.Length, assetName.Length - prefix.Length - suffix.Length);
         }
 
         private static bool TryValue(string line, string prefix, out string value)

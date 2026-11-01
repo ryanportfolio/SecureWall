@@ -254,6 +254,16 @@ namespace pylorak.TinyWall.Prompting
             if (candidates.Count == 0)
             {
                 string current = ReleaseVersion.Format(ReleaseVersion.Normalize(installed));
+                // A newer release whose signature or installer is not attached yet: published
+                // releases are signed after their installers are built.
+                Version? newest = releases
+                    .Where(r => !r.Draft && r.Version != null && r.Version > ReleaseVersion.Normalize(installed) && r.Version != skipped)
+                    .Select(r => r.Version)
+                    .OrderByDescending(v => v)
+                    .FirstOrDefault();
+                if (newest != null)
+                    return ReleaseCheckResult.Skipped("SecureWall " + ReleaseVersion.Format(newest) + " is published but not ready to install yet: " +
+                        "its signed manifest or the installer for this computer is not attached. Try again later.");
                 return ReleaseCheckResult.Current(skipped != null && Candidates(releases, installed, platform, null).Count > 0
                     ? "SecureWall " + current + " is installed. Version " + ReleaseVersion.Format(skipped) + " is newer, but you chose to skip it."
                     : "SecureWall " + current + " is the newest version.");

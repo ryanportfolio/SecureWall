@@ -21,6 +21,10 @@ namespace pylorak.TinyWall
     {
         private readonly ToolStripMenuItem mnuCheckForUpdates = new() { Text = "Check for &updates..." };
         private UpdateDialog? UpdateWindow;
+        // True from the click until the last network step has ended its permit. The service
+        // holds one permit per process, so a second check must not start while an earlier one
+        // (whose window may already be closed) can still release it.
+        private bool UpdateBusy;
 
         private void InitUpdatesMenu()
         {
@@ -36,6 +40,24 @@ namespace pylorak.TinyWall
                 UpdateWindow.Activate();
                 return;
             }
+            if (UpdateBusy)
+            {
+                ShowBalloonTip("The previous update check is still finishing. Try again in a moment.", ToolTipIcon.Info);
+                return;
+            }
+            UpdateBusy = true;
+            try
+            {
+                await CheckForUpdatesCore(includePrereleases);
+            }
+            finally
+            {
+                UpdateBusy = false;
+            }
+        }
+
+        private async Task CheckForUpdatesCore(bool? includePrereleases)
+        {
             if (!EnsureUnlockedServer())
                 return;
 
@@ -102,7 +124,9 @@ namespace pylorak.TinyWall
                 }
                 else if (choice == UpdateDialog.Choice.Install)
                 {
-                    installing = true;
+                    if (UpdateBusy)
+                        return;
+                    installing = UpdateBusy = true;
                     try
                     {
                         await InstallUpdate(dialog, result, platform, installToken);
@@ -115,7 +139,7 @@ namespace pylorak.TinyWall
                     }
                     finally
                     {
-                        installing = false;
+                        installing = UpdateBusy = false;
                     }
                 }
             };
@@ -138,11 +162,19 @@ namespace pylorak.TinyWall
             try
             {
                 string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-                folder = Path.Combine(UpdateApplyPolicy.UserUpdatesRoot(localAppData), manifest.Tag);
+                string root = UpdateApplyPolicy.UserUpdatesRoot(localAppData);
+                folder = Path.Combine(root, manifest.Tag);
                 package = Path.Combine(folder, SignedReleaseManifest.AssetName(platform));
                 error = await Task.Run(() => WithUpdateNetwork<string?>(async () =>
                 {
-                    // A previous attempt's files for this release are replaced.
+                    // Earlier downloads, of this or any other release, are not kept.
+                    try
+                    {
+                        if (Directory.Exists(root))
+                            Directory.Delete(root, true);
+                    }
+                    catch (IOException) { }
+                    catch (UnauthorizedAccessException) { }
                     Directory.CreateDirectory(folder);
                     foreach (string name in new[] { SignedReleaseManifest.AssetName(platform), ReleaseCheck.ManifestAsset, ReleaseCheck.SignatureAsset })
                         File.Delete(Path.Combine(folder, name));
@@ -187,7 +219,8 @@ namespace pylorak.TinyWall
             catch (Win32Exception exception) when (exception.NativeErrorCode == 1223)
             {
                 SaveUpdateSetting(settings => settings.UpdateStartedFromVersion = string.Empty);
-                dialog.ShowMessage("Update not installed", "Windows did not get administrator permission, so nothing was installed. You can try again.");
+                dialog.ShowAvailable(release, manifest, Utils.TinyWallVersion);
+                dialog.ShowNote("Windows did not get administrator permission, so nothing was installed. Click Install to try again.");
             }
             catch (Win32Exception exception)
             {
@@ -204,7 +237,11 @@ namespace pylorak.TinyWall
             if (response == MessageType.RESPONSE_LOCKED)
                 return fail("SecureWall is locked. Unlock it and try again.");
             if (response != MessageType.UPDATE_NETWORK_GRANT)
+            {
+                // The service may still have added a permit after the pipe gave up waiting.
+                GlobalInstances.Controller.ReleaseUpdateNetwork();
                 return fail("The SecureWall service did not answer, so the update check could not get network access.");
+            }
             if (status != UpdateGrantStatus.Granted && status != UpdateGrantStatus.NotNeeded)
                 return fail(UpdateNetworkGrantPolicy.Describe(status));
             try

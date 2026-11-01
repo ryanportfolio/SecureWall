@@ -1,4 +1,4 @@
-#Requires -Version 7.2
+#Requires -Version 7.4
 <#
 .SYNOPSIS
 Signs a published SecureWall release's SHA256SUMS.txt so Check for updates offers it.
@@ -14,9 +14,10 @@ It refuses unless:
 - the manifest's header names this repository, the tag, the version TinyWall.csproj has at
   that commit, the release's prerelease flag and the commit;
 - every installer's SHA-256 matches its manifest line;
-- the SecureWall.exe inside each installer embeds exactly the public keys in
-  tools\release\keys\primary.pub and backup.pub (primary.pub is also checked against the key
-  in your key store) and not the updater test key.
+- the SecureWall.exe inside each installer embeds the public keys in
+  tools\release\keys\primary.pub and backup.pub and not the updater test key (the key that
+  signs is also checked against its .pub file).
+It checks that those keys are present, not that no other key is.
 
 Then it signs the exact manifest bytes (Windows asks for the primary key's password) and
 uploads SHA256SUMS.txt.sig. Until that file exists the updater skips the release. If

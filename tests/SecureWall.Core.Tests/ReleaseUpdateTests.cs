@@ -94,6 +94,9 @@ internal static class ReleaseUpdateTests
             AssertEx.Equal(HashArm, manifest.HashFor("arm64"));
             AssertEx.Equal(HashX86, manifest.HashFor("x86"));
         }
+        // Lines for other files are ignored.
+        AssertEx.True(SignedReleaseManifest.TryParse(Ascii(ManifestText().Replace("SecureWall_x64.msi", "SecureWall_x64.zip")), out var other, out _));
+        AssertEx.True(other!.HashFor("x64") == null && other.HashFor("x86") == HashX86);
         // Without a trailing newline, and with one platform only.
         AssertEx.True(SignedReleaseManifest.TryParse(Ascii(ManifestText(platforms: "x64").TrimEnd()), out var single, out _));
         AssertEx.True(single!.HashFor("arm64") == null);
@@ -111,7 +114,6 @@ internal static class ReleaseUpdateTests
             ManifestText(tag: "v0.06.0", version: "0.06.0"),
             good.Replace("Prerelease: false", "Prerelease: no"),
             good.Replace(Commit, Commit.ToUpperInvariant()),
-            good.Replace("SecureWall_x64.msi", "SecureWall_x65.msi"),
             good.Replace("SecureWall_x86.msi", "SecureWall_x64.msi"),
             good.Replace(HashX64, HashX64.ToUpperInvariant()),
             good.Replace(HashX64 + "  ", HashX64 + " "),
@@ -401,6 +403,13 @@ internal static class ReleaseUpdateTests
         AssertEx.Equal(ReleaseCheckOutcome.UpToDate, skipped.Outcome);
         AssertEx.True(skipped.Message.Contains("skip"), skipped.Message);
 
+        // A newer release that is published but not signed yet is named, never "up to date".
+        var unsigned = new FakeSource();
+        unsigned.Page(1, new[] { Release("v0.6.0", complete: false) });
+        ReleaseCheckResult notReady = Check(unsigned, key, false);
+        AssertEx.Equal(ReleaseCheckOutcome.NothingEligible, notReady.Outcome);
+        AssertEx.True(notReady.Message.Contains("0.6.0") && notReady.Message.Contains("not ready"), notReady.Message);
+
         ReleaseCheckResult noKeys = ReleaseCheck.FindAsync(skippedSource, new Version(0, 5, 0), "x64", false, null,
             Array.Empty<string>(), CancellationToken.None).GetAwaiter().GetResult();
         AssertEx.Equal(ReleaseCheckOutcome.Failed, noKeys.Outcome);
@@ -560,6 +569,11 @@ internal static class ReleaseUpdateTests
         AssertEx.True(Body("ChildInheritedSubjectExes = previousInheritedSubjects;", "}").Contains("RemoveUpdateLeases(UpdateLeases.Clear());"), "failed reload");
         AssertEx.True(Body("private void FailClosedCore()", "PasswordLock.Locked = true;").Contains("UpdateLeases.Clear()"), "revocation");
         AssertEx.True(Body("var updatePermits = InstallUpdatePermits();", "CommittedRuleExecutables").Contains("CommitUpdatePermits(updatePermits);"), "full reload");
+        // A lease that expired while the reload committed gets its new filters removed.
+        AssertEx.True(Body("private void CommitUpdatePermits(", "// Enforcement thread only.").Contains("RemoveUpdateLeases(ended);"), "expiry during a reload");
+        AssertEx.True(Body("private void RetainCommittedPolicy(", "ReloadRetry.RecordFailure").Contains("RemoveUpdateLeases(UpdateLeases.Clear());"), "retained failed reload");
+        AssertEx.True(Body("case MessageType.UPDATE_NETWORK_GRANT:", "GrantUpdateNetwork(").Contains("if (PasswordLock.Locked)\n                            return TwMessageLocked.Instance;"), "locked since the pipe check");
+        AssertEx.True(service.Contains("UpdateNetworkLeases UpdateLeases = new(new MonotonicClock());"), "expiry follows elapsed time");
         AssertEx.True(Body("private List<KeyValuePair<UpdateNetworkLease, List<Guid>>> InstallUpdatePermits()", "foreach").Contains("UpdateNetworkGrantPolicy.ShouldInstall(PolicyMode == FirewallMode.Normal, displayOffBlockActive)"), "mode and display");
         AssertEx.True(Body("private void RemoveUpdateLeases(", "private void InstallRawSocketPermits").Contains("FailClosed();"), "a permit that cannot be removed withdraws everything");
         AssertEx.True(Body("private UpdateGrantStatus GrantUpdateNetwork(", "private void ReleaseUpdateNetwork").Contains("UpdateNetworkClient.TryOpen(clientProcessId, Utils.ExecutablePath"), "identity from the pipe client");
@@ -645,6 +659,9 @@ internal static class ReleaseUpdateTests
         int launch = applier.IndexOf("Path.Combine(Environment.SystemDirectory, \"msiexec.exe\")", StringComparison.Ordinal);
         AssertEx.True(verify > 0 && verify < stage && stage < reverify && reverify < package && package < launch, "verify, stage, verify again, check the package, then launch");
         AssertEx.True(applier.Contains("identity.IsSystem") && applier.Contains("WindowsBuiltInRole.Administrator"), "never as SYSTEM, only elevated");
+        // The requesting user is the session's user; the suppression compares against it.
+        AssertEx.True(applier.Contains("if (!string.Equals(sessionSid, request.UserSid, StringComparison.OrdinalIgnoreCase))"), "session user check");
+        AssertEx.True(applier.Contains("suppressUserActions: !string.Equals(helperSid, sessionSid, StringComparison.OrdinalIgnoreCase)"), "suppress by session user");
 
         string product = PromptTransactionIntegrationTests.Source("MsiSetup/Product.wxs");
         AssertEx.True(product.Contains("<Property Id=\"SECUREWALL_SUPPRESS_USER_ACTIONS\" Secure=\"yes\" />"));

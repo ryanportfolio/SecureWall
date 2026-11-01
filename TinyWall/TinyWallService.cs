@@ -72,7 +72,7 @@ namespace pylorak.TinyWall
         private readonly CoalescedDiagnostic UnavailableVolumeRules = new();
         private readonly ServiceExecutableCatalog ServiceExecutables = new();
         // Check for updates: transient per-user TCP 443 permits. Enforcement thread only.
-        private readonly UpdateNetworkLeases UpdateLeases = new(SystemClock.Instance);
+        private readonly UpdateNetworkLeases UpdateLeases = new(new MonotonicClock());
 
         // Context for auto rule inheritance
         private readonly object InheritanceGuard = new();
@@ -1064,7 +1064,7 @@ namespace pylorak.TinyWall
             List<Guid> pending = PendingRuntimeFilterKeys ?? throw new InvalidOperationException("No runtime transaction is active.");
             foreach (UpdateNetworkLease lease in UpdateLeases.Active)
             {
-                if (lease.ExpiresUtc <= DateTimeOffset.UtcNow || (lease.Process as UpdateNetworkClient)?.HasExited != false)
+                if (UpdateLeases.Remaining(lease) <= TimeSpan.Zero || (lease.Process as UpdateNetworkClient)?.HasExited != false)
                     continue;
                 int first = pending.Count;
                 InstallUpdatePermit(lease);
@@ -1075,15 +1075,18 @@ namespace pylorak.TinyWall
 
         // After a committed full reload: leases whose permit was re-added get its new keys;
         // every other lease (expired, exited, or a mode or display state without permits) ends.
+        // A lease that expired while the reload committed has new filters, which are removed here.
         private void CommitUpdatePermits(List<KeyValuePair<UpdateNetworkLease, List<Guid>>> installed)
         {
             foreach (var pair in installed)
                 pair.Key.FilterKeys = pair.Value;
-            foreach (UpdateNetworkLease lease in UpdateLeases.RemoveDue(lease => !installed.Exists(pair => ReferenceEquals(pair.Key, lease))))
+            List<UpdateNetworkLease> ended = UpdateLeases.RemoveDue(lease => !installed.Exists(pair => ReferenceEquals(pair.Key, lease)));
+            foreach (UpdateNetworkLease lease in ended)
             {
-                lease.FilterKeys.Clear(); // The reload already removed them.
-                lease.Process?.Dispose();
+                if (!installed.Exists(pair => ReferenceEquals(pair.Key, lease)))
+                    lease.FilterKeys.Clear(); // The reload already removed them.
             }
+            RemoveUpdateLeases(ended);
         }
 
         // Enforcement thread only.
@@ -1105,33 +1108,25 @@ namespace pylorak.TinyWall
             UpdateNetworkLease lease = UpdateLeases.Grant(client.ProcessId, client.CreationTime, client.UserSid, client,
                 out List<UpdateNetworkLease> replaced);
             RemoveUpdateLeases(replaced);
-            if (RuntimeSessionRevoked)
+            var keys = new List<Guid>();
+            try
             {
+                using Transaction trx = WfpEngine.BeginTransaction();
+                PendingRuntimeFilterKeys = keys;
+                InstallUpdatePermit(lease);
+                trx.Commit();
+                RuntimeFilterKeys.AddRange(keys);
+                lease.FilterKeys = keys;
+            }
+            catch (Exception exception)
+            {
+                Utils.LogException(exception, Utils.LOG_ID_SERVICE);
                 RemoveUpdateLeases(UpdateLeases.Release(lease.ProcessId, lease.CreationTime));
                 return UpdateGrantStatus.Failed;
             }
-
-            using (Transaction trx = WfpEngine.BeginTransaction())
+            finally
             {
-                var keys = new List<Guid>();
-                PendingRuntimeFilterKeys = keys;
-                try
-                {
-                    InstallUpdatePermit(lease);
-                    trx.Commit();
-                    RuntimeFilterKeys.AddRange(keys);
-                    lease.FilterKeys = keys;
-                }
-                catch (Exception exception)
-                {
-                    Utils.LogException(exception, Utils.LOG_ID_SERVICE);
-                    RemoveUpdateLeases(UpdateLeases.Release(lease.ProcessId, lease.CreationTime));
-                    return UpdateGrantStatus.Failed;
-                }
-                finally
-                {
-                    PendingRuntimeFilterKeys = null;
-                }
+                PendingRuntimeFilterKeys = null;
             }
 
             TimeSpan remaining = UpdateLeases.Remaining(lease);
@@ -1151,6 +1146,15 @@ namespace pylorak.TinyWall
                     return;
                 }
             }
+        }
+
+        // Ends expired leases and leases whose process exited, and re-arms the watch of the rest
+        // (a wait can fire early, and a watch fires only once).
+        private void ReviewUpdateLeases()
+        {
+            RemoveUpdateLeases(UpdateLeases.RemoveDue(lease => (lease.Process as UpdateNetworkClient)?.HasExited != false));
+            foreach (UpdateNetworkLease lease in UpdateLeases.Active)
+                (lease.Process as UpdateNetworkClient)?.Watch(UpdateLeases.Remaining(lease), PostUpdateLeaseReview);
         }
 
         private void PostUpdateLeaseReview()
@@ -1951,6 +1955,8 @@ namespace pylorak.TinyWall
 
         private void RetainCommittedPolicy(Exception error)
         {
+            // The previous policy stays; update permits do not.
+            RemoveUpdateLeases(UpdateLeases.Clear());
             ReloadRetry.RecordFailure(RecoveryClock.Elapsed);
             Utils.Log("Policy reload failed before any WFP change committed; the previous policy stays in force. Retry " +
                 ReloadRetry.Failures + " of " + EnvironmentalPolicyReload.MaxRetainedFailures +
@@ -2127,6 +2133,10 @@ namespace pylorak.TinyWall
             {
                 case MessageType.UPDATE_NETWORK_GRANT:
                     {
+                        // The pipe thread checked the lock when the request arrived; an inactivity
+                        // lock may have fired since.
+                        if (PasswordLock.Locked)
+                            return TwMessageLocked.Instance;
                         var args = (TwMessageUpdateNetwork)req;
                         UpdateGrantStatus status = GrantUpdateNetwork(clientProcessId, out int secondsLeft);
                         return args.CreateResponse(status, secondsLeft);
@@ -2140,7 +2150,7 @@ namespace pylorak.TinyWall
                 case MessageType.UPDATE_NETWORK_REVIEW:
                     {
                         var args = (TwMessageSimple)req;
-                        RemoveUpdateLeases(UpdateLeases.RemoveDue(lease => (lease.Process as UpdateNetworkClient)?.HasExited != false));
+                        ReviewUpdateLeases();
                         return args.CreateResponse();
                     }
                 case MessageType.READ_FW_LOG:
@@ -2407,7 +2417,7 @@ namespace pylorak.TinyWall
                             if (PasswordLock.Locked)
                                 RemoveUpdateLeases(UpdateLeases.Clear());
                         });
-                        RemoveUpdateLeases(UpdateLeases.RemoveDue(lease => (lease.Process as UpdateNetworkClient)?.HasExited != false));
+                        ReviewUpdateLeases();
 
                         // Periodically reload all rules.
                         // This is needed to clear out temprary rules added due to child-process rule inheritance.

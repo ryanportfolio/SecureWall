@@ -80,6 +80,15 @@ namespace pylorak.TinyWall.Prompting
         };
     }
 
+    // Lease expiry follows elapsed time, so setting the system clock back cannot extend a permit.
+    internal sealed class MonotonicClock : IClock
+    {
+        private readonly DateTimeOffset Start = DateTimeOffset.UtcNow;
+        private readonly System.Diagnostics.Stopwatch Elapsed = System.Diagnostics.Stopwatch.StartNew();
+
+        public DateTimeOffset UtcNow => Start + Elapsed.Elapsed;
+    }
+
     internal sealed class UpdateNetworkLease
     {
         internal UpdateNetworkLease(uint processId, long creationTime, string userSid, DateTimeOffset expiresUtc, IDisposable? process)

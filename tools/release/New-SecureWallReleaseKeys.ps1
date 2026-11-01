@@ -1,11 +1,11 @@
-#Requires -Version 7.2
+#Requires -Version 7.4
 <#
 .SYNOPSIS
 Creates SecureWall's release signing keys on the owner's PC and writes their public halves
 to tools\release\keys.
 
 .DESCRIPTION
-Run once, by the owner, in PowerShell 7 on the PC that will sign releases. It creates:
+Run once, by the owner, in PowerShell 7.4 or later on the PC that will sign releases. It creates:
 
 - The primary key, in your Windows user key store (Microsoft Software Key Storage
   Provider). It cannot be exported, and Windows asks for the password you choose here every
@@ -70,6 +70,12 @@ function Read-NewPassword {
 }
 
 if (-not $IsWindows) { throw 'Run this on Windows: the primary key lives in the Windows key store.' }
+# Checked before any key exists, so a failure leaves nothing half made.
+foreach ($method in 'ExportEncryptedPkcs8PrivateKeyPem', 'ExportPkcs8PrivateKeyPem') {
+    if (-not ([System.Security.Cryptography.AsymmetricAlgorithm].GetMethods() | Where-Object Name -eq $method)) {
+        throw "This PowerShell's .NET has no $method. Use PowerShell 7.4 or later."
+    }
+}
 
 $BackupDirectory = [System.IO.Path]::GetFullPath($BackupDirectory)
 if (-not (Test-Path -LiteralPath $BackupDirectory -PathType Container)) {
