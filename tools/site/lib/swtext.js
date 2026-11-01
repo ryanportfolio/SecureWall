@@ -139,7 +139,8 @@
 //
 // The first setup failure logs one console.warn and leaves that terrain (and
 // the headlines on it) as the page had it. A terrain the site never builds
-// (no WebGL) is not reported: onTerrain callbacks simply never run.
+// (no WebGL) is not reported: onTerrain callbacks simply never run. Without
+// WebGL2 setup fails on purpose, since the shaders need it.
 (() => {
   "use strict";
 
@@ -265,10 +266,23 @@
     );
   }
 
+  let webgl2 = null;
+  function hasWebGL2() {
+    if (webgl2 === null) {
+      const gl = document.createElement("canvas").getContext("webgl2");
+      webgl2 = !!gl;
+      gl?.getExtension("WEBGL_lose_context")?.loseContext();
+    }
+    return webgl2;
+  }
+
   function attach(layer) {
     const t = terrains.get(layer?.options?.name);
     if (!t || t.layer || t.failed) return;
     try {
+      // The patched and added shaders use textureLod and gl_InstanceID;
+      // three.js falls back to WebGL1 when WebGL2 is missing.
+      if (!hasWebGL2()) throw new Error("no WebGL2");
       const mesh = layer.mesh;
       const material = mesh.material;
       const uniforms = material.uniforms;

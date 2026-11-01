@@ -373,6 +373,7 @@ gl_FragColor=vec4(c,1.);
     let drawnFor = ""; // rectKey the mound was drawn for
     let placed = false;
     let stop = null;
+    let stopFooter = null;
     let rise = 0;
     let hero = null;
     let title = null;
@@ -413,6 +414,7 @@ gl_FragColor=vec4(c,1.);
     // Puts the page back to the DOM headline; SWText logs the error.
     function fail(err) {
       stop?.();
+      stopFooter?.();
       document.documentElement.classList.remove("sw-hero-3d");
       if (hero) SW.clearMound(hero);
       text?.dispose();
@@ -465,6 +467,15 @@ gl_FragColor=vec4(c,1.);
         fail(err);
       }
     });
+    // Hero frames stop at the end of the WebGL area, possibly before the
+    // letters have sunk (a fast jump down the page). The footer renders the
+    // same scene, so drop them on its first frame.
+    stopFooter = SW.onFrame(() => {
+      if (!rise) return;
+      rise = 0;
+      text?.setAmount(0);
+      rings?.setAmount(0);
+    }, { name: "Layers Footer" });
     try {
       setup();
     } catch (err) {

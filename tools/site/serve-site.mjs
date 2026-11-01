@@ -44,8 +44,12 @@ http.createServer((req, res) => {
   if (rel.endsWith("/")) rel += "index.html";
   const file = path.join(root, rel);
   // A file can vanish between checks while the patch tool rewrites the
-  // folder being served; that is a 404, not a crash.
-  const isFile = !path.relative(root, file).startsWith("..") && fs.statSync(file, { throwIfNoEntry: false })?.isFile();
+  // folder being served, and stat throws on paths such as "/%00"; both are
+  // a 404, not a crash.
+  let isFile = false;
+  try {
+    isFile = !path.relative(root, file).startsWith("..") && fs.statSync(file).isFile();
+  } catch {}
   if (!isFile) {
     res.writeHead(404, { "Content-Type": "text/plain" }).end("not found");
     return;
