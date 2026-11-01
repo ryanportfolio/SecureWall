@@ -55,6 +55,19 @@ Policy changes journal the prior configuration before attempting a candidate wri
 Recovery failure closes the dynamic session. Startup resolves any pending journal before using stored configuration. Windows Firewall compatibility starts only after protective WFP setup; exact rule ownership and a durable profile-notification journal support cleanup after service loss.
 
 
+In-place upgrades (v0.5.0 on; `docs/SECURITY.md`, "In-place upgrade") run five SYSTEM maintenance modes from `TinyWallDoctor.cs`, with the decisions in `Prompting/UpgradeLifecyclePolicy.cs`. The old package's stop step records its progress in `HKLM\SOFTWARE\SecureWall\UpgradeInProgress` (`<transaction>|<phase>`); the old package's restore step, the rollback's last action, decides from that phase:
+
+```mermaid
+flowchart LR
+    R[Restore step] --> M{Marker for this upgrade?}
+    M -->|no, or stopping with service Running| S[Start old service]
+    M -->|yes| X[Stop whichever binary runs, close controllers]
+    X --> V{Snapshot matches its manifest?}
+    V -->|yes| E[Restore exact set] --> S
+    V -->|no, phase stopping or stopped| D[Discard unfinished copy] --> S
+    V -->|no, phase snapshot-complete| H[Hold: keep marker and snapshot, baseline blocks]
+```
+
 `Installer/MachineDataGuard.cs` validates machine-data ancestors and descendants before production data access. MSI defaults live under `INSTALLDIR/data-defaults`; SYSTEM `/install` creates only a missing protected directory and after validation brings the shipped data files `profiles.json` and `hosts.bck` to the `data-defaults` content (absent: create; different: atomic replace; identical: untouched). MSI has no ProgramData writes or deletes. Unsafe existing trees are rejected, never repaired in place. Safe disappearing temporary children are tolerated only after parent revalidation.
 
 Configuration defaults require confirmed absence; existing corrupt/unreadable configuration fails startup closed. An environmental reload that fails before its WFP commit keeps the committed policy with bounded retries only when no grant is superseded (unverified or changed addresses, volume change, pending display-off restriction); otherwise it withdraws runtime grants. Withdrawal while running rebuilds a new dynamic session in-process; exhausted rebuilds and startup failures exit with a nonzero service exit code for SCM restart. Hosts restoration errors propagate and retain recovery data. Executable warnings include file ownership/write rights and parent replacement rights; audit health and bounded suppression diagnostics describe degraded attribution without granting traffic. The Windows_Update profile retains exact `wuauserv` outbound TCP access and has no executable-wide rule.
