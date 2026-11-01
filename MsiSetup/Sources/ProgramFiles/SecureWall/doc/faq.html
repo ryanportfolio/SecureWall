@@ -24,7 +24,7 @@
       <p>SecureWall is a GPLv3 fork of TinyWall. It keeps TinyWall's direct Windows Filtering Platform, default-deny design and adds a bottom-right prompt for newly blocked outgoing TCP or UDP connections.</p>
 
       <h3>What do Allow outgoing and Ignore do?</h3>
-      <p><strong>Allow outgoing</strong> creates a permanent outbound TCP/UDP exception for the service-owned identity in the prompt. It does not open inbound listener ports. <strong>Ignore</strong> keeps the connection blocked and suppresses another prompt for that identity for five minutes.</p>
+      <p><strong>Allow outgoing</strong> creates a permanent outbound TCP/UDP exception for the service-owned identity in the prompt. It does not open inbound listener ports. <strong>Ignore</strong> keeps the connection blocked and adds the app to Manage, Ignored, so SecureWall stops asking about it. The app stays blocked: the Ignored list creates no exception. Remove the app from that list to be asked again. While SecureWall is locked, Ignore asks for the password first; if you cancel or the password is wrong, nothing is added and Ignore only stops prompts for that app for five minutes. A shared Windows service host is never added to the list, so Ignore on one also only stops prompts for five minutes.</p>
 
       <h3>Why is Allow sometimes disabled?</h3>
       <p>Shared service hosts can run several Windows services in one process. If SecureWall cannot prove one exact service identity, it keeps blocking and disables Allow instead of creating a broad executable exception.</p>
