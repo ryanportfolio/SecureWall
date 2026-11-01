@@ -25,7 +25,7 @@
     <Company>CoreWise</Company>
     <Description>A default-deny Windows firewall with explicit outbound connection prompts.</Description>
     <Copyright>Copyright © 2011 Károly Pados; SecureWall modifications © 2026 CoreWise</Copyright>
-    <Version>0.5.0</Version>
+    <Version>0.5.1</Version>
   </PropertyGroup>
   <!-- In-place upgrade VM test build: Release code plus the fault points in
        Installer/UpgradeFault.cs, stamped by its informational version and an
