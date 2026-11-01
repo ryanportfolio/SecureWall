@@ -45,7 +45,9 @@ Do not run this matrix on the development host. Use an expendable Windows VM wit
 | Local listener | TCP/UDP endpoint is labeled Listening (local endpoint); UI does not claim external reachability |
 | TinyWall remains installed | SecureWall MSI and `/install` both refuse; no SecureWall service/provider/filter is activated |
 | Allow outgoing | Permanent exact executable exception; retry succeeds; no inbound listener rule |
-| Ignore, close, and 30-second timeout | No policy change; five-minute identity cooldown; traffic remains blocked |
+| Ignore and close | No policy change; five-minute identity cooldown; traffic remains blocked |
+| Unanswered popup | Popup stays until its token expires, with no cooldown; typing Enter, Space, Escape or Alt+F4 in another window leaves it open; the expired prompt appears under "Blocked apps not answered" in the tray menu with a balloon |
+| Prompts revoked by another Allow | Queued prompts for other apps leave the screen and appear in "Blocked apps not answered"; allowing one there asks for confirmation (and the password when locked) and writes an outbound-only rule; a fresh block from that app replaces the entry with a live prompt |
 | Repeated drops | Coalesced prompt, bounded queue, no notification flood |
 | Explicitly blocked executable | No prompt; remains blocked |
 | BlockAll / AllowOutgoing / Disabled | No default-block prompt |

@@ -14,7 +14,7 @@ using pylorak.TinyWall.Prompting;
 
 namespace pylorak.TinyWall
 {
-    internal sealed class TinyWallController : ApplicationContext
+    internal sealed partial class TinyWallController : ApplicationContext
     {
         #region Vom Windows Form-Designer generierter Code
 
@@ -1333,6 +1333,7 @@ namespace pylorak.TinyWall
                     new ControllerPromptActionClient(GlobalInstances.Controller, UnlockForPrompt, RelockAfterPrompt),
                     () => new BlockedConnectionPopup(),
                     performAction: action => Task.Run(action));
+                InitMissedPromptsMenu(PromptCoordinator);
                 PromptPollTimer.Enabled = true;
 
                 barrier.Wait();
