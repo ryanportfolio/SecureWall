@@ -79,7 +79,7 @@ The popup runs in the unelevated controller at the owner's integrity level, so a
 
 The popup adds timing mitigations for accidental and click-timing grants:
 
-- Enter is not bound to Allow. The form has no accept button; Escape maps to Ignore. The popup still shows without taking focus.
+- No key is bound to Allow, Ignore or close. The popup never becomes the active window (`WS_EX_NOACTIVATE`, and `MA_NOACTIVATE` on click), so keystrokes go to the window you are typing in. Other programs running as you can still press its buttons, as described above.
 - Allow stays disabled until the popup has been visible, without repositioning itself, for about one second (checked on a 250 ms timer, so 1.0 to 1.25 s) and the executable risk probe (unsigned, user-writable location, recently changed) has finished and its warnings are on screen. Only the popup's own repositioning restarts the delay and disarms Allow again: when it is shown, grows to show risk warnings, or opens or closes the AI panel. The popup is borderless and cannot be dragged; a move or resize caused by a display change or another process does not restart the delay. The click handler rechecks the same condition, so a click on a disabled Allow does nothing.
 
 These stop a keystroke or a click already in progress from landing on a freshly shown Allow. They do not stop a same-user process that waits out the delay.

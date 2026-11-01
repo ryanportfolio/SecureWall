@@ -41,6 +41,7 @@ Do not run this matrix on the development host. Use an expendable Windows VM wit
 |---|---|
 | Unknown executable makes outbound TCP connection | One bottom-right prompt; connection stays blocked until Allow |
 | Network Activity live view | Fresh install shows allowed, blocked, active, and listening filters; rows refresh within about one second |
+| Network Activity beside Manage | Both windows open and usable at once, and a prompt popup still takes clicks; unblock an app from Network Activity, then press OK in Manage: the save is refused with the retry warning and the new rule stays |
 | Allowed / blocked evidence | WFP permit is labeled Allowed; WFP drop is labeled Blocked; app/service, protocol, endpoints, direction, and timestamp are visible |
 | Local listener | TCP/UDP endpoint is labeled Listening (local endpoint); UI does not claim external reachability |
 | TinyWall remains installed | SecureWall MSI and `/install` both refuse; no SecureWall service/provider/filter is activated |

@@ -416,11 +416,13 @@ namespace pylorak.TinyWall
                     return request.Response;
                 });
 
-                if (!ControllerDisposing)
+                // Only a real snapshot replaces the displayed prompts. A failed read (pipe error,
+                // service restarting) says nothing about them; treating it as empty would close
+                // the popup and list every prompt as unanswered until the next poll.
+                if (!ControllerDisposing && response is TwMessageReadPendingPrompts poll)
                 {
-                    PromptWireDto[] prompts = Controller.EndReadPendingPrompts(response);
-                    PromptCoordinator?.Reconcile(prompts);
-                    if (response is TwMessageReadPendingPrompts poll && poll.State != null)
+                    PromptCoordinator?.Reconcile(Controller.EndReadPendingPrompts(response));
+                    if (poll.State != null)
                     {
                         FirewallState.AttributionAvailable = poll.State.AttributionAvailable;
                         FirewallState.DroppedPromptCandidates = poll.State.DroppedPromptCandidates;
@@ -817,12 +819,15 @@ namespace pylorak.TinyWall
             WhitelistProcesses(selection);
         }
 
-        internal TwMessage ApplyFirewallSettings(ServerConfiguration srvConfig, bool showUI = true)
+        // baseChangeset: the changeset srvConfig was copied from. A window that stays open while
+        // other actions change the settings passes the one it started from, so the service
+        // refuses a save that would overwrite those changes.
+        internal TwMessage ApplyFirewallSettings(ServerConfiguration srvConfig, bool showUI = true, Guid? baseChangeset = null)
         {
             if (!EnsureUnlockedServer(showUI))
                 return TwMessageLocked.Instance;
 
-            var resp = GlobalInstances.Controller.SetServerConfig(srvConfig, GlobalInstances.ClientChangeset);
+            var resp = GlobalInstances.Controller.SetServerConfig(srvConfig, baseChangeset ?? GlobalInstances.ClientChangeset);
             switch (resp.Type)
             {
                 case MessageType.PUT_SETTINGS:
@@ -894,30 +899,43 @@ namespace pylorak.TinyWall
 
         private void mnuManage_Click(object sender, EventArgs e)
         {
+            // Network Activity may stay open beside Manage. Any other window (a file or
+            // process picker) is a modal step of another action and comes first.
+            foreach (Form open in ActiveForms)
+            {
+                if (open is not ConnectionsForm)
+                {
+                    FlashIfOpen(open);
+                    return;
+                }
+            }
+
             if (!EnsureUnlockedServer())
                 return;
 
-            // The settings form should not be used with other windows at the same time
-            if (ActiveForms.Count != 0)
-            {
-                FlashIfOpen(ActiveForms[0]);
-                return;
-            }
-
             LoadSettingsFromServer();
+            Guid openedChangeset = GlobalInstances.ClientChangeset;
 
-            using var sf = new SettingsForm(Utils.DeepClone(ActiveConfig.Service), Utils.DeepClone(ActiveConfig.Controller));
+            var sf = new SettingsForm(Utils.DeepClone(ActiveConfig.Service), Utils.DeepClone(ActiveConfig.Controller));
             ActiveForms.Add(sf);
+            sf.FormClosed += (_, _) => SettingsFormClosed(sf, openedChangeset);
+            sf.Show();
+        }
+
+        private void SettingsFormClosed(SettingsForm sf, Guid openedChangeset)
+        {
             try
             {
-                if (sf.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                if (sf.DialogResult == System.Windows.Forms.DialogResult.OK)
                 {
                     var oldLang = ActiveConfig.Controller.Language;
 
-                    // Save settings
+                    // Save settings. A rule added from Network Activity or a prompt while this
+                    // window was open makes the service refuse the save and ask for a retry,
+                    // instead of the save silently removing that rule.
                     ActiveConfig.Controller = sf.TmpConfig.Controller;
                     ActiveConfig.Controller.Save();
-                    ApplyFirewallSettings(sf.TmpConfig.Service);
+                    ApplyFirewallSettings(sf.TmpConfig.Service, baseChangeset: openedChangeset);
 
                     // Handle password change request
                     string? newPassword = sf.NewPassword;
@@ -1230,21 +1248,14 @@ namespace pylorak.TinyWall
 
         private void mnuConnections_Click(object sender, EventArgs e)
         {
-            if (FlashIfOpen(typeof(SettingsForm)))
-                return;
             if (FlashIfOpen(typeof(ConnectionsForm)))
                 return;
 
-            using var cf = new ConnectionsForm(this);
-            try
-            {
-                ActiveForms.Add(cf);
-                cf.ShowDialog();
-            }
-            finally
-            {
-                ActiveForms.Remove(cf);
-            }
+            // Not modal, so Manage can be open beside it. A closed modeless form disposes itself.
+            var cf = new ConnectionsForm(this);
+            ActiveForms.Add(cf);
+            cf.FormClosed += (_, _) => ActiveForms.Remove(cf);
+            cf.Show();
         }
 
         private void Tray_MouseClick(object sender, MouseEventArgs e)

@@ -383,12 +383,15 @@ namespace pylorak.TinyWall
             TmpConfig.Controller.Language = ((IdWithName)comboLanguages.SelectedItem).Id;
             TmpConfig.Controller.UiTheme = ((IdWithName)comboUiTheme.SelectedItem).Id;
 
+            // The form is shown modeless; DialogResult alone closes only a modal form.
             this.DialogResult = DialogResult.OK;
+            this.Close();
         }
 
         private void btnCancel_Click(object sender, EventArgs e)
         {
             this.DialogResult = DialogResult.Cancel;
+            this.Close();
         }
 
         private void listRecommendedGlobalProfiles_ItemCheck(object sender, ItemCheckEventArgs e)
