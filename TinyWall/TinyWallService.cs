@@ -1469,9 +1469,13 @@ namespace pylorak.TinyWall
         private List<FirewallLogEntry> GetFwLog()
         {
             var entries = new List<FirewallLogEntry>();
+            // A block's PID is shown once its matching window has passed: a later audit
+            // within that window can still show it was ambiguous.
+            DateTime settled = DateTime.Now - ActivityAuditWindow - TimeSpan.FromSeconds(1);
             lock (FirewallLogEntries)
             {
-                entries.AddRange(FirewallLogEntries);
+                foreach (FirewallLogEntry entry in FirewallLogEntries)
+                    entries.Add(entry.ProcessId != 0 && entry.Timestamp > settled ? entry with { ProcessId = 0 } : entry);
             }
             return entries;
         }
@@ -2571,9 +2575,9 @@ namespace pylorak.TinyWall
 
                 lock (FirewallLogEntries)
                 {
-                    if (eventType == EventLogEvent.BLOCKED)
-                        AttributeFromPendingAudit(entry);
                     FirewallLogEntries.Enqueue(entry);
+                    if (eventType == EventLogEvent.BLOCKED)
+                        AttributeCluster(entry);
                 }
 
                 if (eventType == EventLogEvent.BLOCKED &&
@@ -2612,62 +2616,64 @@ namespace pylorak.TinyWall
             }
         }
 
-        // Security-log events for blocks the WFP net event already logged, or is about to log.
+        // Security-log events for recent blocks, whether or not a row has taken their PID.
         // WFP net events carry no process ID, so a matching audit event is what lets Network
-        // Activity name the process (and so the services) behind a blocked row. Guarded by
-        // the FirewallLogEntries lock.
-        private readonly List<ActivityAudit> PendingActivityAudits = new();
+        // Activity name the process (and so the services) behind a blocked row. The 64 newest
+        // are kept; AuditMatches' time window rejects stale ones. Guarded by the
+        // FirewallLogEntries lock.
+        private readonly List<ActivityAudit> RecentActivityAudits = new();
+        private static readonly TimeSpan ActivityAuditWindow = TimeSpan.FromSeconds(5);
 
-        // Only an unambiguous match names the process: when several rows or audits could pair
-        // up (a lost or reordered event, or several svchost.exe processes binding raw sockets),
-        // the row keeps no PID rather than risk another process's.
         private void LogWatcherActivityAudited(FirewallLogWatcher sender, ActivityAudit audit)
         {
             if (RuntimeStopping || audit.ProcessId == 0) return;
             lock (FirewallLogEntries)
             {
-                FirewallLogEntry? match = null;
-                int matches = 0;
+                if (RecentActivityAudits.Count >= 64)
+                    RecentActivityAudits.RemoveAt(0);
+                RecentActivityAudits.Add(audit);
                 foreach (FirewallLogEntry entry in FirewallLogEntries)
                 {
-                    if (entry.ProcessId == 0 && entry.Event == EventLogEvent.BLOCKED && AuditMatches(audit, entry))
+                    if (entry.Event == EventLogEvent.BLOCKED && AuditMatches(audit, entry))
                     {
-                        match = entry;
-                        ++matches;
+                        AttributeCluster(entry);
+                        return;
                     }
                 }
-                if (matches > 1)
-                    return;
-                if (match != null &&
-                    !PendingActivityAudits.Exists(other => other.ProcessId != audit.ProcessId && AuditMatches(other, match)))
-                {
-                    match.ProcessId = audit.ProcessId;
-                    return;
-                }
-                // The net event has not arrived yet. Keep the audit until it does or 64 newer
-                // ones push it out; the time check in AuditMatches rejects stale ones.
-                if (PendingActivityAudits.Count >= 64)
-                    PendingActivityAudits.RemoveAt(0);
-                PendingActivityAudits.Add(audit);
             }
         }
 
-        private void AttributeFromPendingAudit(FirewallLogEntry entry)
+        // Rows and audits that could pair up, in any order, form a cluster. Its rows take a PID
+        // only when every audit in it names the same process and no row lacks an audit: two
+        // processes (several svchost.exe binding raw sockets, say) or a lost audit leave every
+        // row in it without one, and an audit arriving later can take back a PID given earlier.
+        private void AttributeCluster(FirewallLogEntry seed)
         {
-            int found = -1;
-            for (int i = 0; i < PendingActivityAudits.Count; ++i)
+            var rows = new List<FirewallLogEntry> { seed };
+            var audits = new List<int>();
+            for (int r = 0, a = 0; r < rows.Count || a < audits.Count;)
             {
-                if (!AuditMatches(PendingActivityAudits[i], entry))
-                    continue;
-                if (found >= 0 && PendingActivityAudits[found].ProcessId != PendingActivityAudits[i].ProcessId)
-                    return;
-                if (found < 0)
-                    found = i;
+                if (r < rows.Count)
+                {
+                    FirewallLogEntry row = rows[r++];
+                    for (int i = 0; i < RecentActivityAudits.Count; ++i)
+                        if (!audits.Contains(i) && AuditMatches(RecentActivityAudits[i], row))
+                            audits.Add(i);
+                }
+                else
+                {
+                    ActivityAudit audit = RecentActivityAudits[audits[a++]];
+                    foreach (FirewallLogEntry row in FirewallLogEntries)
+                        if (row.Event == EventLogEvent.BLOCKED && !rows.Exists(other => ReferenceEquals(other, row)) && AuditMatches(audit, row))
+                            rows.Add(row);
+                }
             }
-            if (found < 0)
-                return;
-            entry.ProcessId = PendingActivityAudits[found].ProcessId;
-            PendingActivityAudits.RemoveAt(found);
+            uint pid = 0;
+            if (audits.Count >= rows.Count && audits.Count > 0 &&
+                audits.TrueForAll(i => RecentActivityAudits[i].ProcessId == RecentActivityAudits[audits[0]].ProcessId))
+                pid = RecentActivityAudits[audits[0]].ProcessId;
+            foreach (FirewallLogEntry row in rows)
+                row.ProcessId = pid;
         }
 
         private static bool AuditMatches(ActivityAudit audit, FirewallLogEntry entry) =>
@@ -2680,7 +2686,7 @@ namespace pylorak.TinyWall
             (audit.LocalAddress == null || DropCorrelator.AddressesEqual(audit.LocalAddress, entry.LocalIp ?? string.Empty)) &&
             (audit.RemoteAddress == null || DropCorrelator.AddressesEqual(audit.RemoteAddress, entry.RemoteIp ?? string.Empty)) &&
             string.Equals(audit.ApplicationPath, entry.AppPath, StringComparison.OrdinalIgnoreCase) &&
-            Math.Abs((audit.TimestampUtc - new DateTimeOffset(entry.Timestamp).ToUniversalTime()).TotalSeconds) <= 5;
+            (audit.TimestampUtc - new DateTimeOffset(entry.Timestamp).ToUniversalTime()).Duration() <= ActivityAuditWindow;
 
         private void LogWatcherBlockedConnection(
             FirewallLogWatcher sender,
@@ -2939,7 +2945,9 @@ namespace pylorak.TinyWall
                 {
                     foreach (FirewallLogEntry entry in FirewallLogEntries)
                     {
+                        // The exception allows outbound TCP and UDP only.
                         if (entry.Event == EventLogEvent.BLOCKED && entry.FilterGroup == FilterGroup.DefaultAction &&
+                            entry.Direction == RuleDirection.Out && (entry.Protocol == Protocol.TCP || entry.Protocol == Protocol.UDP) &&
                             string.Equals(entry.AppPath, path.Key, StringComparison.OrdinalIgnoreCase) &&
                             new DateTimeOffset(entry.Timestamp).ToUniversalTime() >= path.Value.FirstDropUtc)
                             entry.AllowedByAlwaysAllow = true;

@@ -31,13 +31,13 @@ flowchart LR
     Q --> W[Worker: exact-path outbound exception, ApplyConfiguration]
 ```
 
-Network Activity rows come from WFP net events, which carry no PID. The service matches each blocked row to a Security-log 5157 (connection) or 5159 (bind, including raw sockets) event and stores its PID on the row only when the pairing is unambiguous; the tray app keeps it while a process with that path and an earlier start time holds it, names that PID's services, and looks up a remote host name in the Windows DNS client cache (`DnsCacheNames`). Not used by prompts; Network Activity's Unblock and Close process act on the matched PID and its services. When Always allow adds an exception, the service marks that path's default-deny rows since the first handled drop, shown as "Blocked, then allowed by Always allow".
+Network Activity rows come from WFP net events, which carry no PID. The service matches each blocked row to a Security-log 5157 (connection) or 5159 (bind, including raw sockets) event and stores its PID on the row only when every audit that could pair with it (in any arrival order) names one process and no such row lacks an audit, publishing it once the 5 s window has passed; the tray app keeps it while a process with that path and an earlier start time holds it, names that PID's services, and looks up a remote host name in the Windows DNS client cache (`DnsCacheNames`). Not used by prompts; Network Activity's Unblock and Close process act on the matched PID and its services. When Always allow adds an exception, the service marks that path's default-deny rows since the first handled drop, shown as "Blocked, then allowed by Always allow".
 
 ```mermaid
 flowchart LR
     N[WFP net event: drop, no PID] --> L[Service log row]
-    A[Security log 5157 / 5159: PID] -->|exactly one match: filter, path, protocol, ports, addresses, within 5 s| L
-    W[Always allow adds exception] -->|mark rows since first drop| L
+    A[Security log 5157 / 5159: PID] -->|one process in the matching group: filter, path, protocol, ports, addresses, within 5 s| L
+    W[Always allow adds exception] -->|mark outbound TCP/UDP rows since first drop| L
     L --> C[Network Activity: PID if process still matches, services from SCM]
     K[DNS client cache] --> C
 ```
