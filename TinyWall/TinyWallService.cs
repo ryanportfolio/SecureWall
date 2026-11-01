@@ -75,6 +75,9 @@ namespace pylorak.TinyWall
         // Context for auto rule inheritance
         private readonly object InheritanceGuard = new();
         private HashSet<string> UserSubjectExes = new(StringComparer.OrdinalIgnoreCase);        // All executables with pre-configured rules.
+        // UserSubjectExes as last committed (app and special-profile rules); never changed after
+        // publication, so the prompt timer thread reads it without InheritanceGuard.
+        private volatile HashSet<string> CommittedRuleExecutables = new(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, List<FirewallExceptionV3>> ChildInheritance = new(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, HashSet<string>> ChildInheritedSubjectExes = new(StringComparer.OrdinalIgnoreCase);   // Executables that have been already auto-whitelisted due to inheritance
         private readonly ThreadThrottler FirewallThreadThrottler = new(Thread.CurrentThread, ThreadPriority.Highest, false);
@@ -448,6 +451,7 @@ namespace pylorak.TinyWall
                         PromptableFilterIds.Replace(PolicyMode == FirewallMode.Normal
                             ? newPromptableFilterIds : Array.Empty<ulong>());
                     }
+                    CommittedRuleExecutables = UserSubjectExes;
                     LastRuleReloadTime = DateTime.Now;
                     // The committed policy now reflects the current environment.
                     Addresses.Committed();
@@ -2846,7 +2850,10 @@ namespace pylorak.TinyWall
             }
         }
 
-        private static bool HasExceptionForSubject(ExceptionSubject subject) =>
+        // Any rule for the path, including those an enabled special profile (Windows Defender,
+        // for example) installs for it.
+        private bool HasExceptionForSubject(ExecutableSubject subject) =>
+            CommittedRuleExecutables.Contains(subject.ExecutablePath) ||
             ActiveConfig.Service.ActiveProfile.AppExceptions.Exists(existing => existing.Subject.Equals(subject));
 
         // Both run only after IsLocalFixedPath accepted the path.
