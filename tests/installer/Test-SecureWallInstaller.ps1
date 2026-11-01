@@ -346,6 +346,7 @@ Assert-True ($releaseWorkflow -match 'contents:\s*write') 'release workflow gran
 Assert-True ($releaseWorkflow -match 'Build-SecureWallRelease\.ps1') 'release workflow uses repository release builder'
 Assert-True ($releaseWorkflow -match 'SHA256SUMS\.txt') 'release workflow publishes hash manifest'
 Assert-True ($releaseWorkflow -notmatch 'SuppressValidation') 'release workflow never bypasses MSI ICE validation'
+Assert-True ($releaseWorkflow -notmatch 'ValidationVersion') 'release workflow never overrides the package version'
 $ciWorkflow = Read-RepoFile '.github\workflows\ci.yml'
 Assert-True ($releaseWorkflow -notmatch 'UpgradeFaultTest' -and $ciWorkflow -notmatch 'UpgradeFaultTest') 'release and CI workflows never build the fault-test configuration'
 $stagedExecutable = Join-Path $repoRoot 'MsiSetup\Sources\ProgramFiles\SecureWall\SecureWall.exe'

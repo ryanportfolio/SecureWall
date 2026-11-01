@@ -12,7 +12,13 @@ param(
     [string]$MsBuildPath,
     [string]$OutputDirectory,
     [string[]]$PackageSource,
-    [switch]$SuppressValidation
+    [switch]$SuppressValidation,
+
+    # CI builds the packages as a later version so ICE validates the
+    # Upgrade row that builds at or below 0.5.0 leave out. Those packages go
+    # to artifacts\version-check and are never attached to a release.
+    [ValidatePattern('^\d+\.\d+\.\d+$')]
+    [string]$ValidationVersion
 )
 
 $ErrorActionPreference = 'Stop'
@@ -34,7 +40,10 @@ if (-not $WixRoot) {
     $WixRoot = Join-Path $repoRoot '.tmp\tools\wix314'
 }
 if (-not $OutputDirectory) {
-    $OutputDirectory = if ($Configuration -eq 'UpgradeFaultTest') {
+    $OutputDirectory = if ($ValidationVersion) {
+        Join-Path $repoRoot 'artifacts\version-check'
+    }
+    elseif ($Configuration -eq 'UpgradeFaultTest') {
         Join-Path $repoRoot 'artifacts\upgrade-fault-test'
     }
     else {
@@ -44,6 +53,13 @@ if (-not $OutputDirectory) {
 
 $WixRoot = [System.IO.Path]::GetFullPath($WixRoot)
 $OutputDirectory = [System.IO.Path]::GetFullPath($OutputDirectory)
+if ($ValidationVersion -and
+    $OutputDirectory.TrimEnd('\') -eq [System.IO.Path]::GetFullPath((Join-Path $repoRoot 'artifacts\release')).TrimEnd('\')) {
+    throw '-ValidationVersion packages must not be written to artifacts\release.'
+}
+if ($ValidationVersion -and $SuppressValidation) {
+    throw '-ValidationVersion exists for ICE validation; do not combine it with -SuppressValidation.'
+}
 
 if (-not $MsBuildPath) {
     $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
@@ -82,17 +98,25 @@ foreach ($source in $PackageSource) {
 Invoke-NativeCommand -FilePath 'dotnet' -ArgumentList $restoreArguments
 
 $applicationProject = Join-Path $repoRoot 'TinyWall\TinyWall.csproj'
-Invoke-NativeCommand -FilePath $MsBuildPath -ArgumentList @(
+$applicationArguments = @(
     $applicationProject,
     '/t:Rebuild',
     "/p:Configuration=$Configuration",
     '/p:RestorePackages=false',
     '/v:minimal'
 )
+if ($ValidationVersion) {
+    $applicationArguments += "/p:Version=$ValidationVersion"
+}
+Invoke-NativeCommand -FilePath $MsBuildPath -ArgumentList $applicationArguments
 
 $application = Join-Path $repoRoot "TinyWall\bin\$Configuration\SecureWall.exe"
 if (-not (Test-Path -LiteralPath $application -PathType Leaf)) {
     throw "Application build did not produce $application"
+}
+# The MSI takes its ProductVersion from this file version.
+if ($ValidationVersion -and (Get-Item -LiteralPath $application).VersionInfo.FileVersion -ne "$ValidationVersion.0") {
+    throw "Built executable file version is not $ValidationVersion.0."
 }
 if ((Get-Item -LiteralPath $application).VersionInfo.ProductName -ne 'SecureWall') {
     throw 'Built executable ProductName is not SecureWall.'
@@ -131,6 +155,10 @@ foreach ($platform in $Platforms) {
     )
     if ($SuppressValidation) {
         $installerArguments += '/p:SuppressValidation=true'
+    }
+    if ($ValidationVersion) {
+        # A global property overrides the version MsiSetup.wixproj reads from TinyWall.csproj.
+        $installerArguments += "/p:SecureWallVersion=$ValidationVersion"
     }
     Invoke-NativeCommand -FilePath $MsBuildPath -ArgumentList $installerArguments
 
