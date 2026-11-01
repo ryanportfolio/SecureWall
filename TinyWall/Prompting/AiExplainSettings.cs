@@ -22,14 +22,16 @@ namespace pylorak.TinyWall.Prompting
         private static readonly string[] RetiredDefaultModels = { "gpt-4o-mini" };
 
         // The model to request for a stored setting. Empty means DefaultModel. A retired default
-        // means DefaultModel only in a config the current form has not saved (modelSaved false);
-        // once it has, the stored value is the user's choice and is kept, gpt-4o-mini included.
-        internal static string EffectiveModel(string? storedModel, bool modelSaved)
+        // means DefaultModel only on OpenAI's API and only in a config the current form has not
+        // saved (modelSaved false). Once the form has saved it, the stored value is the user's
+        // choice, gpt-4o-mini included. A custom endpoint keeps its model: it may not serve the
+        // new default.
+        internal static string EffectiveModel(string? storedModel, bool modelSaved, string? baseUrl)
         {
             string trimmed = storedModel?.Trim() ?? string.Empty;
             if (trimmed.Length == 0)
                 return DefaultModel;
-            if (!modelSaved && Array.IndexOf(RetiredDefaultModels, trimmed) >= 0)
+            if (!modelSaved && Array.IndexOf(RetiredDefaultModels, trimmed) >= 0 && IsOpenAiEndpoint(baseUrl))
                 return DefaultModel;
             return trimmed;
         }
@@ -45,14 +47,12 @@ namespace pylorak.TinyWall.Prompting
         // reasoning_effort for this endpoint and model, or null to leave it out. Only the default
         // model on OpenAI's own API gets it: other OpenAI models (gpt-4o-mini, for example) and
         // other OpenAI-compatible endpoints can reject the field.
-        internal static string? ReasoningEffortFor(string? baseUrl, string? model)
-        {
-            if (model?.Trim() != DefaultModel || !TryBuildChatCompletionsUri(baseUrl, out Uri? uri))
-                return null;
-            return string.Equals(uri!.Host, OpenAiHost, StringComparison.OrdinalIgnoreCase)
-                ? DefaultReasoningEffort
-                : null;
-        }
+        internal static string? ReasoningEffortFor(string? baseUrl, string? model) =>
+            model?.Trim() == DefaultModel && IsOpenAiEndpoint(baseUrl) ? DefaultReasoningEffort : null;
+
+        private static bool IsOpenAiEndpoint(string? baseUrl) =>
+            TryBuildChatCompletionsUri(baseUrl, out Uri? uri)
+            && string.Equals(uri!.Host, OpenAiHost, StringComparison.OrdinalIgnoreCase);
 
         internal static bool Validate(string? baseUrl, string? model, out string? error)
         {

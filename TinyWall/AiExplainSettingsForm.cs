@@ -97,7 +97,7 @@ namespace pylorak.TinyWall
         {
             ControllerSettings cfg = ActiveConfig.Controller;
             _enabled.Checked = cfg.AiExplainEnabled;
-            _model.Text = AiExplainSettings.EffectiveModel(cfg.AiExplainModel, cfg.AiExplainModelSaved);
+            _model.Text = AiExplainSettings.EffectiveModel(cfg.AiExplainModel, cfg.AiExplainModelSaved, cfg.AiExplainBaseUrl);
             _baseUrl.Text = string.IsNullOrWhiteSpace(cfg.AiExplainBaseUrl)
                 ? AiExplainSettings.DefaultBaseUrl
                 : cfg.AiExplainBaseUrl;

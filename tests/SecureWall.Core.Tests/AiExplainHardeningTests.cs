@@ -34,6 +34,7 @@ namespace SecureWall.Core.Tests
                 yield return ("ai stored model follows the default unless the user chose one", StoredModelFollowsDefaultUnlessUserChoseOne);
                 yield return ("ai reasoning effort only for the default model on openai", ReasoningEffortOnlyForDefaultModelOnOpenAi);
                 yield return ("ai request sends effort without temperature, else the original shape", RequestShapeMatchesReasoningEffort);
+                yield return ("ai request has no time limit and ends only on cancellation", RequestHasNoTimeLimit);
             }
         }
 
@@ -305,31 +306,41 @@ namespace SecureWall.Core.Tests
         private static void StoredModelFollowsDefaultUnlessUserChoseOne()
         {
             const string sol = AiExplainSettings.DefaultModel;
+            const string openAi = AiExplainSettings.DefaultBaseUrl;
+            const string custom = "https://provider.example/v1";
             foreach (bool saved in new[] { false, true })
             {
-                AssertEx.Equal(sol, AiExplainSettings.EffectiveModel(null, saved));
-                AssertEx.Equal(sol, AiExplainSettings.EffectiveModel("  ", saved));
-                AssertEx.Equal("gpt-4o", AiExplainSettings.EffectiveModel("gpt-4o", saved), "A model the user typed is kept.");
-                AssertEx.Equal("llama3.1:8b", AiExplainSettings.EffectiveModel(" llama3.1:8b ", saved));
+                foreach (string baseUrl in new[] { openAi, custom })
+                {
+                    AssertEx.Equal(sol, AiExplainSettings.EffectiveModel(null, saved, baseUrl));
+                    AssertEx.Equal(sol, AiExplainSettings.EffectiveModel("  ", saved, baseUrl));
+                    AssertEx.Equal("gpt-4o", AiExplainSettings.EffectiveModel("gpt-4o", saved, baseUrl), "A model the user typed is kept.");
+                    AssertEx.Equal("llama3.1:8b", AiExplainSettings.EffectiveModel(" llama3.1:8b ", saved, baseUrl));
+                }
             }
 
             // Older configs saved the form's shown default verbatim; the current form marks its saves.
-            AssertEx.Equal(sol, AiExplainSettings.EffectiveModel("gpt-4o-mini", false), "The retired default moves to the new one.");
-            AssertEx.Equal(sol, AiExplainSettings.EffectiveModel(" gpt-4o-mini ", false));
-            AssertEx.Equal("gpt-4o-mini", AiExplainSettings.EffectiveModel("gpt-4o-mini", true),
+            AssertEx.Equal(sol, AiExplainSettings.EffectiveModel("gpt-4o-mini", false, openAi), "The retired default moves to the new one.");
+            AssertEx.Equal(sol, AiExplainSettings.EffectiveModel(" gpt-4o-mini ", false, "https://API.openai.com/v1/"));
+            AssertEx.Equal("gpt-4o-mini", AiExplainSettings.EffectiveModel("gpt-4o-mini", true, openAi),
                 "gpt-4o-mini saved by the current form is the user's choice.");
+            AssertEx.Equal("gpt-4o-mini", AiExplainSettings.EffectiveModel("gpt-4o-mini", false, custom),
+                "A custom endpoint keeps its model; it may not serve the new default.");
+            AssertEx.Equal("gpt-4o-mini", AiExplainSettings.EffectiveModel("gpt-4o-mini", false, "https://api.openai.com.example/v1"));
 
             AssertEx.Equal(string.Empty, AiExplainSettings.ModelToStore(sol), "The default is stored as empty.");
             AssertEx.Equal(string.Empty, AiExplainSettings.ModelToStore(" " + sol + " "));
             AssertEx.Equal("gpt-4o", AiExplainSettings.ModelToStore(" gpt-4o "));
 
             string form = PromptTransactionIntegrationTests.Source("TinyWall/AiExplainSettingsForm.cs");
-            AssertEx.True(form.Contains("AiExplainSettings.EffectiveModel(cfg.AiExplainModel, cfg.AiExplainModelSaved)"), "The form shows the effective model.");
+            AssertEx.True(form.Contains("AiExplainSettings.EffectiveModel(cfg.AiExplainModel, cfg.AiExplainModelSaved, cfg.AiExplainBaseUrl)"),
+                "The form shows the effective model.");
             AssertEx.True(form.Contains("cfg.AiExplainModel = AiExplainSettings.ModelToStore(model);"), "The form stores the default as empty.");
             AssertEx.True(form.Contains("cfg.AiExplainModelSaved = true;"), "The form marks its saves.");
             string popup = PromptTransactionIntegrationTests.Source("TinyWall/Prompting/BlockedConnectionPopup.AiExplain.cs");
-            AssertEx.True(popup.Contains("string model = AiExplainSettings.EffectiveModel(cfg.AiExplainModel, cfg.AiExplainModelSaved)"),
-                "The lookup requests the effective model.");
+            int baseUrlRead = popup.IndexOf("string baseUrl = cfg.AiExplainBaseUrl;", StringComparison.Ordinal);
+            int modelRead = popup.IndexOf("string model = AiExplainSettings.EffectiveModel(cfg.AiExplainModel, cfg.AiExplainModelSaved, baseUrl);", StringComparison.Ordinal);
+            AssertEx.True(baseUrlRead > 0 && modelRead > baseUrlRead, "The lookup requests the effective model for its endpoint.");
             string settings = PromptTransactionIntegrationTests.Source("TinyWall/Settings.cs");
             AssertEx.True(settings.Contains("public bool AiExplainModelSaved = false;"),
                 "Configs without the flag are older ones whose gpt-4o-mini was the shown default.");
@@ -351,6 +362,19 @@ namespace SecureWall.Core.Tests
             string client = PromptTransactionIntegrationTests.Source("TinyWall/OpenAiCompatibleExplainClient.cs");
             AssertEx.True(client.Contains("AiExplainSettings.ReasoningEffortFor(_baseUrl, _model)"),
                 "The client must pick the effort from its endpoint and model.");
+        }
+
+        // A reasoning answer must not be cut off; only the popup's cancellation ends a request.
+        private static void RequestHasNoTimeLimit()
+        {
+            string client = PromptTransactionIntegrationTests.Source("TinyWall/OpenAiCompatibleExplainClient.cs");
+            AssertEx.True(client.Contains("Timeout = Timeout.InfiniteTimeSpan,"), "HttpClient must not apply its 100-second default.");
+            AssertEx.False(client.Contains("CancelAfter"), "The client must not add its own deadline.");
+            AssertEx.True(client.Contains("token.Register(response.Dispose)"), "Cancellation must still abort a stalled body read.");
+
+            string popup = PromptTransactionIntegrationTests.Source("TinyWall/Prompting/BlockedConnectionPopup.AiExplain.cs");
+            AssertEx.True(popup.Contains("FormClosed += (_, _) =>") && popup.Contains("_aiCts?.Cancel()"),
+                "Closing the popup or showing the next prompt must cancel the request.");
         }
 
         private static void RequestShapeMatchesReasoningEffort()

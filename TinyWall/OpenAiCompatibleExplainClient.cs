@@ -47,18 +47,16 @@ namespace pylorak.TinyWall
             string requestJson = AiExplainRequest.BuildJson(
                 _model, AiExplainSettings.ReasoningEffortFor(_baseUrl, _model), prompt);
 
-            // One deadline covers connect, headers and body. HttpClient.Timeout alone stops at the
-            // headers when the body is read as a stream.
-            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            deadline.CancelAfter(RequestTimeout);
-            CancellationToken token = deadline.Token;
+            // No time limit, so a slow reasoning answer is not cut off. The request ends when it
+            // is answered or when the caller cancels (the popup closes or shows the next prompt).
+            CancellationToken token = cancellationToken;
 
             try
             {
                 using var handler = new HttpClientHandler { AllowAutoRedirect = false };
                 using var http = new HttpClient(handler)
                 {
-                    Timeout = RequestTimeout,
+                    Timeout = Timeout.InfiniteTimeSpan,
                     MaxResponseContentBufferSize = AiExplainText.MaxResponseBytes,
                 };
                 using var content = new StringContent(requestJson, Encoding.UTF8, "application/json");
@@ -89,12 +87,12 @@ namespace pylorak.TinyWall
             }
             catch (OperationCanceledException)
             {
-                return AiExplainResult.Fail("The AI request was cancelled or timed out.");
+                return AiExplainResult.Fail("The AI request was cancelled.");
             }
             catch (Exception exception) when (token.IsCancellationRequested
                 && (exception is ObjectDisposedException || exception is IOException || exception is HttpRequestException))
             {
-                return AiExplainResult.Fail("The AI request was cancelled or timed out.");
+                return AiExplainResult.Fail("The AI request was cancelled.");
             }
             catch (HttpRequestException exception)
             {
@@ -105,8 +103,6 @@ namespace pylorak.TinyWall
                 return AiExplainResult.Fail("The AI service connection failed: " + exception.Message);
             }
         }
-
-        private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(30);
 
         private static AiExplainResult TooLarge() => AiExplainResult.Fail(
             "The AI response was larger than " + (AiExplainText.MaxResponseBytes / 1024) +
