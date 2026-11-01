@@ -19,7 +19,11 @@ param(
     # this version until the next build without it; the bundle builders in
     # tools\manual and tools\vm refuse such an executable.
     [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+\z')]
-    [string]$ValidationVersion
+    [string]$ValidationVersion,
+
+    # The manifest header records whether the release is a prerelease. release.yml
+    # attaches unsigned installers only to prereleases, so that is the default.
+    [switch]$FullRelease
 )
 
 $ErrorActionPreference = 'Stop'
@@ -174,8 +178,28 @@ foreach ($platform in $Platforms) {
     Copy-Item -LiteralPath $source -Destination (Join-Path $OutputDirectory $name) -Force
 }
 
+# The header is what the updater reads (TinyWall\Prompting\ReleaseManifest.cs): it ties
+# the hashes to one tag and version. Lines starting with # are skipped by
+# sha256sum -c, so the file still checks the installers on its own.
+$builtVersion = if ($ValidationVersion) { $ValidationVersion } else {
+    $versionMatch = [regex]::Match([System.IO.File]::ReadAllText($applicationProject), '<Version>([0-9]+\.[0-9]+\.[0-9]+)</Version>')
+    if (-not $versionMatch.Success) { throw 'TinyWall.csproj has no three-field <Version>.' }
+    $versionMatch.Groups[1].Value
+}
+$commit = (& git -C $repoRoot rev-parse HEAD).Trim()
+if ($LASTEXITCODE -ne 0 -or $commit -notmatch '^[0-9a-f]{40}$') {
+    throw 'Could not read the commit being built (git rev-parse HEAD).'
+}
 $manifestPath = Join-Path $OutputDirectory 'SHA256SUMS.txt'
-$manifestLines = foreach ($platform in $Platforms) {
+$manifestLines = @(
+    '# SecureWall-Release-Manifest: 1',
+    '# Repository: ryanportfolio/SecureWall',
+    "# Tag: v$builtVersion",
+    "# Version: $builtVersion",
+    "# Prerelease: $(if ($FullRelease) { 'false' } else { 'true' })",
+    "# Commit: $commit"
+)
+$manifestLines += foreach ($platform in $Platforms) {
     $name = "SecureWall_$platform.msi"
     $hash = (Get-FileHash -LiteralPath (Join-Path $OutputDirectory $name) -Algorithm SHA256).Hash.ToLowerInvariant()
     "$hash  $name"

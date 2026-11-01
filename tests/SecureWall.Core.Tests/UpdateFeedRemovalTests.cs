@@ -5,13 +5,19 @@ using pylorak.TinyWall;
 
 namespace SecureWall.Core.Tests;
 
-// SecureWall has no update feed. The TinyWall updater was deleted, and legacy
-// settings that still carry its AutoUpdateCheck flag must load with the flag ignored.
+// The TinyWall updater stays deleted: no TinyWall feed host, update descriptor, /updatenow
+// switch or WebClient download anywhere in the product, and legacy settings that still carry
+// its AutoUpdateCheck flag load with the flag ignored. SecureWall's own Check for updates
+// reads only GitHub releases of ryanportfolio/SecureWall, from the controller, through the
+// two files named below; the service and installer code never reach the release client.
 internal static class UpdateFeedRemovalTests
 {
     internal static IEnumerable<(string Name, Action Test)> Cases => new (string, Action)[]
     {
         ("product sources contain no update feed host or update download path", ProductSourcesHaveNoUpdateFeed),
+        ("HttpClient appears only in the AI client and the release client", HttpClientOnlyInNamedClients),
+        ("service and installer sources never reference the release client", ServiceNeverReferencesReleaseClient),
+        ("release client URLs are GitHub's only", ReleaseClientUrlsAreGitHubOnly),
         ("product sources link to SecureWall, not the upstream TinyWall repository", ProductSourcesHaveNoUpstreamLinks),
         ("legacy JSON settings with AutoUpdateCheck deserialize and ignore it", LegacyJsonAutoUpdateCheck),
         ("legacy XML settings with AutoUpdateCheck deserialize and ignore it", LegacyXmlAutoUpdateCheck),
@@ -50,6 +56,72 @@ internal static class UpdateFeedRemovalTests
 
     private static void ProductSourcesHaveNoUpdateFeed() =>
         AssertNoProductMatches(ForbiddenPatterns, "Update feed code remains");
+
+    // The only product files that may make HTTP requests.
+    private static readonly string[] HttpClientFiles =
+    {
+        Path.Combine("TinyWall", "OpenAiCompatibleExplainClient.cs"),
+        Path.Combine("TinyWall", "ReleaseCheckClient.cs"),
+    };
+
+    private static void HttpClientOnlyInNamedClients()
+    {
+        string root = RepositoryRoot();
+        var hits = ProductFiles(root)
+            .Where(file => !HttpClientFiles.Contains(Path.GetRelativePath(root, file), StringComparer.OrdinalIgnoreCase))
+            .Where(file => File.ReadAllText(file).Contains("HttpClient", StringComparison.Ordinal))
+            .Select(file => Path.GetRelativePath(root, file)).ToList();
+        AssertEx.True(hits.Count == 0, "HttpClient outside the named clients:\n" + string.Join("\n", hits));
+        foreach (string file in HttpClientFiles)
+            AssertEx.True(File.ReadAllText(Path.Combine(root, file)).Contains("new HttpClient(", StringComparison.Ordinal), file);
+    }
+
+    private static void ServiceNeverReferencesReleaseClient()
+    {
+        string root = RepositoryRoot();
+        var serviceSide = new List<string>
+        {
+            Path.Combine(root, "TinyWall", "TinyWallService.cs"),
+            Path.Combine(root, "TinyWall", "TinyWallDoctor.cs"),
+            Path.Combine(root, "TinyWall", "UpdateNetworkClient.cs"),
+        };
+        serviceSide.AddRange(Directory.GetFiles(Path.Combine(root, "TinyWall", "Installer"), "*.cs"));
+        foreach (string file in serviceSide)
+        {
+            string text = File.ReadAllText(file);
+            foreach (string type in new[] { "ReleaseCheck", "IReleaseSource", "GitHubRelease", "HttpClient", "System.Net.Http" })
+                AssertEx.False(text.Contains(type, StringComparison.Ordinal), Path.GetRelativePath(root, file) + " references " + type);
+        }
+    }
+
+    private static void ReleaseClientUrlsAreGitHubOnly()
+    {
+        string root = RepositoryRoot();
+        var allowed = new[] { "https://api.github.com/", "https://github.com/", "https://objects.githubusercontent.com/", "https://release-assets.githubusercontent.com/" };
+        foreach (string file in new[] { Path.Combine("TinyWall", "ReleaseCheckClient.cs"), Path.Combine("TinyWall", "Prompting", "ReleaseCheck.cs") })
+        {
+            string text = File.ReadAllText(Path.Combine(root, file));
+            var urls = System.Text.RegularExpressions.Regex.Matches(text, "[a-z]+://[^\"\\s]*").Select(m => m.Value).ToList();
+            foreach (string url in urls)
+                AssertEx.True(allowed.Any(prefix => url.StartsWith(prefix, StringComparison.Ordinal)) ||
+                    url == "https://api.github.com" || url == "https://github.com", file + ": " + url);
+            AssertEx.False(text.Contains("http://", StringComparison.OrdinalIgnoreCase), file + " names a plain HTTP URL");
+        }
+        AssertEx.True(pylorak.TinyWall.Prompting.ReleaseCheck.ReleasesApi.StartsWith("https://api.github.com/repos/ryanportfolio/SecureWall/", StringComparison.Ordinal));
+        AssertEx.True(pylorak.TinyWall.Prompting.ReleaseCheck.DownloadPrefix.StartsWith("https://github.com/ryanportfolio/SecureWall/releases/download/", StringComparison.Ordinal));
+    }
+
+    private static IEnumerable<string> ProductFiles(string root)
+    {
+        foreach (string directory in ProductDirectories)
+            foreach (string file in Directory.EnumerateFiles(Path.Combine(root, directory), "*", SearchOption.AllDirectories))
+            {
+                string[] parts = Path.GetRelativePath(root, file).Split(Path.DirectorySeparatorChar);
+                if (parts.Contains("bin") || parts.Contains("obj")) continue;
+                if (TextExtensions.Contains(Path.GetExtension(file), StringComparer.OrdinalIgnoreCase))
+                    yield return file;
+            }
+    }
 
     private static void ProductSourcesHaveNoUpstreamLinks() =>
         AssertNoProductMatches(UpstreamLinkPatterns, "Upstream TinyWall links remain");

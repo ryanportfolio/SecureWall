@@ -92,6 +92,13 @@
       <Property Id="SECUREWALL_FAULT_TEST" Value="1" />
     <?endif ?>
 
+    <!-- Set by SecureWall's elevated update step (/apply-update) when the administrator who
+         approved the UAC prompt is not the user who asked for the update. It skips the
+         actions that would run as that administrator on the user's desktop: the tray
+         restart after an upgrade, first-install detection, and the failure page's buttons
+         that open logs. -->
+    <Property Id="SECUREWALL_SUPPRESS_USER_ACTIONS" Secure="yes" />
+
     <!-- Always write a verbose Windows Installer log to %TEMP% (MSI*.LOG). Its path is
          MsiLogFileLocation, which the failure page offers to open. -->
     <Property Id="MsiLogging" Value="voicewarmupx" />
@@ -251,12 +258,12 @@
       <Custom Action='UninstallCustom' Before='UnpublishFeatures'>Installed AND REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE</Custom>
       <!-- New package, fresh installation or upgrade -->
       <Custom Action='UpgradeCommit' Before='StartController'>NOT Installed AND OLDER_UPGRADEABLE_FOUND</Custom>
-      <Custom Action='StartController' Before='UpgradeStartRollback'>NOT Installed AND OLDER_UPGRADEABLE_FOUND AND UILevel=5</Custom>
+      <Custom Action='StartController' Before='UpgradeStartRollback'>NOT Installed AND OLDER_UPGRADEABLE_FOUND AND UILevel=5 AND NOT SECUREWALL_SUPPRESS_USER_ACTIONS</Custom>
       <Custom Action='UpgradeStartRollback' Before='UpgradeStart'>NOT Installed AND OLDER_UPGRADEABLE_FOUND</Custom>
       <Custom Action='UpgradeStart' Before='InstallCustomRollback'>NOT Installed AND OLDER_UPGRADEABLE_FOUND</Custom>
       <Custom Action='InstallCustomRollback' Before='InstallCustom'>NOT Installed AND NOT OLDER_UPGRADEABLE_FOUND</Custom>
       <Custom Action='InstallCustom' Before='InstallFinalize'>NOT Installed AND NOT OLDER_UPGRADEABLE_FOUND</Custom>
-      <Custom Action='StartControllerAndDetect' After='InstallCustom'>NOT Installed AND NOT OLDER_UPGRADEABLE_FOUND AND UILevel=5</Custom>
+      <Custom Action='StartControllerAndDetect' After='InstallCustom'>NOT Installed AND NOT OLDER_UPGRADEABLE_FOUND AND UILevel=5 AND NOT SECUREWALL_SUPPRESS_USER_ACTIONS</Custom>
       <!-- InstallFinalize -->
     </InstallExecuteSequence>
 

@@ -96,7 +96,7 @@ internal static class ControllerActivityTests
     private static void ServiceUsesActivityPolicy()
     {
         string service = PromptTransactionIntegrationTests.Source("TinyWall/TinyWallService.cs");
-        int start = service.IndexOf("private TwMessage PipeServerDataReceived(TwMessage reqMsg)", StringComparison.Ordinal);
+        int start = service.IndexOf("private TwMessage PipeServerDataReceived(TwMessage reqMsg, uint clientProcessId)", StringComparison.Ordinal);
         int end = service.IndexOf("public void RequestStop()", start, StringComparison.Ordinal);
         AssertEx.True(start >= 0 && end > start);
         string body = service.Substring(start, end - start);

@@ -104,6 +104,19 @@ namespace pylorak.TinyWall
         [DataMember(EmitDefaultValue = false)]
         public string AiExplainApiKeyProtected = string.Empty;
 
+        // Check for updates. Prereleases are offered unless the user turned them off; only an
+        // explicit choice is stored, so the default can change while every release is a prerelease.
+        [DataMember(EmitDefaultValue = false)]
+        public bool? UpdateIncludePrereleases = null;
+        // "Skip this version": that version is not offered again; a newer one is.
+        [DataMember(EmitDefaultValue = false)]
+        public string UpdateSkippedVersion = string.Empty;
+        // The version that started an update, so the next start can say it was updated.
+        [DataMember(EmitDefaultValue = false)]
+        public string UpdateStartedFromVersion = string.Empty;
+
+        internal bool IncludePrereleases => UpdateIncludePrereleases ?? true;
+
         [OnDeserialized]
         private void OnDeserialized(StreamingContext sc)
         {

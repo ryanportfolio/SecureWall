@@ -7,7 +7,8 @@ using pylorak.Utilities;
 
 namespace pylorak.TinyWall
 {
-    internal delegate TwMessage PipeDataReceived(TwMessage req);
+    // clientProcessId: the authenticated pipe client's process ID.
+    internal delegate TwMessage PipeDataReceived(TwMessage req, uint clientProcessId);
 
     internal class PipeServerEndpoint : Disposable
     {
@@ -89,12 +90,12 @@ namespace pylorak.TinyWall
                             pipeServer.WaitForConnection();
                             pipeServer.ReadMode = PipeTransmissionMode.Message;
                             stage = "authenticate";
-                            if (!AuthAsServer(pipeServer))
+                            if (!AuthAsServer(pipeServer, out uint clientPid))
                                 throw new InvalidOperationException("Client authentication failed.");
                             stage = "read";
                             var req = PipeMessageTransport.Read(pipeServer, 3000);
                             stage = "callback";
-                            var resp = m_RcvCallback(req);
+                            var resp = m_RcvCallback(req, clientPid);
                             stage = "write";
                             PipeMessageTransport.Write(pipeServer, resp, 3000);
                             // Disconnect discards unread output. Wait for the client's bounded ACK.
@@ -153,9 +154,9 @@ namespace pylorak.TinyWall
         [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool GetNamedPipeClientProcessId(Microsoft.Win32.SafeHandles.SafePipeHandle pipe, out uint pid);
 
-        private static bool AuthAsServer(PipeStream stream)
+        private static bool AuthAsServer(PipeStream stream, out uint clientPid)
         {
-            if (!GetNamedPipeClientProcessId(stream.SafePipeHandle, out uint clientPid))
+            if (!GetNamedPipeClientProcessId(stream.SafePipeHandle, out clientPid))
                 return false;
 
             string clientFilePath = Utils.GetPathOfProcess((uint)clientPid);
