@@ -2310,6 +2310,7 @@ namespace pylorak.TinyWall
                     PasswordLock.Locked = true;
 
                 LogWatcher.BlockedConnection += LogWatcherBlockedConnection;
+                LogWatcher.IsOwnFilter = id => FilterGroups.Lookup(id) != FilterGroup.Unknown;
                 LogWatcher.ActivityAudited += LogWatcherActivityAudited;
                 minuteTimer = new Timer(new TimerCallback(TimerCallback), null, Timeout.Infinite, Timeout.Infinite);
                 promptCandidateTimer = new Timer(
@@ -2617,20 +2618,34 @@ namespace pylorak.TinyWall
         // the FirewallLogEntries lock.
         private readonly List<ActivityAudit> PendingActivityAudits = new();
 
+        // Only an unambiguous match names the process: when several rows or audits could pair
+        // up (a lost or reordered event, or several svchost.exe processes binding raw sockets),
+        // the row keeps no PID rather than risk another process's.
         private void LogWatcherActivityAudited(FirewallLogWatcher sender, ActivityAudit audit)
         {
             if (RuntimeStopping || audit.ProcessId == 0) return;
             lock (FirewallLogEntries)
             {
+                FirewallLogEntry? match = null;
+                int matches = 0;
                 foreach (FirewallLogEntry entry in FirewallLogEntries)
                 {
                     if (entry.ProcessId == 0 && entry.Event == EventLogEvent.BLOCKED && AuditMatches(audit, entry))
                     {
-                        entry.ProcessId = audit.ProcessId;
-                        return;
+                        match = entry;
+                        ++matches;
                     }
                 }
-                // The net event has not arrived yet: keep the audit briefly for it.
+                if (matches > 1)
+                    return;
+                if (match != null &&
+                    !PendingActivityAudits.Exists(other => other.ProcessId != audit.ProcessId && AuditMatches(other, match)))
+                {
+                    match.ProcessId = audit.ProcessId;
+                    return;
+                }
+                // The net event has not arrived yet. Keep the audit until it does or 64 newer
+                // ones push it out; the time check in AuditMatches rejects stale ones.
                 if (PendingActivityAudits.Count >= 64)
                     PendingActivityAudits.RemoveAt(0);
                 PendingActivityAudits.Add(audit);
@@ -2639,15 +2654,20 @@ namespace pylorak.TinyWall
 
         private void AttributeFromPendingAudit(FirewallLogEntry entry)
         {
+            int found = -1;
             for (int i = 0; i < PendingActivityAudits.Count; ++i)
             {
-                if (AuditMatches(PendingActivityAudits[i], entry))
-                {
-                    entry.ProcessId = PendingActivityAudits[i].ProcessId;
-                    PendingActivityAudits.RemoveAt(i);
+                if (!AuditMatches(PendingActivityAudits[i], entry))
+                    continue;
+                if (found >= 0 && PendingActivityAudits[found].ProcessId != PendingActivityAudits[i].ProcessId)
                     return;
-                }
+                if (found < 0)
+                    found = i;
             }
+            if (found < 0)
+                return;
+            entry.ProcessId = PendingActivityAudits[found].ProcessId;
+            PendingActivityAudits.RemoveAt(found);
         }
 
         private static bool AuditMatches(ActivityAudit audit, FirewallLogEntry entry) =>
@@ -2655,6 +2675,10 @@ namespace pylorak.TinyWall
             audit.Protocol == (byte)entry.Protocol &&
             audit.LocalPort == entry.LocalPort &&
             (audit.RemotePort == null || audit.RemotePort == entry.RemotePort) &&
+            (audit.Direction == null ||
+                entry.Direction == (audit.Direction == ConnectionDirection.Outbound ? RuleDirection.Out : RuleDirection.In)) &&
+            (audit.LocalAddress == null || DropCorrelator.AddressesEqual(audit.LocalAddress, entry.LocalIp ?? string.Empty)) &&
+            (audit.RemoteAddress == null || DropCorrelator.AddressesEqual(audit.RemoteAddress, entry.RemoteIp ?? string.Empty)) &&
             string.Equals(audit.ApplicationPath, entry.AppPath, StringComparison.OrdinalIgnoreCase) &&
             Math.Abs((audit.TimestampUtc - new DateTimeOffset(entry.Timestamp).ToUniversalTime()).TotalSeconds) <= 5;
 
@@ -2777,7 +2801,7 @@ namespace pylorak.TinyWall
                     snapshotUncertain,
                     registration == ServiceRegistrationStatus.Unknown,
                     QueryServiceSidType);
-                if (TryQueueAlwaysAllow(identity))
+                if (TryQueueAlwaysAllow(identity, candidate.TimestampUtc))
                     return () => { };
                 return () =>
                 {
@@ -2797,8 +2821,10 @@ namespace pylorak.TinyWall
 
         // Paths waiting for the worker to add an Always allow exception, with the signer the
         // check found. A later drop of the same path is neither prompted nor verified again
-        // while its exception is on its way.
-        private readonly ConcurrentDictionary<string, string> AlwaysAllowQueued = new(StringComparer.OrdinalIgnoreCase);
+        // while its exception is on its way. FirstDropUtc marks the Network Activity rows the
+        // exception follows.
+        private readonly ConcurrentDictionary<string, (string Signer, DateTimeOffset FirstDropUtc)> AlwaysAllowQueued =
+            new(StringComparer.OrdinalIgnoreCase);
         // Paths whose name matched a rule but whose signature did not, logged once each.
         private readonly ConcurrentDictionary<string, byte> AlwaysAllowMismatchLogged = new(StringComparer.OrdinalIgnoreCase);
         // Files that failed the check (or whose exception could not be added), by size and
@@ -2812,7 +2838,7 @@ namespace pylorak.TinyWall
         // True when the drop is handled by an Always allow rule and must not become a prompt.
         // Any doubt (name only, bad signature, an existing rule for the path, full request
         // queue) leaves it to the prompt.
-        private bool TryQueueAlwaysAllow(PromptIdentity identity)
+        private bool TryQueueAlwaysAllow(PromptIdentity identity, DateTimeOffset dropUtc)
         {
             if (identity.Kind != PromptIdentityKind.Executable || !identity.CanAllow ||
                 identity.ExecutablePath is not string path || !PromptAllowPolicy.RequiresExistenceCheck(path))
@@ -2838,7 +2864,7 @@ namespace pylorak.TinyWall
                 return false;
             }
 
-            if (!AlwaysAllowQueued.TryAdd(path, signer.Subject))
+            if (!AlwaysAllowQueued.TryAdd(path, (signer.Subject, dropUtc)))
                 return true;
             // Never block here: the worker may need the prompt queue lock this thread's caller holds next.
             if (!Q.TryAdd(new TwRequest(TwMessageSimple.CreateRequest(MessageType.AUTO_ALLOW_SIGNED))))
@@ -2853,7 +2879,7 @@ namespace pylorak.TinyWall
         // queued path whose rule still exists, in one policy change.
         private void ApplyQueuedAlwaysAllows()
         {
-            KeyValuePair<string, string>[] queued = AlwaysAllowQueued.ToArray();
+            KeyValuePair<string, (string Signer, DateTimeOffset FirstDropUtc)>[] queued = AlwaysAllowQueued.ToArray();
             if (queued.Length == 0)
                 return;
             string[] paths = queued.Select(entry => entry.Key).ToArray();
@@ -2862,12 +2888,12 @@ namespace pylorak.TinyWall
                 if (VisibleState.Mode != FirewallMode.Normal || RuntimeSessionRevoked)
                     return;
                 var added = new List<FirewallExceptionV3>();
-                foreach (KeyValuePair<string, string> entry in queued)
+                foreach (KeyValuePair<string, (string Signer, DateTimeOffset FirstDropUtc)> entry in queued)
                 {
                     string path = entry.Key;
                     // The rule must still trust the signer the check found, not just the name.
                     if (!SignedFileIdentity.IsLocalFixedPath(path) || !File.Exists(path) ||
-                        !ActiveConfig.Service.ActiveProfile.AlwaysAllowRules.Exists(rule => rule != null && rule.Matches(path, entry.Value)))
+                        !ActiveConfig.Service.ActiveProfile.AlwaysAllowRules.Exists(rule => rule != null && rule.Matches(path, entry.Value.Signer)))
                         continue;
                     var subject = new ExecutableSubject(path);
                     if (HasExceptionForSubject(subject))
@@ -2885,6 +2911,8 @@ namespace pylorak.TinyWall
                 ApplyConfiguration(candidate, VisibleState.Mode);
                 foreach (FirewallExceptionV3 exception in added)
                     Utils.Log("Always allow added an outbound rule for " + ((ExecutableSubject)exception.Subject).ExecutablePath + ".", Utils.LOG_ID_SERVICE);
+                MarkAlwaysAllowedRows(queued.Where(entry => added.Exists(exception =>
+                    string.Equals(((ExecutableSubject)exception.Subject).ExecutablePath, entry.Key, StringComparison.OrdinalIgnoreCase))));
             }
             catch (Exception exception)
             {
@@ -2898,6 +2926,25 @@ namespace pylorak.TinyWall
             {
                 foreach (string path in paths)
                     AlwaysAllowQueued.TryRemove(path, out _);
+            }
+        }
+
+        // Network Activity shows the default-deny drops an Always allow exception now covers as
+        // "Blocked, then allowed by Always allow" instead of plain blocks.
+        private void MarkAlwaysAllowedRows(IEnumerable<KeyValuePair<string, (string Signer, DateTimeOffset FirstDropUtc)>> allowed)
+        {
+            lock (FirewallLogEntries)
+            {
+                foreach (KeyValuePair<string, (string Signer, DateTimeOffset FirstDropUtc)> path in allowed)
+                {
+                    foreach (FirewallLogEntry entry in FirewallLogEntries)
+                    {
+                        if (entry.Event == EventLogEvent.BLOCKED && entry.FilterGroup == FilterGroup.DefaultAction &&
+                            string.Equals(entry.AppPath, path.Key, StringComparison.OrdinalIgnoreCase) &&
+                            new DateTimeOffset(entry.Timestamp).ToUniversalTime() >= path.Value.FirstDropUtc)
+                            entry.AllowedByAlwaysAllow = true;
+                    }
+                }
             }
         }
 

@@ -158,15 +158,23 @@ namespace pylorak.TinyWall
 
                 foreach (var e in fwLog)
                 {
-                    // The service names the process for blocks it matched to a Security-log event.
-                    if (e.AppPath is null || e.ProcessId != 0) continue;
+                    if (e.AppPath is null) continue;
 
                     var key = e.AppPath.ToLowerInvariant();
-                    if (!ProcessPathInfoMap.ContainsKey(key))
-                        continue;
+                    ProcessPathInfoMap.TryGetValue(key, out List<ProcessSnapshotEntry>? p);
 
-                    var p = ProcessPathInfoMap[key];
-                    if ((p.Count == 1) && (p[0].CreationTime < e.Timestamp.ToFileTime()))
+                    // The service names the process for blocks it matched to a Security-log event.
+                    // Keep that PID only while it still belongs to a process with this path that
+                    // started before the block: Unblock and Close process act on it.
+                    if (e.ProcessId != 0)
+                    {
+                        uint pid = e.ProcessId;
+                        if (p != null && p.Exists(s => s.ProcessId == pid && s.CreationTime < e.Timestamp.ToFileTime()))
+                            continue;
+                        e.ProcessId = 0;
+                    }
+
+                    if ((p != null) && (p.Count == 1) && (p[0].CreationTime < e.Timestamp.ToFileTime()))
                         e.ProcessId = p[0].ProcessId;
                 }
 
@@ -248,7 +256,7 @@ namespace pylorak.TinyWall
                     ConstructListItem(itemColl, pi, entry.Protocol.ToString(),
                         new IPEndPoint(IPAddress.Parse(entry.LocalIp), entry.LocalPort),
                         new IPEndPoint(IPAddress.Parse(entry.RemoteIp), entry.RemotePort),
-                        NetworkActivityStatusClassifier.ToDisplayText(status, entry.FilterGroup),
+                        NetworkActivityStatusClassifier.ToDisplayText(status, entry.FilterGroup, entry.AllowedByAlwaysAllow),
                         entry.Timestamp, entry.Direction);
                 }
             }
@@ -292,12 +300,13 @@ namespace pylorak.TinyWall
         }
 
         // Identifies a row across refreshes: every column except the timestamp, which changes
-        // on each refresh for live endpoints.
+        // on each refresh for live endpoints, and the host name, which comes and goes with the
+        // DNS cache.
         private static string RowKey(ListViewItem li)
         {
             var parts = new string[li.SubItems.Count - 1];
             for (int i = 0; i < parts.Length; ++i)
-                parts[i] = li.SubItems[i].Text;
+                parts[i] = (i == 6) ? RemoteAddressOf(li) : li.SubItems[i].Text;
             return string.Join("\u001f", parts);
         }
 

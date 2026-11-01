@@ -105,7 +105,11 @@ internal static class LearningRemovalTests
         string watcher = PromptTransactionIntegrationTests.Source("TinyWall/FirewallLogWatcher.cs");
         AssertEx.True(watcher.Contains("\"*[System[(EventID=5157 or EventID=5159)]]\""));
         AssertEx.True(watcher.Contains("SecurityEvent5157Parser.TryParse(fields, timestamp.ToUniversalTime(), out BlockedConnectionAuditEvent parsed)"));
+        // One prompt feed, inside the 5157 branch: 5159 binds never reach prompts.
+        int invoke = watcher.IndexOf("BlockedConnection?.Invoke(", StringComparison.Ordinal);
+        AssertEx.True(invoke >= 0 && watcher.IndexOf("BlockedConnection?.Invoke(", invoke + 1, StringComparison.Ordinal) < 0);
         AssertEx.True(watcher.Contains("BlockedConnection?.Invoke(this, normalized);"));
+        AssertEx.True(invoke < watcher.IndexOf("record.Id == 5159", StringComparison.Ordinal));
         string service = PromptTransactionIntegrationTests.Source("TinyWall/TinyWallService.cs");
         AssertEx.True(service.Contains("LogWatcher.BlockedConnection += LogWatcherBlockedConnection;"));
         AssertEx.True(service.Contains("if (DropCandidates.TryMatch(auditEvent, out DropCandidate? candidate)"));

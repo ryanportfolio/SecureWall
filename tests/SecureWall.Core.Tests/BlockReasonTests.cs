@@ -36,6 +36,10 @@ internal static class BlockReasonTests
         AssertEx.Equal("Blocked (raw socket)", Blocked(FilterGroup.RawSocket));
         AssertEx.Equal("Blocked (port blocklist)", Blocked(FilterGroup.Blocklist));
         AssertEx.Equal("Blocked (user rule)", Blocked(FilterGroup.User));
+        AssertEx.Equal("Blocked, then allowed by Always allow",
+            NetworkActivityStatusClassifier.ToDisplayText(NetworkActivityStatus.Blocked, FilterGroup.DefaultAction, true));
+        AssertEx.Equal("Blocked (user rule)",
+            NetworkActivityStatusClassifier.ToDisplayText(NetworkActivityStatus.Blocked, FilterGroup.User, true));
         AssertEx.Equal("Allowed", NetworkActivityStatusClassifier.ToDisplayText(NetworkActivityStatus.Allowed, FilterGroup.User));
         AssertEx.Equal("Listening (local endpoint)",
             NetworkActivityStatusClassifier.ToDisplayText(NetworkActivityStatus.Listening, FilterGroup.DefaultAction));

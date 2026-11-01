@@ -18,7 +18,7 @@ unless the user explicitly asks in the current session.
 - `dotnet build` fails at `ResolveComReference`; use Visual Studio Build Tools' .NET Framework `MSBuild.exe`.
 - In sandboxed sessions, `dotnet` may use another account's empty global package cache. Never commit a machine-specific cache path; set `NUGET_PACKAGES` only as a local workaround.
 - A real firewall install can sever remote access. Synthetic preview/build success is not WFP verification.
-- WFP callbacks have no PID. Correlate only exact 5157 filter/path/protocol/tuple/time matches; `svchost.exe` without exact service attribution must remain non-allowable.
+- WFP callbacks have no PID. Prompt correlation uses only exact 5157 filter/path/protocol/tuple/time matches; `svchost.exe` without exact service attribution must remain non-allowable in prompts. Network Activity's looser 5157/5159 row match must never feed prompts or the prompt allow path.
 - Publish promptable filter IDs only after transaction commit and only in Normal mode.
 - Do not restore audit flags to NONE blindly. Lease the original flags and restore that exact snapshot.
 - Do not use `new TcpUdpPolicy(true)` for prompt allows; it opens inbound listeners. Set only remote TCP/UDP connect ports.
