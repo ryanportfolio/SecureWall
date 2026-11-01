@@ -249,14 +249,52 @@ namespace pylorak.TinyWall
                 }
             }
 
+            // Rebuilding the list resets its scroll position and selection, so remember
+            // which rows were at the top and selected, and put them back afterwards.
+            ListViewItem? oldTop = list.Items.Count > 0 ? list.TopItem : null;
+            string? topKey = (oldTop != null && oldTop.Index > 0) ? RowKey(oldTop) : null;
+            int topIndex = oldTop?.Index ?? 0;
+            string? focusedKey = (list.FocusedItem != null) ? RowKey(list.FocusedItem) : null;
+            var selectedKeys = new HashSet<string>(StringComparer.Ordinal);
+            foreach (ListViewItem li in list.SelectedItems)
+                selectedKeys.Add(RowKey(li));
+
             // Add items to list
             list.BeginUpdate();
             list.Items.Clear();
             list.Items.AddRange(itemColl.ToArray());
+            ListViewItem? newTop = null;
+            foreach (ListViewItem li in list.Items)
+            {
+                string key = RowKey(li);
+                if (selectedKeys.Contains(key))
+                    li.Selected = true;
+                if ((focusedKey != null) && (key == focusedKey))
+                    li.Focused = true;
+                if ((newTop == null) && (topKey != null) && (key == topKey))
+                    newTop = li;
+            }
             list.EndUpdate();
+
+            // A user at the top stays there and sees new rows arrive. Otherwise keep the same
+            // row at the top, or the same position if that row is gone.
+            if ((newTop == null) && (topIndex > 0) && (list.Items.Count > 0))
+                newTop = list.Items[Math.Min(topIndex, list.Items.Count - 1)];
+            if (newTop != null)
+                list.TopItem = newTop;
 
             // Load process icons asynchronously
             IconScanner.Rescan(itemColl, list, IconList);
+        }
+
+        // Identifies a row across refreshes: every column except the timestamp, which changes
+        // on each refresh for live endpoints.
+        private static string RowKey(ListViewItem li)
+        {
+            var parts = new string[li.SubItems.Count - 1];
+            for (int i = 0; i < parts.Length; ++i)
+                parts[i] = li.SubItems[i].Text;
+            return string.Join("\u001f", parts);
         }
 
         private void ConstructListItem(List<ListViewItem> itemColl, ProcessInfo e, string protocol, IPEndPoint localEP, IPEndPoint remoteEP, string state, DateTime ts, RuleDirection dir)

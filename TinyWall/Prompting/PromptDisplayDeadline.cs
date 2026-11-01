@@ -2,25 +2,19 @@ using System;
 
 namespace pylorak.TinyWall.Prompting
 {
+    // The popup stays until the owner answers it or the service token expires. There is no
+    // shorter display timeout: an unattended popup must not disappear before it was seen.
+    // Nothing extends the token expiry.
     internal sealed class PromptDisplayDeadline
     {
         private readonly DateTimeOffset _expiresUtc;
-        private DateTimeOffset _dismissUtc;
 
-        internal PromptDisplayDeadline(DateTimeOffset shownUtc, DateTimeOffset expiresUtc)
+        internal PromptDisplayDeadline(DateTimeOffset expiresUtc)
         {
             _expiresUtc = expiresUtc;
-            _dismissUtc = shownUtc.AddSeconds(30);
         }
 
-        internal void PauseForReading() => _dismissUtc = _expiresUtc;
-
-        // A locked Allow waits for the password dialog. Like reading, it can hold the popup
-        // open only until the service token expires, so the automatic dismissal (and its
-        // ignore cooldown) cannot fire while the owner is unlocking.
-        internal void PauseForUnlock() => _dismissUtc = _expiresUtc;
-
-        internal bool ShouldClose(DateTimeOffset now) => now >= _expiresUtc || now >= _dismissUtc;
+        internal bool ShouldClose(DateTimeOffset now) => now >= _expiresUtc;
     }
 
     // Allow stays disabled until the popup has been visible and unmoved for ArmDelay and the

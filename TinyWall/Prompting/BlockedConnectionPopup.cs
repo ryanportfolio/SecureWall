@@ -29,12 +29,50 @@ namespace pylorak.TinyWall.Prompting
 
         protected override bool ShowWithoutActivation => true;
 
+        // The popup never becomes the active window, so keystrokes meant for another app
+        // (Enter, Space, Escape, Alt+F4) cannot answer or close it. Only mouse clicks can.
+        private const int WS_EX_NOACTIVATE = 0x08000000;
+        private const int WM_MOUSEACTIVATE = 0x0021;
+        private const int MA_NOACTIVATE = 3;
+
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                CreateParams cp = base.CreateParams;
+                cp.ExStyle |= WS_EX_NOACTIVATE;
+                return cp;
+            }
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == WM_MOUSEACTIVATE)
+            {
+                m.Result = (IntPtr)MA_NOACTIVATE;
+                return;
+            }
+            base.WndProc(ref m);
+        }
+
+        private const string DefaultTitle = "SecureWall blocked an outgoing connection";
+
+        public void ShowWaitingCount(int waiting)
+        {
+            // Called on every poll; only repaint on a change.
+            string title = waiting > 0
+                ? $"SecureWall blocked a connection (+{waiting} waiting)"
+                : DefaultTitle;
+            if (titleLabel.Text != title)
+                titleLabel.Text = title;
+        }
+
         public void ShowPrompt(PromptWireDto prompt)
         {
             if (prompt == null)
                 throw new ArgumentNullException(nameof(prompt));
 
-            _deadline = new PromptDisplayDeadline(DateTimeOffset.UtcNow, prompt.ExpiresUtc);
+            _deadline = new PromptDisplayDeadline(prompt.ExpiresUtc);
             _canAllow = prompt.CanAllow;
             _allowInFlight = false;
             _arming.Reset();
@@ -75,8 +113,6 @@ namespace pylorak.TinyWall.Prompting
             };
             if (status == PromptActionStatus.NotAllowable)
                 _canAllow = false;
-            if (status == PromptActionStatus.Locked)
-                _deadline?.PauseForUnlock();
             _allowInFlight = false;
             UpdateAllowButton();
             timeoutTimer.Start();

@@ -53,7 +53,7 @@ namespace pylorak.TinyWall.Prompting
             titleLabel.Location = new Point(14, 10);
             titleLabel.Name = "titleLabel";
             titleLabel.Size = new Size(392, 23);
-            titleLabel.Text = "SecureWall blocked an outgoing connection";
+            titleLabel.Text = DefaultTitle;
 
             closeButton.AccessibleName = "Ignore and close";
             closeButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
@@ -143,7 +143,6 @@ namespace pylorak.TinyWall.Prompting
             AutoScaleDimensions = new SizeF(96F, 96F);
             AutoScaleMode = AutoScaleMode.Dpi;
             BackColor = Color.White;
-            CancelButton = ignoreButton;
             ClientSize = new Size(460, 270);
             Controls.Add(titlePanel);
             Controls.Add(identityLabel);

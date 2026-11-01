@@ -985,6 +985,7 @@ internal static class Program
         internal bool WasClosed { get; private set; }
 
         public void ShowPrompt(PromptWireDto prompt) => Prompt = prompt;
+        public void ShowWaitingCount(int waiting) { }
         public void ShowActionFailure(PromptActionStatus status) => LastFailure = status;
         public void ClosePrompt() => WasClosed = true;
         public void Dispose() => WasClosed = true;

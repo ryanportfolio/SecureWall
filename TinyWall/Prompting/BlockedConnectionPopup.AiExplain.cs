@@ -94,10 +94,6 @@ namespace pylorak.TinyWall.Prompting
                 }
             }
 
-            // Reading may pause the display timeout, never the service token expiry.
-            _deadline?.PauseForReading();
-            timeoutTimer.Start();
-
             // Without the service's narrow permit the request would be blocked and raise a
             // second, non-allowable prompt for SecureWall itself. Read the service's current
             // setting; the controller's cached copy can be stale.

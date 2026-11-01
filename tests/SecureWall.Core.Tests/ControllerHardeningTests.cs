@@ -14,9 +14,12 @@ internal static class ControllerHardeningTests
         ("failed automatic dismissal closes once and cannot reappear in polling", FailedTimeoutClosesOnce),
         ("stalled automatic dismissal cannot delay local expiry", StalledTimeoutDoesNotDelayExpiry),
         ("late allow completion cannot close a replacement popup", LateAllowCannotChangeReplacement),
-        ("AI reading pause cannot extend token validity", ReadingCannotExtendToken),
+        ("popup stays until token expiry and no longer", PopupStaysUntilTokenExpiry),
         ("allow arms only after one stable second and a finished risk probe", AllowArmingNeedsDelayAndRiskProbe),
-        ("unlock pause holds the popup until token expiry only", UnlockPauseStopsAtTokenExpiry),
+        ("popup shows how many prompts wait behind it", PopupShowsWaitingCount),
+        ("expired and revoked prompts go to the missed list, answered ones do not", UnansweredPromptsAreMissed),
+        ("a live prompt replaces its missed entry and the list is bounded", MissedListDedupesAndBounds),
+        ("allow on an expired or revoked token keeps the prompt in the missed list", FailedAllowIsMissed),
         ("locked allow unlocks retries the same token and relocks", LockedAllowUnlocksAndRelocks),
         ("cancelled popup unlock keeps the prompt blocked and open", CancelledUnlockKeepsPromptOpen),
         ("allow after an unlock elsewhere retries without relocking", AlreadyUnlockedRetriesWithoutRelock),
@@ -179,17 +182,102 @@ internal static class ControllerHardeningTests
         Check(actions.AllowCount == 0 && view.Closed && display.CurrentToken == null);
     }
 
-    private static void ReadingCannotExtendToken()
+    private static void PopupStaysUntilTokenExpiry()
     {
-        var deadline = new PromptDisplayDeadline(Start, Start.AddMinutes(2));
-        Check(deadline.ShouldClose(Start.AddSeconds(30)));
-        deadline.PauseForReading();
-        Check(!deadline.ShouldClose(Start.AddSeconds(30)));
-        Check(deadline.ShouldClose(Start.AddMinutes(2)));
-        deadline.PauseForReading();
-        Check(deadline.ShouldClose(Start.AddMinutes(3)));
-        var shortToken = new PromptDisplayDeadline(Start, Start.AddSeconds(5));
-        Check(shortToken.ShouldClose(Start.AddSeconds(5)));
+        var deadline = new PromptDisplayDeadline(Start.AddMinutes(2));
+        Check(!deadline.ShouldClose(Start.AddSeconds(30)) && !deadline.ShouldClose(Start.AddSeconds(119)));
+        Check(deadline.ShouldClose(Start.AddMinutes(2)) && deadline.ShouldClose(Start.AddMinutes(3)));
+    }
+
+    private static void PopupShowsWaitingCount()
+    {
+        var views = new List<View>();
+        using var display = new PromptDisplayCoordinator(new Actions(), () => NewView(views), () => Start);
+        var first = Prompt(Start.AddMinutes(2));
+        var second = Prompt(Start.AddMinutes(2), @"C:\apps\second.exe");
+        var third = Prompt(Start.AddMinutes(2), @"C:\apps\third.exe");
+        display.Reconcile(new[] { first, second, third });
+        Check(views.Count == 1 && views[0].Waiting == 2);
+        display.Reconcile(new[] { first, second });
+        Check(views[0].Waiting == 1);
+        views[0].Ignore();
+        Check(views.Count == 2 && views[1].Waiting == 0);
+    }
+
+    private static void UnansweredPromptsAreMissed()
+    {
+        var now = Start;
+        var views = new List<View>();
+        var added = new List<PromptWireDto>();
+        using var display = new PromptDisplayCoordinator(new Actions(), () => NewView(views), () => now);
+        display.MissedPromptsChanged += (_, e) => added.AddRange(e.Added);
+        var allowed = Prompt(Start.AddMinutes(2), @"C:\apps\allowed.exe");
+        var ignored = Prompt(Start.AddMinutes(2), @"C:\apps\ignored.exe");
+        var revoked = Prompt(Start.AddMinutes(2), @"C:\apps\revoked.exe");
+        var expired = Prompt(Start.AddMinutes(1), @"C:\apps\expired.exe");
+        display.Reconcile(new[] { allowed, ignored, revoked, expired });
+        views[0].Allow();
+        views[1].Ignore();
+        Check(display.MissedPrompts.Count == 0 && added.Count == 0);
+        // A policy change revoked the shown prompt; the queued one expires unseen.
+        display.Reconcile(new[] { expired });
+        Check(display.MissedPrompts.Count == 1 && display.MissedPrompts[0].Token == revoked.Token);
+        now = Start.AddMinutes(1);
+        display.Tick();
+        Check(display.MissedPrompts.Count == 2 && display.MissedPrompts[0].Token == expired.Token);
+        Check(added.Select(p => p.Token).SequenceEqual(new[] { revoked.Token, expired.Token }));
+        display.RemoveMissed(revoked);
+        Check(display.MissedPrompts.Count == 1);
+        display.ClearMissed();
+        Check(display.MissedPrompts.Count == 0);
+    }
+
+    private static void MissedListDedupesAndBounds()
+    {
+        var now = Start;
+        using var display = new PromptDisplayCoordinator(new Actions(), () => new View(), () => now);
+        var old = Prompt(Start.AddMinutes(1), @"C:\apps\router.exe");
+        display.Reconcile(new[] { old });
+        display.Reconcile(Array.Empty<PromptWireDto>());
+        Check(display.MissedPrompts.Count == 1);
+        // The app tried again under the new policy: the live prompt replaces the entry.
+        var fresh = Prompt(Start.AddMinutes(2), @"C:\APPS\Router.exe");
+        int notifications = 0;
+        display.MissedPromptsChanged += (_, e) => { notifications++; Check(e.Added.Count == 0); };
+        display.Reconcile(new[] { fresh });
+        Check(display.MissedPrompts.Count == 0 && notifications == 1);
+
+        using var bounded = new PromptDisplayCoordinator(new Actions(), () => new View(), () => now);
+        var many = Enumerable.Range(0, PromptDisplayCoordinator.MaximumMissedPrompts + 5)
+            .Select(i => Prompt(Start.AddMinutes(2), $@"C:\apps\app{i}.exe")).ToArray();
+        bounded.Reconcile(many);
+        bounded.Reconcile(Array.Empty<PromptWireDto>());
+        Check(bounded.MissedPrompts.Count == PromptDisplayCoordinator.MaximumMissedPrompts);
+    }
+
+    private static void FailedAllowIsMissed()
+    {
+        var actions = new Actions();
+        actions.AllowResults.Enqueue(PromptActionStatus.Expired);
+        var views = new List<View>();
+        using var display = new PromptDisplayCoordinator(actions, () => NewView(views), () => Start);
+        var prompt = Prompt(Start.AddMinutes(2));
+        display.Reconcile(new[] { prompt });
+        views[0].Allow();
+        Check(views[0].Closed && display.MissedPrompts.Count == 1 && display.MissedPrompts[0].Token == prompt.Token);
+
+        // A poll removed the popup while Allow was in flight and the Allow failed.
+        var completion = new TaskCompletionSource<PromptActionStatus>();
+        var pendingViews = new List<View>();
+        using var pending = new PromptDisplayCoordinator(new Actions(), () => NewView(pendingViews), () => Start,
+            action => completion.Task);
+        var revoked = Prompt(Start.AddMinutes(2));
+        pending.Reconcile(new[] { revoked });
+        pendingViews[0].Allow();
+        pending.Reconcile(Array.Empty<PromptWireDto>());
+        Check(pending.MissedPrompts.Count == 0);
+        completion.SetResult(PromptActionStatus.UnknownToken);
+        Check(pending.MissedPrompts.Count == 1);
     }
 
     private static void AllowArmingNeedsDelayAndRiskProbe()
@@ -210,14 +298,6 @@ internal static class ControllerHardeningTests
         Check(!arming.IsArmed(At(60)));
         arming.NoteRiskReady();
         Check(!arming.IsArmed(At(60)));
-    }
-
-    private static void UnlockPauseStopsAtTokenExpiry()
-    {
-        var deadline = new PromptDisplayDeadline(Start, Start.AddMinutes(2));
-        deadline.PauseForUnlock();
-        Check(!deadline.ShouldClose(Start.AddSeconds(30)) && !deadline.ShouldClose(Start.AddSeconds(119)));
-        Check(deadline.ShouldClose(Start.AddMinutes(2)));
     }
 
     private static (PromptDisplayCoordinator Display, View View, PromptWireDto Prompt) LockedPrompt(
@@ -405,10 +485,10 @@ internal static class ControllerHardeningTests
         Check(!text.Contains("private-user") && !text.Contains("203.0.113.10"));
     }
 
-    private static PromptWireDto Prompt(DateTimeOffset expires) => new()
+    private static PromptWireDto Prompt(DateTimeOffset expires, string path = @"C:\apps\app.exe") => new()
     {
         Token = Guid.NewGuid(), CanAllow = true, ExpiresUtc = expires,
-        SubjectKind = PromptIdentityKind.Executable, ExecutablePath = @"C:\apps\app.exe",
+        SubjectKind = PromptIdentityKind.Executable, ExecutablePath = path,
     };
     private static View NewView(List<View> views) { var view = new View(); views.Add(view); return view; }
     private static void Check(bool value) { if (!value) throw new InvalidOperationException("Hardening assertion failed."); }
@@ -434,14 +514,17 @@ internal static class ControllerHardeningTests
     private sealed class View : IPromptView
     {
         public event EventHandler? AllowRequested;
-        public event EventHandler? IgnoreRequested { add { } remove { } }
+        public event EventHandler? IgnoreRequested;
         public event EventHandler? PromptClosed { add { } remove { } }
         public event EventHandler? PromptTimedOut;
         internal bool Closed;
+        internal int Waiting = -1;
         internal readonly List<PromptActionStatus> Failures = new();
         internal void Allow() => AllowRequested?.Invoke(this, EventArgs.Empty);
+        internal void Ignore() => IgnoreRequested?.Invoke(this, EventArgs.Empty);
         internal void Timeout() => PromptTimedOut?.Invoke(this, EventArgs.Empty);
         public void ShowPrompt(PromptWireDto prompt) { }
+        public void ShowWaitingCount(int waiting) => Waiting = waiting;
         public void ShowActionFailure(PromptActionStatus status) => Failures.Add(status);
         public void ClosePrompt() => Closed = true;
         public void Dispose() { }
