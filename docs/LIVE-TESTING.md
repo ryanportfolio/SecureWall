@@ -10,7 +10,7 @@ Use the local keyboard and screen, with administrator access available. Save the
 
 Before removing TinyWall, export its settings to a `.tws` file (TinyWall Settings, Maintenance tab, **Export Settings**) and copy the whole `%ProgramData%\TinyWall` directory to a location outside ProgramData, such as a USB drive. A fresh TinyWall install deletes the contents of `%ProgramData%\TinyWall`, so a later rollback restores your rules only from these copies.
 
-SecureWall refuses coexistence with TinyWall. A switch requires removing TinyWall and rebooting before installing SecureWall through its MSI. Do not run an extracted executable as an installer. Existing SecureWall installations require full removal and a fresh install; in-place repair and upgrades are unsupported. A failed removal or an unsafe legacy data directory needs investigation before proceeding. Do not delete recovery files or change their permissions to force installation.
+SecureWall refuses coexistence with TinyWall. A switch requires removing TinyWall and rebooting before installing SecureWall through its MSI. Do not run an extracted executable as an installer. Repair is unsupported. v0.4.2 and older SecureWall installations require full removal and a fresh install; from v0.5.0 on, a newer MSI upgrades in place (see `docs/SECURITY.md`, "In-place upgrade"). A failed removal or an unsafe legacy data directory needs investigation before proceeding. Do not delete recovery files or change their permissions to force installation.
 
 The baseline blocks external traffic while the service is unavailable, including DNS and DHCP. A service failure may therefore leave the PC offline until recovery succeeds. Keep the console available throughout the trial.
 

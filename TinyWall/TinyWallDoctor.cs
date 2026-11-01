@@ -287,12 +287,13 @@ namespace pylorak.TinyWall
                 MachineDataGuard.InstallDefaults();
 #endif
                 // Restores the restart policy step 3 removed, also when the stop
-                // step failed before stopping anything.
+                // step failed before stopping anything. EnsureHealth only logs SCM
+                // write failures, so the restart actions are set here first.
+                service.SetRestartOnFailure(true);
                 EnsureHealth(Utils.LOG_ID_INSTALLER, strictGuards: true);
                 if (!EnsureServiceInstalledAndRunning(Utils.LOG_ID_INSTALLER, true, transaction))
                     return -1;
-                UpgradeMarker.Clear(transaction);
-                UpgradeLifecyclePolicy.DeleteStaleSnapshots(files, data, null);
+                CleanUpAfterUpgrade(transaction, () => UpgradeLifecyclePolicy.DeleteStaleSnapshots(files, data, null));
                 Utils.Log("Upgrade " + transaction + " rolled back: previous policy restored and service running.", Utils.LOG_ID_INSTALLER);
                 return 0;
             }
@@ -336,6 +337,9 @@ namespace pylorak.TinyWall
                 if (!UpgradeLifecyclePolicy.WaitForRunning(() => service.State, ServiceLifecyclePolicy.StartupTimeout,
                     () => timer.Elapsed, System.Threading.Thread.Sleep))
                     throw new InvalidOperationException("The upgraded SecureWall service did not reach Running: " + InstallationSafety.DescribeServiceStatus());
+                // EnsureHealth only logs SCM write failures; the restart actions must
+                // be back before the upgrade counts as done.
+                service.SetRestartOnFailure(true);
                 EnsureHealth(Utils.LOG_ID_INSTALLER, strictGuards: true);
                 Utils.Log("Upgrade " + transaction + ": upgraded service running.", Utils.LOG_ID_INSTALLER);
                 return 0;
@@ -406,9 +410,8 @@ namespace pylorak.TinyWall
             try
             {
                 InstallationSafety.RequireSystemMaintenance();
-                UpgradeLifecyclePolicy.DeleteStaleSnapshots(new MachineDataUpgradeFiles(), Utils.AppDataPath,
-                    UpgradeLifecyclePolicy.CommitKeeps(UpgradeMarker.Read(), transaction));
-                UpgradeMarker.Clear(transaction);
+                string? keep = UpgradeLifecyclePolicy.CommitKeeps(UpgradeMarker.Read(), transaction);
+                CleanUpAfterUpgrade(transaction, () => UpgradeLifecyclePolicy.DeleteStaleSnapshots(new MachineDataUpgradeFiles(), Utils.AppDataPath, keep));
                 Utils.Log("Upgrade " + transaction + " committed.", Utils.LOG_ID_INSTALLER);
                 return 0;
             }
@@ -417,6 +420,17 @@ namespace pylorak.TinyWall
                 LogFailure(exception);
                 return -1;
             }
+        }
+
+        // Runs once the service is up. A snapshot or marker left behind blocks
+        // nothing (the marker is ignored once Windows Installer finishes, and the
+        // next upgrade deletes stale snapshots), so each failure only warns.
+        private static void CleanUpAfterUpgrade(string transaction, Action deleteSnapshots)
+        {
+            try { deleteSnapshots(); }
+            catch (Exception exception) { Warn("Upgrade " + transaction + ": the policy snapshot under %ProgramData%\\SecureWall\\upgrade could not be deleted. " + exception.Message); }
+            try { UpgradeMarker.Clear(transaction); }
+            catch (Exception exception) { Warn("Upgrade " + transaction + ": the upgrade-in-progress marker could not be deleted. " + exception.Message); }
         }
 
         // Controller repair asks this first, to show the upgrade notice instead of
@@ -641,6 +655,10 @@ namespace pylorak.TinyWall
                 using var machine = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
                 using var key = machine.OpenSubKey(ProductRegistryPolicy.KeyPath, true);
                 if (key == null) return;
+                // First and unconditional: a marker left here would refuse /install
+                // during the next fresh installation.
+                key.DeleteValue(UpgradeLifecyclePolicy.MarkerValue, false);
+                key.Flush();
                 int firewallRecords = 0;
                 using (var firewall = key.OpenSubKey(ProductRegistryPolicy.FirewallJournal))
                     if (firewall != null) firewallRecords = firewall.ValueCount + firewall.SubKeyCount;
@@ -649,8 +667,6 @@ namespace pylorak.TinyWall
                 ProductRegistryPolicy.Removal? removal = ProductRegistryPolicy.Plan(key.GetSubKeyNames(), values, firewallRecords, auditRecords);
                 if (removal == null)
                 {
-                    foreach (string marker in ProductRegistryPolicy.MarkerOnly(values))
-                        key.DeleteValue(marker, false);
                     Warn("HKLM\\" + ProductRegistryPolicy.KeyPath + " is kept because a recovery journal below it still holds a record.");
                     return;
                 }

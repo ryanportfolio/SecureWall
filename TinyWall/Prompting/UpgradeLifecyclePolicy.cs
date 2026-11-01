@@ -158,13 +158,15 @@ namespace pylorak.TinyWall.Prompting
 
         internal enum RestoreAction { Refuse, StartOnly, RestoreAndStart }
 
-        // Step 2, the old executable on rollback. A marker naming another upgrade is
-        // left alone. Without a complete snapshot (step 3 failed before taking it) the
-        // policy files were never touched; only the service needs starting again.
+        // Step 2, the old executable on rollback. Without a complete snapshot (step 3
+        // failed before taking it) the policy files were never touched; only the
+        // service needs starting again, whoever's marker is present. A snapshot is
+        // restored only while no other upgrade's marker is present.
         internal static RestoreAction Restore(string transaction, string? marker, bool snapshotComplete)
         {
+            if (!snapshotComplete) return RestoreAction.StartOnly;
             if (!string.IsNullOrWhiteSpace(marker) && !OwnsMarker(marker, transaction)) return RestoreAction.Refuse;
-            return snapshotComplete ? RestoreAction.RestoreAndStart : RestoreAction.StartOnly;
+            return RestoreAction.RestoreAndStart;
         }
 
         // Replaces any earlier snapshot of the same transaction (a retried MSI keeps

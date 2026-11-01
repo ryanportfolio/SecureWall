@@ -12,10 +12,10 @@
        upgrade: v0.4.2 and older carry a NOT UPGRADINGPRODUCTCODE launch condition in
        their cached packages, so they need one explicit uninstall. -->
   <?define OldestUpgradeableVersion="0.5.0" ?>
-  <!-- MsiSetup.wixproj sets PreUpgradeVersion only while TinyWall.csproj's <Version> is
-       below 0.5.0 (development builds before the v0.5.0 bump). The floor then equals the
-       product version and the upgradeable row is left out, because ICE61 rejects an
-       empty range: no older version is upgradeable and every older one is refused. -->
+  <!-- MsiSetup.wixproj sets PreUpgradeVersion while TinyWall.csproj's <Version> is at or
+       below 0.5.0 (v0.5.0 itself and development builds before it). No older version is
+       upgradeable then, so the floor equals the product version and the upgradeable row
+       is left out, because ICE61 rejects an empty range; every older version is refused. -->
   <?ifdef PreUpgradeVersion ?>
     <?undef OldestUpgradeableVersion ?>
     <?define OldestUpgradeableVersion="$(var.PreUpgradeVersion)" ?>

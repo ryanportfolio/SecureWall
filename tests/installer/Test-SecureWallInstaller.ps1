@@ -84,7 +84,7 @@ Assert-True ($installAction.Execute -eq 'deferred' -and $installAction.Return -e
 Assert-True ($installRollback.Execute -eq 'rollback' -and $installRollback.Impersonate -eq 'no' -and $installRollback.ExeCommand -eq '/msi-rollback-install') 'failed first install has a distinct SYSTEM rollback entry'
 Assert-True ($removeAction.Impersonate -eq 'no' -and $removeAction.ExeCommand -eq '/msi-cleanup') 'MSI cleanup uses LocalSystem noninteractive entry'
 Assert-True ($removeSequence.InnerText -eq 'Installed AND REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE') 'teardown only runs on explicit full removal'
-Assert-True ($removeSequence.Before -eq 'UnpublishFeatures') 'cleanup precedes both registry journal removal and file removal'
+Assert-True ($removeSequence.Before -eq 'UnpublishFeatures') 'cleanup precedes MSI registry value removal and file removal'
 Assert-True ($product.Contains('NOT Installed OR (REMOVE="ALL" AND NOT REINSTALL)')) 'launch condition rejects repair before transaction'
 Assert-True ($product.Contains('NOT EXISTINGSECUREWALLSERVICE AND SECUREWALLDELETEPENDING <> "#1"')) 'fresh MSI rejects existing and delete-pending service registrations'
 
@@ -161,7 +161,7 @@ foreach ($value in $registryKey.SelectNodes('w:RegistryValue', $ns)) { $registry
 Assert-True ($registryValues.Count -eq 2 -and $registryValues['InstallDir'] -eq '[INSTALLDIR]' -and $registryValues['Platform'] -eq '$(var.BuildArch)') 'MSI owns only the InstallDir and Platform values'
 Assert-True ($null -eq $wix.SelectSingleNode('//*[@ForceDeleteOnUninstall="yes"]', $ns)) 'no MSI registry key is force-deleted on uninstall'
 $wixProject = Read-RepoFile 'MsiSetup\MsiSetup.wixproj'
-Assert-True ($product -match '(?s)<\?ifdef PreUpgradeVersion \?>\s*<\?undef OldestUpgradeableVersion \?>\s*<\?define OldestUpgradeableVersion="\$\(var\.PreUpgradeVersion\)" \?>' -and $product -match "(?s)<\?ifndef PreUpgradeVersion \?>\s*<UpgradeVersion OnlyDetect='no' MigrateFeatures='yes' Property='OLDER_UPGRADEABLE_FOUND'.*?/>\s*<\?endif \?>" -and $wixProject -match "VersionLessThan\('\`$\(SecureWallVersion\)', '0\.5\.0'\)") 'builds below 0.5.0 keep a valid Upgrade table with no upgradeable range'
+Assert-True ($product -match '(?s)<\?ifdef PreUpgradeVersion \?>\s*<\?undef OldestUpgradeableVersion \?>\s*<\?define OldestUpgradeableVersion="\$\(var\.PreUpgradeVersion\)" \?>' -and $product -match "(?s)<\?ifndef PreUpgradeVersion \?>\s*<UpgradeVersion OnlyDetect='no' MigrateFeatures='yes' Property='OLDER_UPGRADEABLE_FOUND'.*?/>\s*<\?endif \?>" -and $wixProject -match "VersionLessThanOrEquals\('\`$\(SecureWallVersion\)', '0\.5\.0'\)") 'builds at or below 0.5.0, v0.5.0 included, keep a valid Upgrade table with no upgradeable range'
 
 # Fault injection for the upgrade VM cases lives only in the UpgradeFaultTest configuration.
 Assert-True ($product -match '(?s)<\?ifdef UpgradeFaultTest \?>\s*<!--.*?-->\s*<Property Id="SECUREWALLUPGRADEFAULTTEST" Value="1" />\s*<\?endif \?>') 'fault-test packages carry a property release checks can refuse'

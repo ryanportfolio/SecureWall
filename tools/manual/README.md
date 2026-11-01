@@ -28,7 +28,7 @@ Expected: installation succeeds, the SecureWall service becomes `Running`, and t
 
 Direct service installation from an extracted Downloads/Desktop/test folder is rejected. LocalSystem execution requires a protected Program Files payload tree with trusted ownership and write permissions. Use the MSI to place the runtime correctly.
 
-Repair and in-place upgrades are deliberately rejected before they change the installed product. Export the configuration, uninstall explicitly, and install the new package. Retain the old installer and a VM snapshot until the new build passes its acceptance checks. Rollback of a fresh installation and removal still require testing with the exact MSI.
+Repair is deliberately rejected before it changes the installed product. From v0.5.0 on, a newer package upgrades in place (`docs/SECURITY.md`, "In-place upgrade"); for v0.4.2 and older, export the configuration, uninstall explicitly, and install the new package. Retain the old installer and a VM snapshot until the new build passes its acceptance checks. Rollback of a fresh installation and removal still require testing with the exact MSI.
 
 Runtime permissions disappear when the SecureWall service stops or crashes. Its persistent deny baseline remains until an explicit uninstall removes it. Loss of networking after service failure is intentional; recover through the local console.
 

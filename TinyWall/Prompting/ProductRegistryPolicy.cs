@@ -32,9 +32,9 @@ namespace pylorak.TinyWall.Prompting
         internal static bool JournalsCleared(int firewallRecords, int auditRecords) =>
             firewallRecords == 0 && auditRecords == 0;
 
-        // Returns null when a journal still holds a record: the whole key stays,
-        // because the next removal attempt needs that record. The upgrade marker
-        // is the exception and is always removed (see MarkerOnly).
+        // Returns null when a journal still holds a record: the key stays, because
+        // the next removal attempt needs that record. The caller deletes the
+        // upgrade marker before asking, whatever the answer.
         internal static Removal? Plan(IEnumerable<string> subkeys, IEnumerable<string> values,
             int firewallRecords, int auditRecords)
         {
@@ -51,17 +51,6 @@ namespace pylorak.TinyWall.Prompting
             // them. Without (standalone /uninstall after MSI removal, or the x86
             // package, whose values live in the 32-bit view), delete the key here.
             return new Removal(deleteSubkeys.ToArray(), deleteValues.ToArray(), !msiValuesRemain);
-        }
-
-        // A kept key loses only the upgrade marker. A marker left behind would
-        // otherwise refuse /install during the next fresh MSI installation.
-        internal static string[] MarkerOnly(IEnumerable<string> values)
-        {
-            var result = new List<string>();
-            foreach (string value in values)
-                if (string.Equals(value, UpgradeLifecyclePolicy.MarkerValue, StringComparison.OrdinalIgnoreCase))
-                    result.Add(value);
-            return result.ToArray();
         }
 
         private static bool IsMsiValue(string name)

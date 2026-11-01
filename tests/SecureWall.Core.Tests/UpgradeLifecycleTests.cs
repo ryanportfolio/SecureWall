@@ -212,7 +212,8 @@ internal static class UpgradeLifecycleTests
         AssertEx.Equal(UpgradeLifecyclePolicy.RestoreAction.StartOnly, UpgradeLifecyclePolicy.Restore(Txn, null, false));
         AssertEx.Equal(UpgradeLifecyclePolicy.RestoreAction.RestoreAndStart, UpgradeLifecyclePolicy.Restore(Txn, null, true));
         AssertEx.Equal(UpgradeLifecyclePolicy.RestoreAction.Refuse, UpgradeLifecyclePolicy.Restore(Txn, Other, true));
-        AssertEx.Equal(UpgradeLifecyclePolicy.RestoreAction.Refuse, UpgradeLifecyclePolicy.Restore(Txn, Other, false));
+        AssertEx.Equal(UpgradeLifecyclePolicy.RestoreAction.StartOnly, UpgradeLifecyclePolicy.Restore(Txn, Other, false),
+            "with nothing to restore, another upgrade's marker must not stop the service from starting");
     }
 
     private static void SnapshotNaming()
@@ -329,9 +330,6 @@ internal static class UpgradeLifecycleTests
         removal = ProductRegistryPolicy.Plan(subkeys, new[] { UpgradeLifecyclePolicy.MarkerValue }, 0, 0)!.Value;
         AssertEx.True(removal.DeleteKey, "without MSI values the key is deleted here");
         AssertEx.True(ProductRegistryPolicy.Plan(Array.Empty<string>(), new[] { "installdir" }, 0, 0)!.Value.Values.Length == 0);
-
-        AssertEx.SequenceEqual(new[] { UpgradeLifecyclePolicy.MarkerValue }, ProductRegistryPolicy.MarkerOnly(values));
-        AssertEx.Equal(0, ProductRegistryPolicy.MarkerOnly(new[] { "InstallDir" }).Length);
     }
 
     private static void AdapterWiring()
@@ -351,32 +349,48 @@ internal static class UpgradeLifecycleTests
         foreach (string start in new[] { "ManagedInstallerClass.InstallHelper", "sc.Start()", "Utils.StartProcess" })
             AssertEx.True(gate < repair.IndexOf(start, StringComparison.Ordinal), "upgrade gate follows " + start);
 
+        // Every marker must be present, in this order; a missing call fails.
+        void InOrder(string body, string step, params string[] markers)
+        {
+            int previous = -1;
+            foreach (string marker in markers)
+            {
+                int index = body.IndexOf(marker, previous + 1, StringComparison.Ordinal);
+                AssertEx.True(index > previous, step + ": missing or out of order: " + marker);
+                previous = index;
+            }
+        }
+
         string stop = Body("internal static int UpgradeStopForMsi(string transaction)");
-        AssertEx.True(stop.Contains("UpgradeLifecyclePolicy.Stop(transaction, service,"));
-        AssertEx.True(stop.Contains("InstallationSafety.RequireSystemMaintenance();") && stop.Contains("InstallationSafety.RequireProtectedMachineData();") && stop.Contains("ValidateRegisteredServiceImage(true);"));
-        AssertEx.True(stop.Contains("WindowsFirewall.RequireServiceRunning();") && stop.Contains("\"BFE\""));
+        InOrder(stop, "stop", "UpgradeLifecyclePolicy.Stop(transaction, service,", "InstallationSafety.RequireSystemMaintenance();",
+            "InstallationSafety.RequireProtectedMachineData();", "ValidateRegisteredServiceImage(true);",
+            "WindowsFirewall.RequireServiceRunning();", "\"BFE\"", "writeMarker: UpgradeMarker.Write",
+            "terminateControllers: TerminateInstallationControllers", "UpgradeLifecyclePolicy.TakeSnapshot(new MachineDataUpgradeFiles(), Utils.AppDataPath, transaction);");
         AssertEx.False(stop.Contains("CleanupForMsi") || stop.Contains("RemoveWfpObjects") || stop.Contains("RestoreOwnedState") || stop.Contains("DisableHostsFile"));
 
-        string start7 = Body("internal static int UpgradeStartForMsi(string transaction)");
-        int check = start7.IndexOf("UpgradeLifecyclePolicy.RequireStartable(", StringComparison.Ordinal);
-        int defaults = start7.IndexOf("MachineDataGuard.InstallDefaults();", StringComparison.Ordinal);
-        int begin = start7.IndexOf("service.Start();", StringComparison.Ordinal);
-        int health = start7.IndexOf("EnsureHealth(", StringComparison.Ordinal);
-        AssertEx.True(check > 0 && check < defaults && defaults < begin && begin < health, "start step order changed");
-        AssertEx.True(start7.Contains("UpgradeLifecyclePolicy.WaitForRunning("));
+        InOrder(Body("internal static int UpgradeStartForMsi(string transaction)"), "start",
+            "UpgradeLifecyclePolicy.RequireStartable(", "MachineDataGuard.InstallDefaults();",
+            "UpgradeLifecyclePolicy.DeleteStaleSnapshots(files, data, transaction);", "service.Start();",
+            "UpgradeLifecyclePolicy.WaitForRunning(", "service.SetRestartOnFailure(true);", "EnsureHealth(");
 
-        string restore = Body("internal static int UpgradeRestoreForMsi(string transaction)");
-        AssertEx.True(restore.IndexOf("RestoreSnapshot(", StringComparison.Ordinal) < restore.IndexOf("MachineDataGuard.InstallDefaults();", StringComparison.Ordinal));
-        AssertEx.True(restore.Contains("EnsureServiceInstalledAndRunning(Utils.LOG_ID_INSTALLER, true, transaction)"));
-        AssertEx.True(restore.IndexOf("EnsureServiceInstalledAndRunning(", StringComparison.Ordinal) < restore.IndexOf("UpgradeMarker.Clear(transaction);", StringComparison.Ordinal));
+        InOrder(Body("internal static int UpgradeRestoreForMsi(string transaction)"), "restore",
+            "UpgradeLifecyclePolicy.Restore(transaction, marker,", "StopGracefully(", "UpgradeLifecyclePolicy.RestoreSnapshot(files, data, transaction);",
+            "MachineDataGuard.InstallDefaults();", "service.SetRestartOnFailure(true);",
+            "EnsureServiceInstalledAndRunning(Utils.LOG_ID_INSTALLER, true, transaction)", "CleanUpAfterUpgrade(transaction,");
 
         string abort = Body("internal static int UpgradeAbortForMsi(string transaction)");
-        AssertEx.True(abort.IndexOf("SetRestartOnFailure(false)", StringComparison.Ordinal) < abort.IndexOf("StopGracefully", StringComparison.Ordinal));
-        AssertEx.True(abort.Contains("ServiceStartMode.Automatic") && !abort.Contains("UpgradeMarker.Clear"));
+        InOrder(abort, "abort", "service.SetRestartOnFailure(false);", "StopGracefully(", "InstallationSafety.TerminateFailedInstallService();",
+            "ServiceStartMode.Automatic", "TerminateInstallationControllers();");
+        AssertEx.False(abort.Contains("UpgradeMarker.Clear") || abort.Contains("CleanUpAfterUpgrade"), "abort must leave the marker for the restore step");
+
+        string commit = Body("internal static int UpgradeCommitForMsi(string transaction)");
+        InOrder(commit, "commit", "UpgradeLifecyclePolicy.CommitKeeps(UpgradeMarker.Read(), transaction)", "CleanUpAfterUpgrade(transaction,",
+            "private static void CleanUpAfterUpgrade(", "deleteSnapshots();", "UpgradeMarker.Clear(transaction);");
 
         string cleanup = Body("private static int CleanupStoppedInstallation(");
-        AssertEx.True(cleanup.IndexOf("ProtectionReleasePolicy.Release(", StringComparison.Ordinal) < cleanup.IndexOf("RemoveProductRegistry();", StringComparison.Ordinal),
-            "the product key must go after the journals were restored");
+        InOrder(cleanup, "removal", "ProtectionReleasePolicy.Release(", "RemoveProductRegistry();", "return released ? 0 : -1;",
+            "private static void RemoveProductRegistry()", "key.DeleteValue(UpgradeLifecyclePolicy.MarkerValue, false);",
+            "RegistryAuditPolicyJournal.Instance.ReadAll(", "ProductRegistryPolicy.Plan(");
 
         string program = PromptTransactionIntegrationTests.Source("TinyWall/Program.cs");
         foreach (string mode in new[] { "StopMode", "RestoreMode", "StartMode", "AbortMode", "CommitMode" })
