@@ -52,6 +52,8 @@ namespace pylorak.TinyWall
             this.Close();
         }
 
+        private readonly DnsCacheNames DnsNames = new();
+
         private static string GetPathFromPidCached(Dictionary<uint, string> cache, uint pid)
         {
             if (cache.TryGetValue(pid, out string path))
@@ -72,6 +74,7 @@ namespace pylorak.TinyWall
             }
 
             IconScanner.CancelScan();
+            DnsNames.RefreshIfStale();
             var fwLogRequest = GlobalInstances.Controller.BeginReadFwLog();
 
             var packageList = new UwpPackageList();
@@ -158,11 +161,20 @@ namespace pylorak.TinyWall
                     if (e.AppPath is null) continue;
 
                     var key = e.AppPath.ToLowerInvariant();
-                    if (!ProcessPathInfoMap.ContainsKey(key))
-                        continue;
+                    ProcessPathInfoMap.TryGetValue(key, out List<ProcessSnapshotEntry>? p);
 
-                    var p = ProcessPathInfoMap[key];
-                    if ((p.Count == 1) && (p[0].CreationTime < e.Timestamp.ToFileTime()))
+                    // The service names the process for blocks it matched to a Security-log event.
+                    // Keep that PID only while it still belongs to a process with this path that
+                    // started before the block: Unblock and Close process act on it.
+                    if (e.ProcessId != 0)
+                    {
+                        uint pid = e.ProcessId;
+                        if (p != null && p.Exists(s => s.ProcessId == pid && s.CreationTime < e.Timestamp.ToFileTime()))
+                            continue;
+                        e.ProcessId = 0;
+                    }
+
+                    if ((p != null) && (p.Count == 1) && (p[0].CreationTime < e.Timestamp.ToFileTime()))
                         e.ProcessId = p[0].ProcessId;
                 }
 
@@ -244,7 +256,7 @@ namespace pylorak.TinyWall
                     ConstructListItem(itemColl, pi, entry.Protocol.ToString(),
                         new IPEndPoint(IPAddress.Parse(entry.LocalIp), entry.LocalPort),
                         new IPEndPoint(IPAddress.Parse(entry.RemoteIp), entry.RemotePort),
-                        NetworkActivityStatusClassifier.ToDisplayText(status, entry.FilterGroup),
+                        NetworkActivityStatusClassifier.ToDisplayText(status, entry.FilterGroup, entry.AllowedByAlwaysAllow),
                         entry.Timestamp, entry.Direction);
                 }
             }
@@ -288,12 +300,13 @@ namespace pylorak.TinyWall
         }
 
         // Identifies a row across refreshes: every column except the timestamp, which changes
-        // on each refresh for live endpoints.
+        // on each refresh for live endpoints, and the host name, which comes and goes with the
+        // DNS cache.
         private static string RowKey(ListViewItem li)
         {
             var parts = new string[li.SubItems.Count - 1];
             for (int i = 0; i < parts.Length; ++i)
-                parts[i] = li.SubItems[i].Text;
+                parts[i] = (i == 6) ? RemoteAddressOf(li) : li.SubItems[i].Text;
             return string.Join("\u001f", parts);
         }
 
@@ -332,7 +345,8 @@ namespace pylorak.TinyWall
                 li.SubItems.Add(localEP.Port.ToString(CultureInfo.InvariantCulture).PadLeft(5));
                 li.SubItems.Add(localEP.Address.ToString());
                 li.SubItems.Add(remoteEP.Port.ToString(CultureInfo.InvariantCulture).PadLeft(5));
-                li.SubItems.Add(remoteEP.Address.ToString());
+                string? host = DnsNames.Lookup(remoteEP.Address);
+                li.SubItems.Add(host == null ? remoteEP.Address.ToString() : $"{remoteEP.Address} ({host})");
                 li.SubItems.Add(state);
                 switch (dir)
                 {
@@ -522,10 +536,13 @@ namespace pylorak.TinyWall
             Controller.WhitelistProcesses(selection);
         }
 
+        // The remote address cell can end with " (host name)"; actions use the address alone.
+        private static string RemoteAddressOf(ListViewItem li) => li.SubItems[6].Text.Split(' ')[0];
+
         private void mnuCopyRemoteAddress_Click(object sender, EventArgs e)
         {
             ListViewItem li = list.SelectedItems[0];
-            string clipboardData = li.SubItems[6].Text;
+            string clipboardData = RemoteAddressOf(li);
 
             var dataObject = new DataObject();
             dataObject.SetData(DataFormats.UnicodeText, false, clipboardData);
@@ -581,7 +598,7 @@ namespace pylorak.TinyWall
                 ListViewItem li = list.SelectedItems[0];
 
                 const string urlTemplate = @"www.google.com/search?q={0}";
-                string address = li.SubItems[6].Text;
+                string address = RemoteAddressOf(li);
                 string url = string.Format(CultureInfo.InvariantCulture, urlTemplate, address);
                 Utils.StartProcessAndForget(url, string.Empty, false);
             }

@@ -40,6 +40,10 @@ namespace pylorak.TinyWall
         public string? PackageId;
         public ulong FilterRuntimeId;
         public FilterGroup FilterGroup;
+        // A default-deny drop after which Always allow added an exception for the app.
+        public bool AllowedByAlwaysAllow;
+        // Service only, never serialized: the PID match for this row has been decided.
+        internal bool PidResolved;
 
         public int GetHashCode(bool includeTimestamp)
         {
@@ -67,6 +71,7 @@ namespace pylorak.TinyWall
                     hash = (hash ^ PackageId.GetHashCode()) * FNV_PRIME;
                 hash = (hash ^ FilterRuntimeId.GetHashCode()) * FNV_PRIME;
                 hash = (hash ^ FilterGroup.GetHashCode()) * FNV_PRIME;
+                hash = (hash ^ AllowedByAlwaysAllow.GetHashCode()) * FNV_PRIME;
 
                 return hash;
             }
@@ -95,7 +100,8 @@ namespace pylorak.TinyWall
                 string.Equals(AppPath, obj.AppPath) &&
                 string.Equals(PackageId, obj.PackageId) &&
                 (FilterRuntimeId == obj.FilterRuntimeId) &&
-                (FilterGroup == obj.FilterGroup);
+                (FilterGroup == obj.FilterGroup) &&
+                (AllowedByAlwaysAllow == obj.AllowedByAlwaysAllow);
         }
 
         public bool Equals(FirewallLogEntry? other)

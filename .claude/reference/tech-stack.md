@@ -4,7 +4,7 @@
 - Windows Filtering Platform through local P/Invoke wrappers; no kernel driver.
 - LocalSystem Windows service plus interactive tray controller.
 - Named pipes with source-generated `System.Text.Json` 10.0.9 messages; `System.Memory` is pinned to 4.6.3 and the installer carries the resolved runtime assemblies.
-- Windows Security event 5157 for PID/service enrichment; WFP net events remain enforcement-authoritative.
+- Windows Security events 5157 and 5159 for PID/service enrichment (5159 for Network Activity only); the Windows DNS client cache (`MSFT_DNSClientCache`) for remote host names in Network Activity; WFP net events remain enforcement-authoritative.
 - Dependency-free `net9.0` console harness for pure prompt-domain tests.
 - `wintrust.dll` P/Invoke (`WinVerifyTrust`, `CryptCATAdmin*`) in `TinyWall/ExecutableRiskProbe.cs` for the popup's signature warning; offline, no revocation check, controller process only.
 - WiX 3.14.1 installer source; clean x86, x64, and ARM64 Release packages pass WiX ICE validation. Test artifacts remain unsigned.

@@ -38,7 +38,7 @@ namespace pylorak.TinyWall.Prompting
                 skew <= tolerance;
         }
 
-        private static bool AddressesEqual(string first, string second)
+        internal static bool AddressesEqual(string first, string second)
         {
             if (IPAddress.TryParse(first, out IPAddress? firstAddress) &&
                 IPAddress.TryParse(second, out IPAddress? secondAddress))
