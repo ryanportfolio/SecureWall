@@ -348,6 +348,11 @@ Assert-True ($releaseWorkflow -match 'SHA256SUMS\.txt') 'release workflow publis
 Assert-True ($releaseWorkflow -notmatch 'SuppressValidation') 'release workflow never bypasses MSI ICE validation'
 Assert-True ($releaseWorkflow -notmatch 'ValidationVersion') 'release workflow never overrides the package version'
 $ciWorkflow = Read-RepoFile '.github\workflows\ci.yml'
+Assert-True ($ciWorkflow -match 'Build-SecureWallRelease\.ps1[^\r\n]*`\s+-ValidationVersion\s+0\.5\.1\s') 'CI validates the upgradeable row in a 0.5.1 build'
+Assert-True ($builder -match "\[version\]\`$ValidationVersion -le \[version\]'0\.5\.0'") 'release builder refuses a validation version with no upgradeable row'
+foreach ($bundleScript in 'tools\manual\Prepare-SecureWallManualTestBundle.ps1', 'tools\vm\Prepare-SecureWallVmBundle.ps1') {
+    Assert-True ((Read-RepoFile $bundleScript) -match '\$builtVersion -ne "\$projectVersion\.0"') "$bundleScript refuses an executable built at another version"
+}
 Assert-True ($releaseWorkflow -notmatch 'UpgradeFaultTest' -and $ciWorkflow -notmatch 'UpgradeFaultTest') 'release and CI workflows never build the fault-test configuration'
 $stagedExecutable = Join-Path $repoRoot 'MsiSetup\Sources\ProgramFiles\SecureWall\SecureWall.exe'
 if (Test-Path -LiteralPath $stagedExecutable -PathType Leaf) {
