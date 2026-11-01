@@ -171,7 +171,7 @@ namespace pylorak.TinyWall.Prompting
             return value.Length > 0 && value.Trim() == value;
         }
 
-        private static bool IsLowerHex(string text, int length)
+        internal static bool IsLowerHex(string text, int length)
         {
             if (text.Length != length)
                 return false;

@@ -208,7 +208,7 @@ namespace pylorak.TinyWall
             using (var identity = WindowsIdentity.GetCurrent())
                 user = identity.User!.Value;
             string arguments = UpdateApplyPolicy.Switch + " \"" + package + "\" \"" +
-                Path.Combine(folder, ReleaseCheck.ManifestAsset) + "\" " + user;
+                Path.Combine(folder, ReleaseCheck.ManifestAsset) + "\" " + ReleaseManifest.Sha256Hex(result.ManifestBytes) + " " + user;
             try
             {
                 SaveUpdateSetting(settings => settings.UpdateStartedFromVersion = version);

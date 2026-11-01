@@ -13,10 +13,11 @@ using pylorak.TinyWall.Prompting;
 
 namespace pylorak.TinyWall.Installer
 {
-    // SecureWall.exe /apply-update "<msi>" "<manifest>" <requesting user SID>
+    // SecureWall.exe /apply-update "<msi>" "<manifest>" <manifest SHA-256> <requesting user SID>
     //
     // Started elevated by the controller's Install button. The downloaded files sit in the
-    // user's own folder, so this step copies them into a folder only SYSTEM and Administrators
+    // user's own folder, so this step accepts only the manifest whose hash the controller
+    // passed (the one it read from GitHub), copies them into a folder only SYSTEM and Administrators
     // can change, checks the copied installer against the copied manifest, checks the
     // package's identity, and only then starts msiexec with the full setup UI. It exits right
     // after.
@@ -77,7 +78,7 @@ namespace pylorak.TinyWall.Installer
 
             // 2. Check the manifest first, from bytes read once into memory.
             byte[] manifestBytes = ReadCapped(request.Manifest, ReleaseManifest.MaxManifestBytes);
-            ReleaseManifest manifest = Verify(manifestBytes);
+            ReleaseManifest manifest = Verify(manifestBytes, request.ManifestHash);
             string platform = InstalledPlatform();
             string expectedHash = manifest.HashFor(platform)
                 ?? throw new UpdateRefusedException("The release has no installer for this computer's SecureWall package (" + platform + ").");
@@ -117,7 +118,7 @@ namespace pylorak.TinyWall.Installer
             CopyCapped(request.Package, stagedPackage, UpdateApplyPolicy.MaxPackageBytes);
 
             // 5. Check the protected copies again: a swap in the user's folder after step 2 is caught.
-            ReleaseManifest staged = Verify(File.ReadAllBytes(stagedManifest));
+            ReleaseManifest staged = Verify(File.ReadAllBytes(stagedManifest), request.ManifestHash);
             if (staged.Tag != manifest.Tag || staged.HashFor(platform) != expectedHash)
                 throw new UpdateRefusedException("The update files changed while they were being copied. Nothing was installed.");
             if (ReleaseManifest.Sha256Hex(File.ReadAllBytes(stagedPackage)) != expectedHash)
@@ -139,8 +140,10 @@ namespace pylorak.TinyWall.Installer
             Utils.Log("Started the SecureWall " + staged.Tag + " installer from " + staging + ".", Utils.LOG_ID_INSTALLER);
         }
 
-        private static ReleaseManifest Verify(byte[] manifestBytes)
+        private static ReleaseManifest Verify(byte[] manifestBytes, string expectedHash)
         {
+            if (ReleaseManifest.Sha256Hex(manifestBytes) != expectedHash)
+                throw new UpdateRefusedException("The update files changed after SecureWall downloaded them. Nothing was installed.");
             if (!ReleaseManifest.TryParse(manifestBytes, out ReleaseManifest? manifest, out string error) || manifest == null)
                 throw new UpdateRefusedException("The release manifest could not be read: " + error);
             if (!UpdateApplyPolicy.IsReleaseTag(manifest.Tag))

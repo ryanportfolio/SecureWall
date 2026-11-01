@@ -520,12 +520,14 @@ internal static class ReleaseUpdateTests
 
     private static void ApplyArgumentsAndPaths()
     {
-        AssertEx.True(UpdateApplyPolicy.TryParseArguments(new[] { "/apply-update", Root + @"\v0.6.0\a.msi", "m", User }, out var args));
+        AssertEx.True(UpdateApplyPolicy.TryParseArguments(new[] { "/apply-update", Root + @"\v0.6.0\a.msi", "m", HashX64, User }, out var args));
         AssertEx.Equal(User, args!.UserSid);
-        AssertEx.False(UpdateApplyPolicy.TryParseArguments(new[] { "/apply-update", "a", "m" }, out _));
-        AssertEx.False(UpdateApplyPolicy.TryParseArguments(new[] { "/apply-update", "a", "m", "s", User }, out _));
-        AssertEx.False(UpdateApplyPolicy.TryParseArguments(new[] { "/apply-update", "a", "m", "S-1-5-18" }, out _));
-        AssertEx.False(UpdateApplyPolicy.TryParseArguments(new[] { "/service", "a", "m", User }, out _));
+        AssertEx.Equal(HashX64, args.ManifestHash);
+        AssertEx.False(UpdateApplyPolicy.TryParseArguments(new[] { "/apply-update", "a", "m", User }, out _), "no manifest hash");
+        AssertEx.False(UpdateApplyPolicy.TryParseArguments(new[] { "/apply-update", "a", "m", HashX64.ToUpperInvariant(), User }, out _), "uppercase hash");
+        AssertEx.False(UpdateApplyPolicy.TryParseArguments(new[] { "/apply-update", "a", "m", HashX64.Substring(1), User }, out _), "short hash");
+        AssertEx.False(UpdateApplyPolicy.TryParseArguments(new[] { "/apply-update", "a", "m", HashX64, "S-1-5-18" }, out _));
+        AssertEx.False(UpdateApplyPolicy.TryParseArguments(new[] { "/service", "a", "m", HashX64, User }, out _));
         AssertEx.Equal(Root, UpdateApplyPolicy.UserUpdatesRoot(@"C:\Users\alice\AppData\Local"));
 
         AssertEx.True(UpdateApplyPolicy.IsAcceptableSourcePath(Root + @"\v0.6.0\SecureWall_x64.msi", Root, out string error), error);
@@ -587,9 +589,12 @@ internal static class ReleaseUpdateTests
             UpdateApplyPolicy.MsiexecArguments(@"C:\p\SecureWall.msi", @"C:\p\install.log", true));
 
         string applier = PromptTransactionIntegrationTests.Source("TinyWall/Installer/UpdateApplier.cs");
-        int verify = applier.IndexOf("ReleaseManifest manifest = Verify(manifestBytes);", StringComparison.Ordinal);
+        int verify = applier.IndexOf("ReleaseManifest manifest = Verify(manifestBytes, request.ManifestHash);", StringComparison.Ordinal);
         int stage = applier.IndexOf("string parent = PrepareStagingParent();", StringComparison.Ordinal);
-        int reverify = applier.IndexOf("ReleaseManifest staged = Verify(File.ReadAllBytes(stagedManifest)", StringComparison.Ordinal);
+        int reverify = applier.IndexOf("ReleaseManifest staged = Verify(File.ReadAllBytes(stagedManifest), request.ManifestHash);", StringComparison.Ordinal);
+        // Both checks compare the manifest with the hash of the one the controller read from GitHub.
+        AssertEx.True(applier.Contains("if (ReleaseManifest.Sha256Hex(manifestBytes) != expectedHash)"), "manifest bound to the check");
+        AssertEx.True(PromptTransactionIntegrationTests.Source("TinyWall/TinyWallController.Updates.cs").Contains("ReleaseManifest.Sha256Hex(result.ManifestBytes)"), "controller passes the fetched manifest's hash");
         int package = applier.IndexOf("CheckPackage(stagedPackage, staged.Version, platform);", StringComparison.Ordinal);
         int launch = applier.IndexOf("Path.Combine(Environment.SystemDirectory, \"msiexec.exe\")", StringComparison.Ordinal);
         AssertEx.True(verify > 0 && verify < stage && stage < reverify && reverify < package && package < launch, "check, stage, check the copies, check the package, then launch");

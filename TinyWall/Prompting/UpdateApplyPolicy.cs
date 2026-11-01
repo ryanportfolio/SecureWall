@@ -25,32 +25,36 @@ namespace pylorak.TinyWall.Prompting
 
         internal sealed class Arguments
         {
-            internal Arguments(string package, string manifest, string userSid)
+            internal Arguments(string package, string manifest, string manifestHash, string userSid)
             {
                 Package = package;
                 Manifest = manifest;
+                ManifestHash = manifestHash;
                 UserSid = userSid;
             }
 
             internal string Package { get; }
             internal string Manifest { get; }
+            // SHA-256 of the manifest the controller read from GitHub. The files sit in the
+            // user's folder, so this ties them to what the check showed.
+            internal string ManifestHash { get; }
             internal string UserSid { get; }
         }
 
-        // SecureWall.exe /apply-update "<msi>" "<manifest>" <requesting user SID>
+        // SecureWall.exe /apply-update "<msi>" "<manifest>" <manifest SHA-256> <requesting user SID>
         internal static bool TryParseArguments(string[] args, out Arguments? parsed)
         {
             parsed = null;
-            if (args == null || args.Length != 4 || !string.Equals(args[0], Switch, StringComparison.OrdinalIgnoreCase))
+            if (args == null || args.Length != 5 || !string.Equals(args[0], Switch, StringComparison.OrdinalIgnoreCase))
                 return false;
-            for (int i = 1; i < 4; ++i)
+            for (int i = 1; i < 5; ++i)
             {
                 if (string.IsNullOrWhiteSpace(args[i]))
                     return false;
             }
-            if (!UpdateNetworkGrantPolicy.IsAllowedUser(args[3]))
+            if (!ReleaseManifest.IsLowerHex(args[3], 64) || !UpdateNetworkGrantPolicy.IsAllowedUser(args[4]))
                 return false;
-            parsed = new Arguments(args[1], args[2], args[3]);
+            parsed = new Arguments(args[1], args[2], args[3], args[4]);
             return true;
         }
 
