@@ -14,6 +14,8 @@ namespace pylorak.TinyWall.Prompting
     internal interface IPromptActionClient
     {
         PromptActionStatus Allow(Guid token);
+        // Allow, plus an Always allow rule for the file name and the signer the service verifies.
+        PromptActionStatus AllowAlways(Guid token);
         PromptActionStatus Dismiss(Guid token);
         // Same effect as Dismiss, but marked as automatic so it never extends the unlock window.
         PromptActionStatus DismissAfterTimeout(Guid token);
@@ -30,6 +32,7 @@ namespace pylorak.TinyWall.Prompting
     internal interface IPromptView : IDisposable
     {
         event EventHandler? AllowRequested;
+        event EventHandler? AlwaysAllowRequested;
         event EventHandler? IgnoreRequested;
         event EventHandler? PromptClosed;
         event EventHandler? PromptTimedOut;
@@ -219,6 +222,7 @@ namespace pylorak.TinyWall.Prompting
                 _current = _pending.Dequeue();
                 _currentView = _viewFactory();
                 _currentView.AllowRequested += AllowRequested;
+                _currentView.AlwaysAllowRequested += AlwaysAllowRequested;
                 _currentView.IgnoreRequested += IgnoreRequested;
                 _currentView.PromptClosed += PromptClosed;
                 _currentView.PromptTimedOut += PromptTimedOut;
@@ -257,7 +261,10 @@ namespace pylorak.TinyWall.Prompting
             string.Equals(first.ServiceName, second.ServiceName, StringComparison.OrdinalIgnoreCase) &&
             string.Equals(first.PackageSid, second.PackageSid, StringComparison.OrdinalIgnoreCase);
 
-        private async void AllowRequested(object? sender, EventArgs eventArgs)
+        private void AllowRequested(object? sender, EventArgs eventArgs) => RequestAllow(alwaysAllow: false);
+        private void AlwaysAllowRequested(object? sender, EventArgs eventArgs) => RequestAllow(alwaysAllow: true);
+
+        private async void RequestAllow(bool alwaysAllow)
         {
             if (_current == null || _currentView == null)
                 return;
@@ -279,7 +286,7 @@ namespace pylorak.TinyWall.Prompting
             Guid token = prompt.Token;
             IPromptView view = _currentView;
             if (!_actionsInFlight.Add(token)) return;
-            PromptActionStatus status = await PerformAction(() => _actions.Allow(token));
+            PromptActionStatus status = await PerformAction(() => alwaysAllow ? _actions.AllowAlways(token) : _actions.Allow(token));
             bool relock = false;
             if (status == PromptActionStatus.Locked && IsCurrent(token, view))
             {
@@ -294,7 +301,7 @@ namespace pylorak.TinyWall.Prompting
                 if (unlock != PromptUnlockResult.NotUnlocked && IsCurrent(token, view) &&
                     _current!.ExpiresUtc > _utcNow())
                 {
-                    status = await PerformAction(() => _actions.Allow(token));
+                    status = await PerformAction(() => alwaysAllow ? _actions.AllowAlways(token) : _actions.Allow(token));
                 }
             }
             if (relock)
@@ -419,6 +426,7 @@ namespace pylorak.TinyWall.Prompting
                 return;
 
             _currentView.AllowRequested -= AllowRequested;
+            _currentView.AlwaysAllowRequested -= AlwaysAllowRequested;
             _currentView.IgnoreRequested -= IgnoreRequested;
             _currentView.PromptClosed -= PromptClosed;
             _currentView.PromptTimedOut -= PromptTimedOut;

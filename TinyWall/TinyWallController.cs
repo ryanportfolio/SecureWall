@@ -1074,7 +1074,8 @@ namespace pylorak.TinyWall
         }
 
         // Returns true only when the service confirmed it saved the exceptions.
-        internal bool AddExceptions(List<FirewallExceptionV3> list, bool showEditUi = true)
+        // alsoChange: a further change saved in the same request (an Always allow rule).
+        internal bool AddExceptions(List<FirewallExceptionV3> list, bool showEditUi = true, Action<ServerConfiguration>? alsoChange = null)
         {
             if (list.Count == 0)
                 // Nothing to do
@@ -1113,6 +1114,7 @@ namespace pylorak.TinyWall
 
             ServerConfiguration confCopy = Utils.DeepClone(ActiveConfig.Service);
             confCopy.ActiveProfile.AddExceptions(list);
+            alsoChange?.Invoke(confCopy);
 
             if (!single)
             {

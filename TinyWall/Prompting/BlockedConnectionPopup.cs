@@ -112,9 +112,11 @@ namespace pylorak.TinyWall.Prompting
             _allowInFlight = false;
             _arming.Reset();
             allowButton.Enabled = false;
+            alwaysAllowButton.Enabled = false;
             timeoutTimer.Interval = 250;
             SetAiPrompt(prompt);
             SetRiskPrompt(prompt);
+            SetAlwaysAllowPrompt(prompt);
             identityLabel.Text = IdentityText(prompt);
             pathLabel.Text = string.IsNullOrWhiteSpace(prompt.ExecutablePath)
                 ? "No executable path was reported."
@@ -180,6 +182,7 @@ namespace pylorak.TinyWall.Prompting
             allowButton.Enabled = _canAllow && !_allowInFlight &&
                 _arming.IsArmed(_clock.Elapsed) &&
                 _deadline?.ShouldClose(DateTimeOffset.UtcNow) == false;
+            alwaysAllowButton.Enabled = allowButton.Enabled && _alwaysAllowSigner != null;
         }
 
         private static string IdentityText(PromptWireDto prompt)
@@ -211,6 +214,7 @@ namespace pylorak.TinyWall.Prompting
                 return;
             _allowInFlight = true;
             allowButton.Enabled = false;
+            alwaysAllowButton.Enabled = false;
             AllowRequested?.Invoke(this, EventArgs.Empty);
         }
 
@@ -229,6 +233,7 @@ namespace pylorak.TinyWall.Prompting
                 return;
             }
             allowButton.Enabled = false;
+            alwaysAllowButton.Enabled = false;
             timeoutTimer.Stop();
             PromptTimedOut?.Invoke(this, EventArgs.Empty);
         }

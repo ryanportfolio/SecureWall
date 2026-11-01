@@ -19,6 +19,18 @@ flowchart LR
 
 Modes are Normal, BlockAll, AllowOutgoing and Disabled (`Prompting/FirewallModePolicy.cs`). Learning mode was removed; its enum value stays reserved so old messages and configs parse, a switch to it is refused, and a stored or imported startup mode of Learning becomes Normal.
 
+Always allow rules (`TinyWall/AlwaysAllowRule.cs`, profile `AlwaysAllowRules`) are file name plus Authenticode signer subject, never WFP filters. `TinyWallService.TryQueueAlwaysAllow` runs on the prompt timer thread outside the queue lock, verifies the signature (`SignedFileIdentity`), and queues the service-only `AUTO_ALLOW_SIGNED` request with a non-blocking `TryAdd`; the worker then commits exact-path outbound exceptions in one policy change.
+
+```mermaid
+flowchart LR
+    D[Promptable drop] --> N{Name matches a rule?}
+    N -->|no| P[Prompt]
+    N -->|yes| V{Valid embedded signature from the rule's signer?}
+    V -->|no| P
+    V -->|yes| Q[AUTO_ALLOW_SIGNED on the request queue]
+    Q --> W[Worker: exact-path outbound exception, ApplyConfiguration]
+```
+
 Normal mode is default deny. Only committed runtime IDs for outbound ALE default-block filters are promptable. The service maps an opaque token to an immutable subject; the controller never supplies an executable path, package SID, or service name as authority.
 
 Filter weights retain upstream order: blocklist, raw-socket permit/block, user block, user permit, default permit, default block. Prompt-created allows therefore cannot override explicit user blocks.

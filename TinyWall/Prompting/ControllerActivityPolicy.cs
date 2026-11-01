@@ -24,7 +24,8 @@ namespace pylorak.TinyWall.Prompting
                     // Only an explicit dismissal that consumed a valid pending token.
                     return responseType == MessageType.DISMISS_PROMPT && promptStatus == PromptActionStatus.Dismissed;
                 case MessageType.ALLOW_PROMPT:
-                    return responseType == MessageType.ALLOW_PROMPT && promptStatus == PromptActionStatus.Allowed;
+                case MessageType.ALLOW_PROMPT_ALWAYS:
+                    return responseType == request && promptStatus == PromptActionStatus.Allowed;
                 default:
                     // Includes DISMISS_PROMPT_TIMEOUT and every read request.
                     return false;

@@ -49,6 +49,7 @@ namespace pylorak.TinyWall
         {
             InitializeComponent();
             InitializeDiagnosticsControls();
+            InitializeAlwaysAllowTab();
             Utils.SetRightToLeft(this);
             if (Utils.IsDarkModeActive(controller))
             {
@@ -151,6 +152,8 @@ namespace pylorak.TinyWall
             LoadingSettings = true;
             try
             {
+                FillAlwaysAllowList();
+
                 // General page
                 chkEnableDiagnosticLogging.Checked = TmpConfig.Service.EnableDiagnosticLogging;
                 btnWeb.Visible = false;
