@@ -42,6 +42,8 @@ namespace pylorak.TinyWall
         public FilterGroup FilterGroup;
         // A default-deny drop after which Always allow added an exception for the app.
         public bool AllowedByAlwaysAllow;
+        // Service only, never serialized: the PID match for this row has been decided.
+        internal bool PidResolved;
 
         public int GetHashCode(bool includeTimestamp)
         {

@@ -1469,13 +1469,12 @@ namespace pylorak.TinyWall
         private List<FirewallLogEntry> GetFwLog()
         {
             var entries = new List<FirewallLogEntry>();
-            // A block's PID is shown once its matching window has passed: a later audit
-            // within that window can still show it was ambiguous.
-            DateTime settled = DateTime.Now - ActivityAuditWindow - TimeSpan.FromSeconds(1);
             lock (FirewallLogEntries)
             {
+                ResolveActivityPids(DateTime.Now - ActivityAuditWindow - TimeSpan.FromSeconds(1));
+                // Copies: the service keeps changing its rows after the lock is released.
                 foreach (FirewallLogEntry entry in FirewallLogEntries)
-                    entries.Add(entry.ProcessId != 0 && entry.Timestamp > settled ? entry with { ProcessId = 0 } : entry);
+                    entries.Add(entry with { });
             }
             return entries;
         }
@@ -2576,8 +2575,6 @@ namespace pylorak.TinyWall
                 lock (FirewallLogEntries)
                 {
                     FirewallLogEntries.Enqueue(entry);
-                    if (eventType == EventLogEvent.BLOCKED)
-                        AttributeCluster(entry);
                 }
 
                 if (eventType == EventLogEvent.BLOCKED &&
@@ -2616,11 +2613,10 @@ namespace pylorak.TinyWall
             }
         }
 
-        // Security-log events for recent blocks, whether or not a row has taken their PID.
-        // WFP net events carry no process ID, so a matching audit event is what lets Network
-        // Activity name the process (and so the services) behind a blocked row. The 64 newest
-        // are kept; AuditMatches' time window rejects stale ones. Guarded by the
-        // FirewallLogEntries lock.
+        // Security-log events for recent blocks. WFP net events carry no process ID, so a
+        // matching audit event is what lets Network Activity name the process (and so the
+        // services) behind a blocked row. The 256 newest are kept; AuditMatches' time window
+        // rejects stale ones. Guarded by the FirewallLogEntries lock.
         private readonly List<ActivityAudit> RecentActivityAudits = new();
         private static readonly TimeSpan ActivityAuditWindow = TimeSpan.FromSeconds(5);
 
@@ -2629,51 +2625,67 @@ namespace pylorak.TinyWall
             if (RuntimeStopping || audit.ProcessId == 0) return;
             lock (FirewallLogEntries)
             {
-                if (RecentActivityAudits.Count >= 64)
+                if (RecentActivityAudits.Count >= 256)
                     RecentActivityAudits.RemoveAt(0);
                 RecentActivityAudits.Add(audit);
-                foreach (FirewallLogEntry entry in FirewallLogEntries)
-                {
-                    if (entry.Event == EventLogEvent.BLOCKED && AuditMatches(audit, entry))
-                    {
-                        AttributeCluster(entry);
-                        return;
-                    }
-                }
             }
         }
 
-        // Rows and audits that could pair up, in any order, form a cluster. Its rows take a PID
-        // only when every audit in it names the same process and no row lacks an audit: two
-        // processes (several svchost.exe binding raw sockets, say) or a lost audit leave every
-        // row in it without one, and an audit arriving later can take back a PID given earlier.
-        private void AttributeCluster(FirewallLogEntry seed)
+        // Names the process behind each blocked row once, after its matching window has passed,
+        // so audits arriving in either order within it count. Rows and audits that could pair up
+        // are grouped; a group's rows take a PID only when all its audits name one process and it
+        // has no more rows than audits. Two processes (several svchost.exe binding raw sockets,
+        // say) or a lost audit leave the rows without one. Runs when Network Activity reads the
+        // log, never on the event callbacks. Caller holds the FirewallLogEntries lock.
+        private void ResolveActivityPids(DateTime settled)
         {
-            var rows = new List<FirewallLogEntry> { seed };
-            var audits = new List<int>();
-            for (int r = 0, a = 0; r < rows.Count || a < audits.Count;)
+            var rows = new List<FirewallLogEntry>();
+            bool unresolved = false;
+            foreach (FirewallLogEntry entry in FirewallLogEntries)
             {
-                if (r < rows.Count)
-                {
-                    FirewallLogEntry row = rows[r++];
-                    for (int i = 0; i < RecentActivityAudits.Count; ++i)
-                        if (!audits.Contains(i) && AuditMatches(RecentActivityAudits[i], row))
-                            audits.Add(i);
-                }
-                else
-                {
-                    ActivityAudit audit = RecentActivityAudits[audits[a++]];
-                    foreach (FirewallLogEntry row in FirewallLogEntries)
-                        if (row.Event == EventLogEvent.BLOCKED && !rows.Exists(other => ReferenceEquals(other, row)) && AuditMatches(audit, row))
-                            rows.Add(row);
-                }
+                if (entry.Event != EventLogEvent.BLOCKED) continue;
+                rows.Add(entry);
+                unresolved |= !entry.PidResolved && entry.Timestamp <= settled;
             }
-            uint pid = 0;
-            if (audits.Count >= rows.Count && audits.Count > 0 &&
-                audits.TrueForAll(i => RecentActivityAudits[i].ProcessId == RecentActivityAudits[audits[0]].ProcessId))
-                pid = RecentActivityAudits[audits[0]].ProcessId;
-            foreach (FirewallLogEntry row in rows)
-                row.ProcessId = pid;
+            if (!unresolved) return;
+
+            int n = rows.Count;
+            var group = new int[n + RecentActivityAudits.Count];
+            for (int i = 0; i < group.Length; ++i)
+                group[i] = i;
+            int Find(int i)
+            {
+                while (group[i] != i)
+                    i = group[i] = group[group[i]];
+                return i;
+            }
+            for (int a = 0; a < RecentActivityAudits.Count; ++a)
+                for (int r = 0; r < n; ++r)
+                    if (AuditMatches(RecentActivityAudits[a], rows[r]))
+                        group[Find(r)] = Find(n + a);
+
+            var rowCount = new int[group.Length];
+            var auditCount = new int[group.Length];
+            var pid = new uint[group.Length];
+            var mixed = new bool[group.Length];
+            for (int r = 0; r < n; ++r)
+                ++rowCount[Find(r)];
+            for (int a = 0; a < RecentActivityAudits.Count; ++a)
+            {
+                int root = Find(n + a);
+                uint processId = RecentActivityAudits[a].ProcessId;
+                if (auditCount[root]++ > 0 && pid[root] != processId)
+                    mixed[root] = true;
+                pid[root] = processId;
+            }
+            for (int r = 0; r < n; ++r)
+            {
+                FirewallLogEntry row = rows[r];
+                if (row.PidResolved || row.Timestamp > settled) continue;
+                int root = Find(r);
+                row.ProcessId = (auditCount[root] >= rowCount[root] && auditCount[root] > 0 && !mixed[root]) ? pid[root] : 0;
+                row.PidResolved = true;
+            }
         }
 
         private static bool AuditMatches(ActivityAudit audit, FirewallLogEntry entry) =>
