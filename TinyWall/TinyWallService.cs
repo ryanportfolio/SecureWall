@@ -437,6 +437,9 @@ namespace pylorak.TinyWall
                     trx.Commit();
                     committed = true;
                     LastInstallCommitted = true;
+                    // Published before lease cleanup, which removes its keys (or fails closed).
+                    RuntimeFilterKeys.Clear();
+                    RuntimeFilterKeys.AddRange(candidateKeys);
                     CommitUpdatePermits(updatePermits);
                     PortBlocklistDiagnosticsAvailable = PendingPortBlocklistFilterIds != null && PortBlocklistFilterIds.Replace(PendingPortBlocklistFilterIds);
                     if (!PortBlocklistDiagnosticsAvailable) PortBlocklistFilterIds.Clear();
@@ -447,8 +450,6 @@ namespace pylorak.TinyWall
                     Diagnostics.Emit(RuntimeEvent.port_blocklist_state, EffectivePortBlocklist ? RuntimeResult.enabled : RuntimeResult.disabled);
                     Diagnostics.Emit(RuntimeEvent.port_blocklist_rules, PortBlocklistDiagnosticsAvailable
                         ? (PortBlocklistFilterIds.Any ? RuntimeResult.present : RuntimeResult.absent) : RuntimeResult.failure);
-                    RuntimeFilterKeys.Clear();
-                    RuntimeFilterKeys.AddRange(candidateKeys);
                     lock (BlockedPromptQueue.SyncRoot)
                     {
                         ResetPromptCandidates(revokeTokens: !PreservePromptTokens);

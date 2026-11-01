@@ -571,6 +571,11 @@ internal static class ReleaseUpdateTests
         AssertEx.True(Body("var updatePermits = InstallUpdatePermits();", "CommittedRuleExecutables").Contains("CommitUpdatePermits(updatePermits);"), "full reload");
         // A lease that expired while the reload committed gets its new filters removed.
         AssertEx.True(Body("private void CommitUpdatePermits(", "// Enforcement thread only.").Contains("RemoveUpdateLeases(ended);"), "expiry during a reload");
+        // The reload's key inventory is published first, so that removal is not undone.
+        string reload = Body("var updatePermits = InstallUpdatePermits();", "CommittedRuleExecutables");
+        int published = reload.IndexOf("RuntimeFilterKeys.AddRange(candidateKeys);", StringComparison.Ordinal);
+        AssertEx.True(published >= 0 && published < reload.IndexOf("CommitUpdatePermits(updatePermits);", StringComparison.Ordinal)
+            && reload.LastIndexOf("RuntimeFilterKeys.AddRange(candidateKeys);", StringComparison.Ordinal) == published, "keys published before lease cleanup");
         AssertEx.True(Body("private void RetainCommittedPolicy(", "ReloadRetry.RecordFailure").Contains("RemoveUpdateLeases(UpdateLeases.Clear());"), "retained failed reload");
         AssertEx.True(Body("case MessageType.UPDATE_NETWORK_GRANT:", "GrantUpdateNetwork(").Contains("if (PasswordLock.Locked)\n                            return TwMessageLocked.Instance;"), "locked since the pipe check");
         AssertEx.True(service.Contains("UpdateNetworkLeases UpdateLeases = new(new MonotonicClock());"), "expiry follows elapsed time");

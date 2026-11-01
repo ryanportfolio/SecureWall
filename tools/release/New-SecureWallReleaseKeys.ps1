@@ -17,8 +17,9 @@ Run once, by the owner, in PowerShell 7.4 or later on the PC that will sign rele
   the UpdaterTest build trusts it; it signs releases for the VM test harness and nothing else.
 
 Then it writes primary.pub, backup.pub and test.pub to tools\release\keys. Commit those three
-files. SecureWall.exe embeds primary and backup; the core tests check that the embedded keys
-equal these files.
+files, and paste the primary and backup key lines it prints into the Primary and Backup
+constants of TinyWall\Prompting\ReleaseKeys.cs. SecureWall.exe embeds those two; the core tests
+check that the embedded keys equal the .pub files.
 
 It never overwrites a key or a public key file that already exists.
 #>
@@ -163,4 +164,11 @@ if (-not $SkipTestKey) {
 }
 
 Write-Host ''
-Write-Host 'Done. Commit the .pub files in tools\release\keys, then move the backup key offline.'
+Write-Host 'Paste these into TinyWall\Prompting\ReleaseKeys.cs:'
+foreach ($name in 'Primary', 'Backup') {
+    $line = (Get-Content -LiteralPath (Join-Path $keysDirectory "$($name.ToLowerInvariant()).pub") |
+        Where-Object { $_ -and -not $_.StartsWith('#') } | Select-Object -First 1)
+    Write-Host "    internal const string $name = `"$line`";"
+}
+Write-Host ''
+Write-Host 'Done. Commit the .pub files in tools\release\keys and ReleaseKeys.cs, then move the backup key offline.'
