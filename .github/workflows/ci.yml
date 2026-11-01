@@ -70,6 +70,36 @@ jobs:
         shell: powershell
         run: .\tests\installer\Test-SecureWallInstaller.ps1 -ArtifactsDirectory artifacts\release
 
+      # Builds at or below 0.5.0 leave out the OLDER_UPGRADEABLE_FOUND row, so
+      # ICE checks it only in a package versioned above 0.5.0. Not uploaded.
+      - name: Validate the upgradeable row in 0.5.1 installers
+        shell: powershell
+        run: |
+          $out = Join-Path $PWD 'artifacts\version-check'
+          .\tools\release\Build-SecureWallRelease.ps1 -WixRoot '${{ steps.wix.outputs.root }}' `
+            -ValidationVersion 0.5.1 -OutputDirectory $out
+          $installer = New-Object -ComObject WindowsInstaller.Installer
+          foreach ($platform in 'x86', 'x64', 'arm64') {
+            $msi = Join-Path $out "SecureWall_$platform.msi"
+            $database = $installer.OpenDatabase($msi, 0)
+            $view = $database.OpenView("SELECT ``Value`` FROM ``Property`` WHERE ``Property``='ProductVersion'")
+            $null = $view.Execute()
+            $version = $view.Fetch().StringData(1)
+            $view = $database.OpenView("SELECT ``VersionMin``, ``VersionMax``, ``Attributes`` FROM ``Upgrade`` WHERE ``ActionProperty``='OLDER_UPGRADEABLE_FOUND'")
+            $null = $view.Execute()
+            $row = $view.Fetch()
+            $view = $database.OpenView("SELECT ``Sequence`` FROM ``InstallExecuteSequence`` WHERE ``Action``='RemoveExistingProducts'")
+            $null = $view.Execute()
+            $rep = $view.Fetch()
+            if ($version -ne '0.5.1.0') { throw "$platform ProductVersion is $version" }
+            # 257 = MigrateFeatures + VersionMinInclusive; not OnlyDetect, not VersionMaxInclusive.
+            if ($null -eq $row -or $row.StringData(1) -ne '0.5.0' -or $row.StringData(2) -ne '0.5.1.0' -or $row.IntegerData(3) -ne 257) {
+              throw "$platform has no removable [0.5.0, 0.5.1.0) upgrade row"
+            }
+            if ($null -eq $rep) { throw "$platform has no RemoveExistingProducts" }
+            Write-Output "$platform 0.5.1 package: upgrade row and RemoveExistingProducts present, ICE passed"
+          }
+
       - name: Verify PowerShell 5.1 syntax
         shell: powershell
         run: |

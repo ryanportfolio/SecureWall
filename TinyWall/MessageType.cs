@@ -21,8 +21,8 @@
         DISMISS_PROMPT,
         // Automatic popup timeout. Same queue effect as DISMISS_PROMPT, never user activity.
         DISMISS_PROMPT_TIMEOUT,
-        // The popup's Ignore button: DISMISS_PROMPT, and while the service is unlocked the
-        // identity is also saved to the Ignored list. Never grants traffic.
+        // The popup's Ignore button: DISMISS_PROMPT, and the identity is also saved to the Ignored
+        // list. While locked, an entry to save gets Locked back and the prompt stays pending. Never grants traffic.
         IGNORE_PROMPT,
 
         // Privileged write commands (>2047)

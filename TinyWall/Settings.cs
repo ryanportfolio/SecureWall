@@ -89,7 +89,12 @@ namespace pylorak.TinyWall
         [DataMember(EmitDefaultValue = false)]
         public string AiExplainBaseUrl = AiExplainSettings.DefaultBaseUrl;
         [DataMember(EmitDefaultValue = false)]
-        public string AiExplainModel = AiExplainSettings.DefaultModel;
+        // Empty means AiExplainSettings.DefaultModel; read it through EffectiveModel.
+        public string AiExplainModel = string.Empty;
+        // Set when the AI settings form saves the model (default stored as empty). Older configs
+        // hold the form's shown default verbatim, so their gpt-4o-mini moves to the new default.
+        [DataMember(EmitDefaultValue = false)]
+        public bool AiExplainModelSaved = false;
         // Minimal privacy posture by default: only the executable name and publisher are sent.
         // Opt-in to also include the attempted remote endpoint.
         [DataMember(EmitDefaultValue = false)]

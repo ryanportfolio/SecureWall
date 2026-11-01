@@ -40,6 +40,15 @@ foreach ($path in $required) {
     }
 }
 
+# Build-SecureWallRelease.ps1 -ValidationVersion rebuilds these outputs at
+# another version. Refuse them until a normal build replaces them.
+$projectText = [System.IO.File]::ReadAllText((Join-Path $repoRoot 'TinyWall\TinyWall.csproj'))
+$projectVersion = [regex]::Match($projectText, '<Version>([0-9.]+)</Version>').Groups[1].Value
+$builtVersion = (Get-Item -LiteralPath (Join-Path $appSource 'SecureWall.exe')).VersionInfo.FileVersion
+if ($builtVersion -ne "$projectVersion.0") {
+    throw "SecureWall.exe is version $builtVersion, but TinyWall.csproj is $projectVersion. Rebuild without -ValidationVersion first."
+}
+
 New-Item -ItemType Directory -Force -Path $appDestination, $probeDestination, $installerDestination | Out-Null
 Copy-Item -Path (Join-Path $appSource '*') -Destination $appDestination -Recurse -Force
 Copy-Item -LiteralPath $probeSource -Destination (Join-Path $probeDestination 'SecureWall.AllowProbe.exe')
