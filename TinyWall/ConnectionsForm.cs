@@ -10,7 +10,6 @@ using System.Globalization;
 using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
-using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace pylorak.TinyWall
@@ -267,48 +266,57 @@ namespace pylorak.TinyWall
                 }
             }
 
-            // Rebuilding the list resets its scroll position and selection, so remember
-            // the scroll position and the selected rows, and put them back afterwards.
-            int topIndex = list.Items.Count > 0 ? (list.TopItem?.Index ?? 0) : 0;
+            // The rows are written into the list's existing items instead of clearing and
+            // refilling it, because clearing scrolls the list to the top. Only adding or
+            // removing rows at the end changes the item count, so the scrollbar stays where
+            // the user left it unless the list got shorter than that position.
             string? focusedKey = (list.FocusedItem != null) ? RowKey(list.FocusedItem) : null;
             var selectedKeys = new HashSet<string>(StringComparer.Ordinal);
             foreach (ListViewItem li in list.SelectedItems)
                 selectedKeys.Add(RowKey(li));
 
-            // Add items to list
-            list.BeginUpdate();
-            list.Items.Clear();
-            list.Items.AddRange(itemColl.ToArray());
-            foreach (ListViewItem li in list.Items)
-            {
-                string key = RowKey(li);
-                if (selectedKeys.Contains(key))
-                    li.Selected = true;
-                if ((focusedKey != null) && (key == focusedKey))
-                    li.Focused = true;
-            }
+            // Order the rows as the list shows them. Rows the sort column cannot tell apart
+            // (live rows share one timestamp) are ordered by their key, so they do not swap
+            // places between refreshes.
+            var rows = new List<(ListViewItem Item, string Key)>(itemColl.Count);
+            foreach (ListViewItem li in itemColl)
+                rows.Add((li, RowKey(li)));
+            if (list.ListViewItemSorter is IComparer<ListViewItem> sorter)
+                rows = rows.OrderBy(r => r.Item, sorter).ThenBy(r => r.Key, StringComparer.Ordinal).ToList();
 
-            // Keep the scrollbar where the user left it: scroll back down by the same number
-            // of rows while redrawing is still off, so the list never paints at the top first.
-            // The row offset is kept rather than the row, because rows above it come and go on
-            // every refresh. The list control clamps the offset when the list got shorter.
-            if ((topIndex > 0) && (list.Items.Count > 0))
+            list.BeginUpdate();
+            while (list.Items.Count > rows.Count)
+                list.Items.RemoveAt(list.Items.Count - 1);
+            // Added items are sorted by the list itself; their content is overwritten below,
+            // so they only set the count. They are copies, so the source rows stay unchanged.
+            if (list.Items.Count < rows.Count)
+                list.Items.AddRange(rows.Skip(list.Items.Count).Select(r => (ListViewItem)r.Item.Clone()).ToArray());
+            for (int i = 0; i < rows.Count; ++i)
             {
-                int rowHeight = list.GetItemRect(0).Height;
-                NativeMethods.SendMessage(list.Handle, NativeMethods.LVM_SCROLL, IntPtr.Zero, new IntPtr(topIndex * rowHeight));
+                ListViewItem li = list.Items[i];
+                CopyRow(rows[i].Item, li);
+                li.Selected = selectedKeys.Contains(rows[i].Key);
+                li.Focused = (focusedKey != null) && (rows[i].Key == focusedKey);
             }
             list.EndUpdate();
 
             // Load process icons asynchronously
-            IconScanner.Rescan(itemColl, list, IconList);
+            IconScanner.Rescan(list.Items.Cast<ListViewItem>().ToList(), list, IconList);
         }
 
-        private static class NativeMethods
+        private static void CopyRow(ListViewItem from, ListViewItem to)
         {
-            internal const int LVM_SCROLL = 0x1000 + 20;
-
-            [DllImport("user32.dll")]
-            internal static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+            to.Tag = from.Tag;
+            to.ToolTipText = from.ToolTipText;
+            if (to.ImageIndex != from.ImageIndex)
+                to.ImageIndex = from.ImageIndex;
+            while (to.SubItems.Count < from.SubItems.Count)
+                to.SubItems.Add(string.Empty);
+            for (int i = 0; i < from.SubItems.Count; ++i)
+            {
+                if (to.SubItems[i].Text != from.SubItems[i].Text)
+                    to.SubItems[i].Text = from.SubItems[i].Text;
+            }
         }
 
         // Identifies a row across refreshes: every column except the timestamp, which changes
