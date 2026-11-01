@@ -42,6 +42,11 @@ namespace pylorak.TinyWall
         [SuppressUnmanagedCodeSecurity]
         internal static class SafeNativeMethods
         {
+            [DllImport("wtsapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            internal static extern bool WTSSendMessage(IntPtr hServer, int sessionId, string pTitle, int titleLength,
+                string pMessage, int messageLength, int style, int timeout, out int pResponse, [MarshalAs(UnmanagedType.Bool)] bool bWait);
+
             [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
             internal static extern uint RegisterWindowMessage([MarshalAs(UnmanagedType.LPWStr)] string lpString);
 

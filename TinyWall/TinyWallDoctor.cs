@@ -316,6 +316,11 @@ namespace pylorak.TinyWall
                 {
                     case RestorePlan.StopRestoreStart:
                         UpgradeLifecyclePolicy.RestoreSnapshot(files, data, transaction, verified!);
+                        // A restart queued before the restart actions went off (a crash
+                        // after a reboot mid-swap) may have fired while the files were
+                        // written. The marker and snapshot stay, so a rerun restores again.
+                        if (service.State != LifecycleServiceState.Stopped)
+                            throw new InvalidOperationException("The SecureWall service started while the previous version's policy was being restored. The snapshot and the upgrade marker are kept; run setup again to finish the rollback.");
                         UpgradeMarker.Write(transaction, UpgradePhase.Restored);
                         break;
                     case RestorePlan.StopDiscardStart:

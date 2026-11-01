@@ -92,7 +92,7 @@ namespace pylorak.TinyWall.Prompting
         internal static readonly string[] SecretNames = { "pwd" };
 
         internal const string InProgressMessage =
-            "SecureWall is being upgraded. Setup starts the SecureWall service again when it finishes; connections to other computers stay blocked until then. This window closes now; the SecureWall tray returns when setup finishes or at your next sign-in.";
+            "SecureWall is being upgraded. Setup starts the SecureWall service again when it finishes; connections to other computers stay blocked until then. The SecureWall tray returns when setup finishes or at your next sign-in.";
 
         // The MSI passes [ProductCode] or [UPGRADINGPRODUCTCODE]: a braced GUID.
         // Exactly one mode argument followed by exactly that GUID is accepted.
@@ -317,7 +317,8 @@ namespace pylorak.TinyWall.Prompting
         }
 
         // The listed files with their hashes, or null when the snapshot is absent,
-        // unreadable, malformed or does not match its manifest.
+        // unreadable, malformed or does not match its manifest. A copy the manifest
+        // does not list fails too: restoring would delete that live file.
         internal static IDictionary<string, string>? VerifiedSnapshot(IUpgradeFiles files, string dataDirectory, string transaction)
         {
             try
@@ -326,10 +327,13 @@ namespace pylorak.TinyWall.Prompting
                 string manifest = Path.Combine(directory, SnapshotManifest);
                 if (!files.FileExists(manifest)) return null;
                 IDictionary<string, string> entries = ParseManifest(Encoding.UTF8.GetString(files.ReadFile(manifest)));
-                foreach (KeyValuePair<string, string> entry in entries)
+                foreach (string name in SnapshotNames)
                 {
-                    string copy = Path.Combine(directory, entry.Key);
-                    if (!files.FileExists(copy) || !string.Equals(Sha256(files.ReadFile(copy)), entry.Value, StringComparison.Ordinal))
+                    string copy = Path.Combine(directory, name);
+                    bool listed = entries.TryGetValue(name, out string? hash);
+                    if (listed != files.FileExists(copy))
+                        return null;
+                    if (listed && !string.Equals(Sha256(files.ReadFile(copy)), hash, StringComparison.Ordinal))
                         return null;
                 }
                 return entries;

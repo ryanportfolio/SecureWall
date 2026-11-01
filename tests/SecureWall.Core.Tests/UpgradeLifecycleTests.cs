@@ -347,6 +347,18 @@ internal static class UpgradeLifecycleTests
         UpgradeLifecyclePolicy.TakeSnapshot(files, Data, Txn);
         files.Files[Path.Combine(directory, UpgradeLifecyclePolicy.SnapshotManifest)] = Encoding.UTF8.GetBytes("garbage");
         AssertEx.Equal<IDictionary<string, string>?>(null, UpgradeLifecyclePolicy.VerifiedSnapshot(files, Data, Txn));
+
+        // A manifest that omits a copy present on disk would make the restore
+        // delete that live file: header-only, or one entry dropped.
+        UpgradeLifecyclePolicy.TakeSnapshot(files, Data, Txn);
+        string manifest = Path.Combine(directory, UpgradeLifecyclePolicy.SnapshotManifest);
+        string full = Encoding.UTF8.GetString(files.Files[manifest]);
+        files.Files[manifest] = Encoding.UTF8.GetBytes("SecureWall upgrade snapshot 2\n");
+        AssertEx.Equal<IDictionary<string, string>?>(null, UpgradeLifecyclePolicy.VerifiedSnapshot(files, Data, Txn));
+        files.Files[manifest] = Encoding.UTF8.GetBytes(string.Join("\n", full.Split('\n').Where(line => !line.StartsWith("pwd ", StringComparison.Ordinal))));
+        AssertEx.Equal<IDictionary<string, string>?>(null, UpgradeLifecyclePolicy.VerifiedSnapshot(files, Data, Txn));
+        files.Files[manifest] = Encoding.UTF8.GetBytes(full);
+        AssertEx.True(UpgradeLifecyclePolicy.VerifiedSnapshot(files, Data, Txn) != null);
     }
 
     private static void SnapshotRoundTrip()
@@ -539,7 +551,7 @@ internal static class UpgradeLifecycleTests
             "UpgradeLifecyclePolicy.VerifiedSnapshot(files, data, transaction)", "UpgradeLifecyclePolicy.Restore(transaction, UpgradeMarker.Read(),",
             "if (plan != RestorePlan.StartOnly)", "StopGracefully(", "TerminateInstallationControllers();",
             "case RestorePlan.StopRestoreStart:", "UpgradeLifecyclePolicy.RestoreSnapshot(files, data, transaction, verified!);",
-            "UpgradeMarker.Write(transaction, UpgradePhase.Restored);",
+            "if (service.State != LifecycleServiceState.Stopped)", "UpgradeMarker.Write(transaction, UpgradePhase.Restored);",
             "case RestorePlan.StopDiscardStart:", "UpgradeLifecyclePolicy.DeleteSnapshot(files, data, transaction);",
             "case RestorePlan.StopAndHold:", "throw new InvalidOperationException(",
             "MachineDataGuard.InstallDefaults();", "service.SetRestartOnFailure(true);",
@@ -572,6 +584,10 @@ internal static class UpgradeLifecycleTests
             AssertEx.True(program.Contains("RunUpgradeStep(args, UpgradeLifecyclePolicy." + mode + ", TinyWallDoctor.Upgrade"), "mode not dispatched: " + mode);
 
         string controller = PromptTransactionIntegrationTests.Source("TinyWall/TinyWallController.cs");
+        int exitBegin = controller.IndexOf("private bool ExitIfUpgrading()", StringComparison.Ordinal);
+        string exitBody = controller.Substring(exitBegin, controller.IndexOf("private void InitController()", exitBegin, StringComparison.Ordinal) - exitBegin);
+        AssertEx.True(exitBody.Contains("WTSSendMessage(") && exitBody.Contains("out _, false)") && !exitBody.Contains("MessageBox.Show"),
+            "the upgrade notice must not keep the controller running until it is dismissed");
         InOrder(controller, "controller", "private bool ExitIfUpgrading()", "TinyWallDoctor.ServiceStartBlockedByUpgrade()", "ExitThread();",
             "private void InitController()", "if (ExitIfUpgrading())", "if (ExitIfUpgrading())",
             "TinyWallDoctor.EnsureServiceInstalledAndRunning(Utils.LOG_ID_GUI, false)");
