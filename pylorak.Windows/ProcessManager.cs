@@ -15,13 +15,17 @@ namespace pylorak.Windows
         public readonly long CreationTime;
         public readonly uint ProcessId;
         public readonly uint ParentProcessId;
+        // The executable's file name from the snapshot itself, known even when ImagePath and
+        // CreationTime are not (a process the caller may not open).
+        public readonly string ExeName;
 
-        public ProcessSnapshotEntry(string path, long creationTime, uint pid, uint parentPid)
+        public ProcessSnapshotEntry(string path, long creationTime, uint pid, uint parentPid, string exeName = "")
         {
             ImagePath = path;
             CreationTime = creationTime;
             ProcessId = pid;
             ParentProcessId = parentPid;
+            ExeName = exeName;
         }
     }
 
@@ -355,10 +359,13 @@ namespace pylorak.Windows
                     (p.th32ProcessID != 0) ? GetProcessPath(hProcess, ref sbuilder) : "System",
                     creationTime,
                     p.th32ProcessID,
-                    p.th32ParentProcessID
+                    p.th32ParentProcessID,
+                    ExeNameOf(p)
                 );
             }
         }
+
+        private static unsafe string ExeNameOf(PROCESSENTRY32 entry) => new string(entry.szExeFile);
 
         public static void WakeMessageQueues(Process p)
         {

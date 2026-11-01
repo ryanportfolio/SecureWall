@@ -2763,8 +2763,26 @@ namespace pylorak.TinyWall
                 FirewallLogEntry row = rows[r];
                 if (row.PidResolved || row.Timestamp > settled) continue;
                 int root = Find(r);
-                row.ProcessId = (auditCount[root] >= rowCount[root] && auditCount[root] > 0 && !mixed[root]) ? pid[root] : 0;
+                row.ProcessId = (auditCount[root] >= rowCount[root] && auditCount[root] > 0 && !mixed[root] &&
+                    ProcessMatches(pid[root], row)) ? pid[root] : 0;
                 row.PidResolved = true;
+            }
+        }
+
+        // The service can open every process, so it checks once that the PID still belongs to
+        // a process with the row's path that started before the block. The tray app, which may
+        // not open service hosts, relies on this check.
+        private static bool ProcessMatches(uint pid, FirewallLogEntry row)
+        {
+            try
+            {
+                using Process process = Process.GetProcessById(unchecked((int)pid));
+                return process.StartTime <= row.Timestamp &&
+                    string.Equals(ProcessManager.GetProcessPath(pid), row.AppPath, StringComparison.OrdinalIgnoreCase);
+            }
+            catch (Exception)
+            {
+                return false;
             }
         }
 
