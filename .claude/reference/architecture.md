@@ -62,11 +62,12 @@ In-place upgrades (v0.5.0 on; `docs/SECURITY.md`, "In-place upgrade") run five S
 ```mermaid
 flowchart LR
     R[Restore step] --> M{Marker for this upgrade?}
-    M -->|no, or stopping with service Running| S[Start old service]
+    M -->|no, or stopping or restored with service Running| S[Start old service]
     M -->|yes| X[Stop whichever binary runs, close controllers]
+    X -->|phase restored| D
     X --> V{Snapshot matches its manifest?}
-    V -->|yes| E[Restore exact set] --> S
-    V -->|no, phase stopping or stopped| D[Discard unfinished copy] --> S
+    V -->|yes| E[Restore exact set, phase restored] --> S
+    V -->|no, phase stopping or stopped| D[Discard this upgrade's snapshot] --> S
     V -->|no, phase snapshot-complete| H[Hold: keep marker and snapshot, baseline blocks]
 ```
 

@@ -230,6 +230,8 @@ namespace pylorak.TinyWall
                     },
                     setAsidePriorSnapshot: () =>
                     {
+                        UpgradeLifecyclePolicy.RequireNoPendingRestore(transaction, UpgradeMarker.Read(),
+                            UpgradeLifecyclePolicy.VerifiedSnapshot(files, Utils.AppDataPath, transaction) != null);
                         string? kept = UpgradeLifecyclePolicy.SetAsidePriorSnapshot(files, Utils.AppDataPath,
                             transaction, DateTime.UtcNow.ToString("yyyyMMddHHmmss", System.Globalization.CultureInfo.InvariantCulture));
                         if (kept != null)
@@ -291,6 +293,8 @@ namespace pylorak.TinyWall
                 using var service = new ScmUpgradeService(ServiceExists);
                 if (!service.Registered)
                     throw new InvalidOperationException("The SecureWall service is not registered, so the previous version cannot be started.");
+                // A failed abort can leave it Disabled; a reboot must start it.
+                SetAutomaticStart();
                 IDictionary<string, string>? verified = UpgradeLifecyclePolicy.VerifiedSnapshot(files, data, transaction);
                 RestorePlan plan = UpgradeLifecyclePolicy.Restore(transaction, UpgradeMarker.Read(),
                     service.State == LifecycleServiceState.Running, verified != null);
@@ -302,8 +306,9 @@ namespace pylorak.TinyWall
                     var timer = Stopwatch.StartNew();
                     if (!ServiceLifecyclePolicy.StopGracefully(() => service.State, service.Stop, () => timer.Elapsed, System.Threading.Thread.Sleep))
                         throw new InvalidOperationException("The SecureWall service did not stop, so the previous version's policy was not restored. The snapshot under " + UpgradeLifecyclePolicy.SnapshotDirectory(data, transaction) + " and the upgrade marker are kept.");
+                    // Best effort: a controller left running holds the old
+                    // executable, which the rollback has already put back.
                     TerminateInstallationControllers();
-                    RequireNoInstallationControllers();
                     if (service.State != LifecycleServiceState.Stopped)
                         throw new InvalidOperationException("The SecureWall service started again during rollback; nothing was restored.");
                 }
@@ -311,17 +316,19 @@ namespace pylorak.TinyWall
                 {
                     case RestorePlan.StopRestoreStart:
                         UpgradeLifecyclePolicy.RestoreSnapshot(files, data, transaction, verified!);
+                        UpgradeMarker.Write(transaction, UpgradePhase.Restored);
                         break;
                     case RestorePlan.StopDiscardStart:
-                        // Step 3 did not finish its snapshot, so nothing after it ran
-                        // and the live files are still this version's own.
-                        string unfinished = UpgradeLifecyclePolicy.SnapshotDirectory(data, transaction);
-                        if (files.DirectoryExists(unfinished)) files.DeleteDirectory(unfinished);
+                        // Step 3 did not finish its snapshot, so nothing after it ran,
+                        // or an earlier run restored it: the live files are this
+                        // version's own.
+                        UpgradeLifecyclePolicy.DeleteSnapshot(files, data, transaction);
                         break;
                     case RestorePlan.StopAndHold:
                         throw new InvalidOperationException("The policy snapshot under " + UpgradeLifecyclePolicy.SnapshotDirectory(data, transaction) +
                             " is missing or does not match its manifest, and the upgraded version may already have rewritten the live policy files. The previous version was not started; the deny baseline keeps blocking. The snapshot and the upgrade marker are kept for local-console recovery.");
                 }
+                UpgradeFault.Trip("upgrade-restore-pause");
                 UpgradeFault.Trip("upgrade-restore-start-fail");
 #if !DEBUG
                 // The old version's profiles.json and hosts.bck.
@@ -333,7 +340,7 @@ namespace pylorak.TinyWall
                 EnsureHealth(Utils.LOG_ID_INSTALLER, strictGuards: true);
                 if (!EnsureServiceInstalledAndRunning(Utils.LOG_ID_INSTALLER, true, transaction))
                     return -1;
-                CleanUpAfterUpgrade(transaction, () => UpgradeLifecyclePolicy.DeleteStaleSnapshots(files, data, null));
+                CleanUpAfterUpgrade(transaction, () => UpgradeLifecyclePolicy.DeleteSnapshot(files, data, transaction));
                 Utils.Log("Upgrade " + transaction + " rolled back (" + plan + "): previous version running.", Utils.LOG_ID_INSTALLER);
                 return 0;
             }
@@ -369,7 +376,6 @@ namespace pylorak.TinyWall
                 // This version's profiles.json and hosts.bck.
                 MachineDataGuard.InstallDefaults();
 #endif
-                UpgradeLifecyclePolicy.DeleteStaleSnapshots(files, data, transaction);
                 // Startup type and controller logon task; the restart actions are skipped.
                 EnsureHealth(Utils.LOG_ID_INSTALLER, strictGuards: true);
                 UpgradeFault.Trip("upgrade-start-pause");
@@ -380,6 +386,7 @@ namespace pylorak.TinyWall
                     () => timer.Elapsed, System.Threading.Thread.Sleep))
                     throw new InvalidOperationException("The upgraded SecureWall service did not reach Running: " + InstallationSafety.DescribeServiceStatus());
                 UpgradeFault.Trip("upgrade-commit-pause");
+                UpgradeFault.Trip("upgrade-commit-fail");
                 Utils.Log("Upgrade " + transaction + ": upgraded service running.", Utils.LOG_ID_INSTALLER);
                 return 0;
             }
@@ -762,9 +769,10 @@ namespace pylorak.TinyWall
             }
         }
 
-        // Terminate only controllers from this exact installation.
-        // The upgrade steps need every controller of this installation gone, or a
-        // file stays in use through RemoveFiles.
+        // The stop step needs every controller of this installation gone, or a file
+        // stays in use through RemoveFiles. A process whose image cannot be read
+        // (another bitness, for example) is not this installation's, as in
+        // TerminateInstallationControllers.
         private static void RequireNoInstallationControllers()
         {
             using var ownProc = Process.GetCurrentProcess();
@@ -780,7 +788,7 @@ namespace pylorak.TinyWall
                             string.Equals(p.ProcessName, Path.GetFileNameWithoutExtension(Utils.ExecutablePath), StringComparison.OrdinalIgnoreCase) &&
                             string.Equals(p.MainModule?.FileName, Utils.ExecutablePath, StringComparison.OrdinalIgnoreCase);
                     }
-                    catch (Exception) when (p.HasExited) { controller = false; }
+                    catch (Exception) { controller = false; }
                     if (controller && !p.HasExited)
                         throw new InvalidOperationException("A SecureWall controller (process " + p.Id + ") is still running and could not be closed.");
                 }
@@ -896,7 +904,7 @@ namespace pylorak.TinyWall
                 // During an in-place upgrade only its commit and rollback steps turn
                 // the restart actions back on; a start in between, the upgraded
                 // service's first start included, must not queue restarts mid-swap.
-                if (UpgradeLifecyclePolicy.UpgradeOwnsRecoverySettings(UpgradeMarker.Read(), UpgradeMarker.InstallerRunning()))
+                if (UpgradeMarker.UpgradeOwnsRecoverySettings())
                     Utils.Log("An in-place upgrade is running; the SecureWall restart actions are left to it.", logContext);
                 else
                     scm.SetRestartOnFailure(TinyWallService.SERVICE_NAME,

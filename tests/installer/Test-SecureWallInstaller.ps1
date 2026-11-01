@@ -172,6 +172,7 @@ foreach ($oldSide in 'UpgradeStop', 'UpgradeStopRollback') {
 # FindRelatedProducts does not run in the old package during its nested removal, so
 # an old-side condition that reads one of its properties would silently be false.
 $relatedProperties = @($wix.SelectNodes('//w:Upgrade/w:UpgradeVersion', $ns) | ForEach-Object { $_.Property })
+Assert-True ($relatedProperties.Count -ge 2) 'FindRelatedProducts properties are found for the old-side condition check'
 foreach ($oldSide in 'UpgradeStop', 'UpgradeStopRollback', 'UninstallCustom', 'UninstallCustomRollback', 'RemoveProductKey', 'RemoveProductKey64') {
     $condition = Get-SequenceCondition $oldSide
     Assert-True ($null -ne $condition -and @($relatedProperties | Where-Object { $condition -match "\b$_\b" }).Count -eq 0) "$oldSide condition reads no FindRelatedProducts property"

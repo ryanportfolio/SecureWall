@@ -6,7 +6,8 @@
   <!-- String constants -->
   <?define ProductName="SecureWall" ?>
   <!-- The name Windows shows in Settings > Apps. Directory and shortcut names keep
-       ProductName, so a fault-test package installs where a release does. -->
+       ProductName, so a fault-test package installs where a release does; only
+       registry paths built from [ProductName] change. -->
   <?ifdef UpgradeFaultTest ?>
     <?define PackageName="SecureWall (fault test)" ?>
   <?else ?>
@@ -224,7 +225,8 @@
          means /msi-cleanup succeeded, which requires both recovery journals to be
          restored and cleared, so no restorable record is left to lose. The key lives
          in the 64-bit view (the journals, the marker and the 64-bit packages' values);
-         SecureWall.exe is gone by commit time, so System32's reg.exe does it. -->
+         SecureWall.exe is gone by commit time, so reg.exe from [SystemFolder] does it
+         (SysWOW64 on 64-bit Windows, which /reg:64 still points at the 64-bit view). -->
     <CustomAction Id='RemoveProductKey64' Directory='TARGETDIR' ExeCommand='"[SystemFolder]reg.exe" delete "HKLM\SOFTWARE\SecureWall" /f /reg:64' Return='ignore' Execute='commit' Impersonate='no' />
     <CustomAction Id='RemoveProductKey' Directory='TARGETDIR' ExeCommand='"[SystemFolder]reg.exe" delete "HKLM\SOFTWARE\SecureWall" /f' Return='ignore' Execute='commit' Impersonate='no' />
 

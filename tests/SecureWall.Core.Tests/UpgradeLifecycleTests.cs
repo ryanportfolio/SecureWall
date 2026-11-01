@@ -127,7 +127,7 @@ internal static class UpgradeLifecycleTests
     {
         string marker = UpgradeLifecyclePolicy.FormatMarker(Txn, UpgradePhase.SnapshotComplete);
         AssertEx.Equal(Txn + "|snapshot-complete", marker);
-        foreach (UpgradePhase phase in new[] { UpgradePhase.Stopping, UpgradePhase.Stopped, UpgradePhase.SnapshotComplete })
+        foreach (UpgradePhase phase in new[] { UpgradePhase.Stopping, UpgradePhase.Stopped, UpgradePhase.SnapshotComplete, UpgradePhase.Restored })
             AssertEx.Equal(phase, UpgradeLifecyclePolicy.ParseMarker(UpgradeLifecyclePolicy.FormatMarker(Txn, phase))!.Value.Phase);
         AssertEx.Equal(Txn, UpgradeLifecyclePolicy.ParseMarker(" " + Txn.ToLowerInvariant() + "|stopped ")!.Value.Transaction);
         AssertEx.Equal(UpgradePhase.Unknown, UpgradeLifecyclePolicy.ParseMarker(Txn)!.Value.Phase);
@@ -162,7 +162,7 @@ internal static class UpgradeLifecycleTests
     {
         var run = new StopRun();
         run.Run();
-        AssertEx.SequenceEqual(new[] { "authenticate", "set aside", "prerequisites", "marker Stopping", "restart=False", "stop",
+        AssertEx.SequenceEqual(new[] { "authenticate", "prerequisites", "set aside", "marker Stopping", "restart=False", "stop",
             "controllers", "marker Stopped", "copy", "manifest", "marker SnapshotComplete" }, run.Log);
         AssertEx.Equal(false, run.Service.Restart);
     }
@@ -172,7 +172,7 @@ internal static class UpgradeLifecycleTests
         var run = new StopRun();
         run.Service.IsRegistered = false;
         Fails(run.Run);
-        AssertEx.SequenceEqual(new[] { "authenticate", "set aside" }, run.Log);
+        AssertEx.SequenceEqual(new[] { "authenticate" }, run.Log);
 
         // Stopped after a crash: an SCM restart may be queued that no later setting
         // change cancels. StartPending and StopPending are refused the same way.
@@ -181,7 +181,7 @@ internal static class UpgradeLifecycleTests
             run = new StopRun();
             run.Service.Current = state;
             Fails(run.Run);
-            AssertEx.SequenceEqual(new[] { "authenticate", "set aside" }, run.Log);
+            AssertEx.SequenceEqual(new[] { "authenticate" }, run.Log);
         }
 
         foreach (bool failAuthentication in new[] { true, false })
@@ -190,7 +190,7 @@ internal static class UpgradeLifecycleTests
             if (failAuthentication) run.Authenticate = () => throw new UnauthorizedAccessException("guard");
             else run.Prerequisites = () => throw new InvalidOperationException("MpsSvc");
             Fails(run.Run);
-            AssertEx.False(run.Log.Any(entry => entry.StartsWith("marker", StringComparison.Ordinal) || entry.StartsWith("restart", StringComparison.Ordinal) || entry == "stop"));
+            AssertEx.False(run.Log.Any(entry => entry.StartsWith("marker", StringComparison.Ordinal) || entry.StartsWith("restart", StringComparison.Ordinal) || entry == "stop" || entry == "set aside"));
             AssertEx.Equal(LifecycleServiceState.Running, run.Service.Current);
         }
     }
@@ -202,7 +202,7 @@ internal static class UpgradeLifecycleTests
         var run = new StopRun();
         run.Prerequisites = () => { run.Log.Add("prerequisites"); run.Service.Current = LifecycleServiceState.Stopped; };
         Fails(run.Run);
-        AssertEx.SequenceEqual(new[] { "authenticate", "set aside", "prerequisites", "marker Stopping", "restart=False" }, run.Log);
+        AssertEx.SequenceEqual(new[] { "authenticate", "prerequisites", "set aside", "marker Stopping", "restart=False" }, run.Log);
     }
 
     private static void StopNeverSnapshotsRunningService()
@@ -302,6 +302,22 @@ internal static class UpgradeLifecycleTests
         }
         AssertEx.Equal(RestorePlan.StartOnly, UpgradeLifecyclePolicy.Restore(Txn, M(UpgradePhase.Stopping), true, false));
         AssertEx.Equal(RestorePlan.StopDiscardStart, UpgradeLifecyclePolicy.Restore(Txn, M(UpgradePhase.Stopping), false, false));
+        // An earlier run restored the files: never restored again, never held.
+        foreach (bool verified in new[] { false, true })
+        {
+            AssertEx.Equal(RestorePlan.StartOnly, UpgradeLifecyclePolicy.Restore(Txn, M(UpgradePhase.Restored), true, verified));
+            AssertEx.Equal(RestorePlan.StopDiscardStart, UpgradeLifecyclePolicy.Restore(Txn, M(UpgradePhase.Restored), false, verified));
+        }
+
+        // A retried MSI's step 3 refuses while an earlier rollback still has a
+        // verified snapshot to restore, and otherwise goes ahead.
+        Fails(() => UpgradeLifecyclePolicy.RequireNoPendingRestore(Txn, M(UpgradePhase.SnapshotComplete), true));
+        Fails(() => UpgradeLifecyclePolicy.RequireNoPendingRestore(Txn, M(UpgradePhase.Stopped), true));
+        UpgradeLifecyclePolicy.RequireNoPendingRestore(Txn, M(UpgradePhase.SnapshotComplete), false);
+        UpgradeLifecyclePolicy.RequireNoPendingRestore(Txn, M(UpgradePhase.Restored), true);
+        UpgradeLifecyclePolicy.RequireNoPendingRestore(Txn, M(UpgradePhase.Stopping), true);
+        UpgradeLifecyclePolicy.RequireNoPendingRestore(Txn, UpgradeLifecyclePolicy.FormatMarker(Other, UpgradePhase.SnapshotComplete), true);
+        UpgradeLifecyclePolicy.RequireNoPendingRestore(Txn, null, true);
     }
 
     private static void SnapshotVerification()
@@ -361,7 +377,10 @@ internal static class UpgradeLifecycleTests
         AssertEx.False(files.FileExists(orig), "a covered file absent from the snapshot is deleted");
         AssertEx.False(files.FileExists(journal), "the newer version's config.recovery is deleted");
         AssertEx.SequenceEqual(new byte[] { 8 }, files.Files[Path.Combine(Data, "profiles.json")], "shipped data is left to InstallDefaults");
+        AssertEx.True(UpgradeLifecyclePolicy.VerifiedSnapshot(files, Data, Txn) != null, "the snapshot outlives the restore until phase Restored is recorded");
+        UpgradeLifecyclePolicy.DeleteSnapshot(files, Data, Txn);
         AssertEx.False(files.DirectoryExists(directory));
+        UpgradeLifecyclePolicy.DeleteSnapshot(files, Data, Txn);
     }
 
     private static void SnapshotRetry()
@@ -501,6 +520,7 @@ internal static class UpgradeLifecycleTests
         string stop = Body("internal static int UpgradeStopForMsi(string transaction)");
         InOrder(stop, "stop", "UpgradeLifecyclePolicy.Stop(transaction, service,", "InstallationSafety.RequireSystemMaintenance();",
             "InstallationSafety.RequireProtectedMachineData();", "ValidateRegisteredServiceImage(true);",
+            "UpgradeLifecyclePolicy.RequireNoPendingRestore(transaction, UpgradeMarker.Read(),",
             "UpgradeLifecyclePolicy.SetAsidePriorSnapshot(files, Utils.AppDataPath,",
             "WindowsFirewall.RequireServiceRunning();", "\"BFE\"", "writeMarker: phase => UpgradeMarker.Write(transaction, phase)",
             "TerminateInstallationControllers();", "RequireNoInstallationControllers();",
@@ -510,17 +530,23 @@ internal static class UpgradeLifecycleTests
 
         string start7 = Body("internal static int UpgradeStartForMsi(string transaction)");
         InOrder(start7, "start", "UpgradeLifecyclePolicy.RequireStartable(", "UpgradeLifecyclePolicy.VerifiedSnapshot(files, data, transaction) != null",
-            "MachineDataGuard.InstallDefaults();", "UpgradeLifecyclePolicy.DeleteStaleSnapshots(files, data, transaction);",
-            "EnsureHealth(", "service.Start();", "UpgradeLifecyclePolicy.WaitForRunning(");
+            "MachineDataGuard.InstallDefaults();", "EnsureHealth(", "service.Start();", "UpgradeLifecyclePolicy.WaitForRunning(");
         AssertEx.False(start7.Contains("SetRestartOnFailure(true)"), "only commit and rollback turn the restart actions back on");
+        AssertEx.False(start7.Contains("Snapshots("), "only commit and rollback delete a snapshot");
 
-        InOrder(Body("internal static int UpgradeRestoreForMsi(string transaction)"), "restore",
+        string restore = Body("internal static int UpgradeRestoreForMsi(string transaction)");
+        InOrder(restore, "restore", "SetAutomaticStart();",
             "UpgradeLifecyclePolicy.VerifiedSnapshot(files, data, transaction)", "UpgradeLifecyclePolicy.Restore(transaction, UpgradeMarker.Read(),",
-            "if (plan != RestorePlan.StartOnly)", "StopGracefully(", "TerminateInstallationControllers();", "RequireNoInstallationControllers();",
+            "if (plan != RestorePlan.StartOnly)", "StopGracefully(", "TerminateInstallationControllers();",
             "case RestorePlan.StopRestoreStart:", "UpgradeLifecyclePolicy.RestoreSnapshot(files, data, transaction, verified!);",
-            "case RestorePlan.StopDiscardStart:", "case RestorePlan.StopAndHold:", "throw new InvalidOperationException(",
+            "UpgradeMarker.Write(transaction, UpgradePhase.Restored);",
+            "case RestorePlan.StopDiscardStart:", "UpgradeLifecyclePolicy.DeleteSnapshot(files, data, transaction);",
+            "case RestorePlan.StopAndHold:", "throw new InvalidOperationException(",
             "MachineDataGuard.InstallDefaults();", "service.SetRestartOnFailure(true);",
-            "EnsureServiceInstalledAndRunning(Utils.LOG_ID_INSTALLER, true, transaction)", "CleanUpAfterUpgrade(transaction,");
+            "EnsureServiceInstalledAndRunning(Utils.LOG_ID_INSTALLER, true, transaction)",
+            "CleanUpAfterUpgrade(transaction, () => UpgradeLifecyclePolicy.DeleteSnapshot(files, data, transaction));");
+        AssertEx.False(restore.Contains("RequireNoInstallationControllers") || restore.Contains("DeleteStaleSnapshots"),
+            "rollback closes controllers best effort and deletes only its own snapshot");
 
         string abort = Body("internal static int UpgradeAbortForMsi(string transaction)");
         InOrder(abort, "abort", "service.SetRestartOnFailure(false);", "StopGracefully(", "InstallationSafety.TerminateFailedInstallService();",
@@ -533,7 +559,7 @@ internal static class UpgradeLifecycleTests
             "CleanUpAfterUpgrade(transaction,", "private static void CleanUpAfterUpgrade(", "deleteSnapshots();", "UpgradeMarker.Clear(transaction);");
 
         string health = Body("internal static bool EnsureHealth(string logContext, bool strictGuards)");
-        InOrder(health, "health", "UpgradeLifecyclePolicy.UpgradeOwnsRecoverySettings(UpgradeMarker.Read(), UpgradeMarker.InstallerRunning())",
+        InOrder(health, "health", "UpgradeMarker.UpgradeOwnsRecoverySettings()",
             "else", "scm.SetRestartOnFailure(TinyWallService.SERVICE_NAME,");
 
         string cleanup = Body("private static int CleanupStoppedInstallation(");

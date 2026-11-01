@@ -14,8 +14,9 @@ namespace pylorak.TinyWall.Installer
     // UPGRADE_FAULT_TEST; every other build drops each Trip call, its argument and
     // this method's body, so Release artifacts contain no fault injection. That
     // configuration also stamps the build (informational version, assembly
-    // metadata, MSI property and ProductName suffix), and the release builder and
-    // installer contract test refuse any of those stamps.
+    // metadata, MSI property and ProductName suffix). The release builder refuses
+    // an executable with either executable stamp; the installer contract test
+    // refuses them on the staged payload and the MSI stamps on a package.
     //
     // Fault build behavior: the REG_SZ value UpgradeFaultTest under
     // HKLM\SOFTWARE\SecureWall (64-bit view, writable only by administrators and

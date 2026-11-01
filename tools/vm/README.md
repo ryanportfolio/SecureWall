@@ -28,4 +28,4 @@ By default the runner stops the tray process, uninstalls SecureWall through the 
 
 This guided test covers basic fresh-install/allow/ignore/removal behavior. It does not cover the boot, crash, fault injection, repair rejection, in-place upgrade, service identity, or networking compatibility cases in `docs/HARDENING-VALIDATION.md`. Record those cases separately before production use. Never call a failed or skipped case a pass.
 
-`Build-SecureWallUpgradeFaultTest.ps1` builds the fault-test packages the in-place upgrade cases need, into `artifacts\upgrade-fault-test`; the fault points and how to set them are in `docs/HARDENING-VALIDATION.md`, "In-place upgrade". Those packages are for disposable VMs only and are never released.
+`Build-SecureWallUpgradeFaultTest.ps1` builds the fault-test packages the in-place upgrade cases need, into `artifacts\upgrade-fault-test\<version>`; the fault points and how to set them are in `docs/HARDENING-VALIDATION.md`, "In-place upgrade". Those packages are for disposable VMs only and are never released.

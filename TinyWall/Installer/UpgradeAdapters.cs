@@ -27,7 +27,8 @@ namespace pylorak.TinyWall.Installer
             }
             catch
             {
-                // Unreadable means unknown: the marker only defers starts, never permits them.
+                // Unreadable reads as no marker: nothing is deferred and the
+                // service keeps its restart actions.
                 return null;
             }
         }
@@ -65,6 +66,12 @@ namespace pylorak.TinyWall.Installer
         internal static bool BlocksAutomaticStart()
         {
             try { return UpgradeLifecyclePolicy.BlocksStart(Read(), InstallerRunning()); }
+            catch { return false; }
+        }
+
+        internal static bool UpgradeOwnsRecoverySettings()
+        {
+            try { return UpgradeLifecyclePolicy.UpgradeOwnsRecoverySettings(Read(), InstallerRunning()); }
             catch { return false; }
         }
     }

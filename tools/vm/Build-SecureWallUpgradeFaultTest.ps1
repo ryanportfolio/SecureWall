@@ -11,7 +11,8 @@ param(
 )
 
 # Builds the in-place upgrade fault-test packages (docs/HARDENING-VALIDATION.md,
-# "In-place upgrade") into artifacts\upgrade-fault-test. They carry fault points
+# "In-place upgrade") into artifacts\upgrade-fault-test\<version>, so the old and
+# the new version's fault builds from two checkouts sit side by side. They carry fault points
 # and visible stamps, are for disposable VMs only and are never released. The
 # release builder refuses them and the installer contract test fails on them.
 
@@ -34,12 +35,8 @@ function Invoke-NativeCommand {
 if (-not $WixRoot) {
     $WixRoot = Join-Path $repoRoot '.tmp\tools\wix314'
 }
-if (-not $OutputDirectory) {
-    $OutputDirectory = Join-Path $repoRoot 'artifacts\upgrade-fault-test'
-}
 $WixRoot = [System.IO.Path]::GetFullPath($WixRoot)
-$OutputDirectory = [System.IO.Path]::GetFullPath($OutputDirectory)
-if ($OutputDirectory -match '\\artifacts\\release(\\|$)') {
+if ($OutputDirectory -and [System.IO.Path]::GetFullPath($OutputDirectory) -match '\\artifacts\\release(\\|$)') {
     throw 'Fault-test packages must not be written to artifacts\release.'
 }
 
@@ -73,6 +70,11 @@ $application = Join-Path $repoRoot "TinyWall\bin\$configuration\SecureWall.exe"
 if ((Get-Item -LiteralPath $application).VersionInfo.ProductVersion -notmatch 'upgrade-fault-test') {
     throw "Fault-test build is not stamped: $application"
 }
+if (-not $OutputDirectory) {
+    $fileVersion = [Version](Get-Item -LiteralPath $application).VersionInfo.FileVersion
+    $OutputDirectory = Join-Path $repoRoot ('artifacts\upgrade-fault-test\{0}.{1}.{2}' -f $fileVersion.Major, $fileVersion.Minor, $fileVersion.Build)
+}
+$OutputDirectory = [System.IO.Path]::GetFullPath($OutputDirectory)
 
 & (Join-Path $repoRoot 'MsiSetup\PrepareSources.ps1') -Configuration $configuration
 

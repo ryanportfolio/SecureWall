@@ -34,8 +34,9 @@ namespace pylorak.TinyWall.Prompting
 
     // Progress of the old version's stop step, kept in the marker. The restore step
     // decides from it, never from the service state alone: after a failed abort or a
-    // reboot mid-swap, a Running service can be the new binary.
-    internal enum UpgradePhase { Unknown, Stopping, Stopped, SnapshotComplete }
+    // reboot mid-swap, a Running service can be the new binary. Restored is written
+    // by the restore step once the live files are the old version's again.
+    internal enum UpgradePhase { Unknown, Stopping, Stopped, SnapshotComplete, Restored }
 
     internal readonly struct UpgradeMarkerState
     {
@@ -49,8 +50,9 @@ namespace pylorak.TinyWall.Prompting
     {
         // The old service never stopped: refresh shipped data and make sure it runs.
         StartOnly,
-        // Stopped, but no finished snapshot: the live files are still the old
-        // version's own. Discard the unfinished snapshot and start the old service.
+        // Stopped, but no finished snapshot, or a restore that already finished: the
+        // live files are the old version's own. Discard this transaction's snapshot
+        // and start the old service.
         StopDiscardStart,
         // A verified snapshot: stop whatever runs, restore it as an exact set, start.
         StopRestoreStart,
@@ -114,7 +116,7 @@ namespace pylorak.TinyWall.Prompting
 
         internal static string Canonical(Guid id) => id.ToString("B").ToUpperInvariant();
 
-        private static readonly string[] PhaseNames = { "unknown", "stopping", "stopped", "snapshot-complete" };
+        private static readonly string[] PhaseNames = { "unknown", "stopping", "stopped", "snapshot-complete", "restored" };
 
         internal static string FormatMarker(string transaction, UpgradePhase phase) =>
             transaction + "|" + PhaseNames[(int)phase];
@@ -165,8 +167,8 @@ namespace pylorak.TinyWall.Prompting
         // Step 3. Refuses before any change until the marker is written; after that a
         // failure returns to the MSI, which rolls back and runs /msi-upgrade-restore.
         // A snapshot left by an earlier attempt of the same transaction (a retried MSI
-        // keeps its ProductCode) is set aside first, so this attempt's rollback can
-        // only restore a snapshot this attempt took.
+        // keeps its ProductCode) is set aside once every check passed, so this
+        // attempt's rollback can only restore a snapshot this attempt took.
         //
         // Only a Running service is accepted: one stopped after a crash may have an
         // SCM restart queued, which no later setting change cancels. Failure actions
@@ -181,11 +183,11 @@ namespace pylorak.TinyWall.Prompting
             Action terminateControllers, Action copySnapshot, Action writeManifest)
         {
             authenticate();
-            setAsidePriorSnapshot();
             if (!service.Registered)
                 throw new InvalidOperationException("The SecureWall service is not registered, so this installation cannot be upgraded in place. Remove SecureWall explicitly, then install the new version.");
             RequireRunning(service);
             requirePrerequisites();
+            setAsidePriorSnapshot();
             writeMarker(UpgradePhase.Stopping);
             service.SetRestartOnFailure(false);
             RequireRunning(service);
@@ -248,13 +250,24 @@ namespace pylorak.TinyWall.Prompting
         {
             if (!(ParseMarker(marker) is UpgradeMarkerState m) || !string.Equals(m.Transaction, transaction, StringComparison.OrdinalIgnoreCase))
                 return RestorePlan.StartOnly;
-            if (m.Phase == UpgradePhase.Stopping && serviceRunning)
+            if ((m.Phase == UpgradePhase.Stopping || m.Phase == UpgradePhase.Restored) && serviceRunning)
                 return RestorePlan.StartOnly;
+            if (m.Phase == UpgradePhase.Restored)
+                return RestorePlan.StopDiscardStart;
             if (snapshotVerified)
                 return RestorePlan.StopRestoreStart;
             if (m.Phase == UpgradePhase.Stopping || m.Phase == UpgradePhase.Stopped)
                 return RestorePlan.StopDiscardStart;
             return RestorePlan.StopAndHold;
+        }
+
+        // Step 3 of a retried MSI: an earlier attempt's rollback that has yet to
+        // restore its verified snapshot is finished by this attempt's step 2, so
+        // step 3 refuses instead of setting that snapshot aside.
+        internal static void RequireNoPendingRestore(string transaction, string? marker, bool snapshotVerified)
+        {
+            if (Restore(transaction, marker, true, snapshotVerified) == RestorePlan.StopRestoreStart)
+                throw new InvalidOperationException("An earlier attempt of this upgrade did not finish rolling back. Setup now restores its policy snapshot and starts the previous version; run setup again afterwards.");
         }
 
         // Moves an earlier attempt's snapshot of this transaction to
@@ -329,7 +342,8 @@ namespace pylorak.TinyWall.Prompting
 
         // Exact set: every covered file the snapshot lists is written back byte for
         // byte (pwd with the secret DACL), every covered file it does not list is
-        // deleted, then the snapshot is deleted. The caller verified it first.
+        // deleted. The caller verified it first, and deletes it only after recording
+        // phase Restored, so a rerun interrupted before then restores it again.
         internal static void RestoreSnapshot(IUpgradeFiles files, string dataDirectory, string transaction, IDictionary<string, string> verified)
         {
             string directory = SnapshotDirectory(dataDirectory, transaction);
@@ -341,7 +355,12 @@ namespace pylorak.TinyWall.Prompting
                 else if (files.FileExists(live))
                     files.DeleteFile(live);
             }
-            files.DeleteDirectory(directory);
+        }
+
+        internal static void DeleteSnapshot(IUpgradeFiles files, string dataDirectory, string transaction)
+        {
+            string directory = SnapshotDirectory(dataDirectory, transaction);
+            if (files.DirectoryExists(directory)) files.DeleteDirectory(directory);
         }
 
         // Snapshot directories that no running upgrade can restore. keep is the

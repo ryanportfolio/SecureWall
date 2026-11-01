@@ -58,7 +58,7 @@ $wixRoot = (Resolve-Path '.tmp\tools\wix314').Path
 & .\tests\installer\Test-SecureWallInstaller.ps1 -ArtifactsDirectory artifacts\release
 ```
 
-Expected output: `artifacts\release\SecureWall_x86.msi`, `SecureWall_x64.msi`, `SecureWall_arm64.msi`, and `SHA256SUMS.txt`, with no ICE warnings or errors. `tools\vm\Build-SecureWallUpgradeFaultTest.ps1 -WixRoot $wixRoot` builds the in-place upgrade fault-test packages into `artifacts\upgrade-fault-test`; never release them (`docs/HARDENING-VALIDATION.md`, "In-place upgrade"). Restricted automation tokens that cannot access Windows Installer may use `-SuppressValidation` only for a local packaging smoke test; CI and release builds never suppress ICE validation.
+Expected output: `artifacts\release\SecureWall_x86.msi`, `SecureWall_x64.msi`, `SecureWall_arm64.msi`, and `SHA256SUMS.txt`, with no ICE warnings or errors. `tools\vm\Build-SecureWallUpgradeFaultTest.ps1 -WixRoot $wixRoot` builds the in-place upgrade fault-test packages into `artifacts\upgrade-fault-test\<version>`; never release them (`docs/HARDENING-VALIDATION.md`, "In-place upgrade"). Restricted automation tokens that cannot access Windows Installer may use `-SuppressValidation` only for a local packaging smoke test; CI and release builds never suppress ICE validation.
 
 To check setup pages after a UI change, capture all eleven, including the removal variants, to PNG from an interactive desktop. The script opens the MSI as a Windows Installer session and shows each page through `DoAction`; it never runs the execute sequence, so nothing is installed even when it clicks Install. Pages are faded nearly invisible while captured but may flash briefly. Screenshots belong outside the repository.
 
