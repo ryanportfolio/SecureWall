@@ -155,8 +155,10 @@ internal static class WfpCoexistenceTests
             new WfpSublayerRecord(Legacy[4], null),
             new WfpSublayerRecord(OtherSublayer, SecureWall),
         };
-        var remove = WfpCoexistencePolicy.SublayersToRemove(SecureWall, sublayers, own, Legacy);
-        AssertEx.SequenceEqual(new[] { own[0], Legacy[2] }, remove);
+        // OtherSublayer stands for a key a newer version added: an older binary that
+        // restarts after a rolled-back upgrade must remove it too.
+        var remove = WfpCoexistencePolicy.SublayersToRemove(SecureWall, sublayers);
+        AssertEx.SequenceEqual(new[] { own[0], Legacy[2], OtherSublayer }, remove);
     }
 
     private static void RemovalBlockedOnlyByOwnedSublayerFilters()
@@ -174,13 +176,13 @@ internal static class WfpCoexistenceTests
         {
             new WfpFilterRecord(Guid.NewGuid(), SecureWall, own[4], "SecureWall recovery default deny"),
             new WfpFilterRecord(Guid.NewGuid(), TinyWall, Legacy[5], "TinyWall permit"),
-        }, own, Legacy);
+        });
         AssertEx.True(unblocked.Clear);
 
         var blocked = WfpCoexistencePolicy.FindRemovalConflicts(SecureWall, sublayers, new[]
         {
             new WfpFilterRecord(Guid.NewGuid(), TinyWall, Legacy[4], "TinyWall permit in SecureWall-owned sublayer"),
-        }, own, Legacy);
+        });
         AssertEx.Equal(1, blocked.Conflicts.Count);
         AssertEx.True(blocked.TinyWallResidue);
     }

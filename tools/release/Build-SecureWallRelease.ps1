@@ -1,8 +1,6 @@
 [CmdletBinding()]
 param(
-    # UpgradeFaultTest builds the in-place upgrade VM test packages into
-    # artifacts\upgrade-fault-test. They are never attached to a release.
-    [ValidateSet('Debug', 'Release', 'UpgradeFaultTest')]
+    [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Release',
 
     [ValidateSet('x86', 'x64', 'arm64')]
@@ -34,12 +32,7 @@ if (-not $WixRoot) {
     $WixRoot = Join-Path $repoRoot '.tmp\tools\wix314'
 }
 if (-not $OutputDirectory) {
-    $OutputDirectory = if ($Configuration -eq 'UpgradeFaultTest') {
-        Join-Path $repoRoot 'artifacts\upgrade-fault-test'
-    }
-    else {
-        Join-Path $repoRoot 'artifacts\release'
-    }
+    $OutputDirectory = Join-Path $repoRoot 'artifacts\release'
 }
 
 $WixRoot = [System.IO.Path]::GetFullPath($WixRoot)
@@ -97,11 +90,12 @@ if (-not (Test-Path -LiteralPath $application -PathType Leaf)) {
 if ((Get-Item -LiteralPath $application).VersionInfo.ProductName -ne 'SecureWall') {
     throw 'Built executable ProductName is not SecureWall.'
 }
-# The UpgradeFaultTest configuration marks its informational version. Its fault
-# points must never reach a Debug or Release package.
-$isFaultBuild = (Get-Item -LiteralPath $application).VersionInfo.ProductVersion -match 'upgrade-fault-test'
-if ($isFaultBuild -ne ($Configuration -eq 'UpgradeFaultTest')) {
-    throw "Built executable fault-test marker does not match configuration $Configuration."
+# The in-place upgrade fault-test build stamps its informational version and an
+# assembly metadata attribute. Its fault points must never reach a package built here.
+$applicationBytes = [System.IO.File]::ReadAllBytes($application)
+$applicationText = [System.Text.Encoding]::ASCII.GetString($applicationBytes)
+if ((Get-Item -LiteralPath $application).VersionInfo.ProductVersion -match 'fault-test' -or $applicationText.Contains('SecureWallFaultTest')) {
+    throw 'Built executable carries the in-place upgrade fault-test stamp; refusing to package it.'
 }
 
 & (Join-Path $repoRoot 'MsiSetup\PrepareSources.ps1') -Configuration $Configuration

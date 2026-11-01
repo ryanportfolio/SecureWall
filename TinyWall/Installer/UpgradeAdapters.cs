@@ -32,11 +32,11 @@ namespace pylorak.TinyWall.Installer
             }
         }
 
-        internal static void Write(string transaction)
+        internal static void Write(string transaction, UpgradePhase phase)
         {
             using var machine = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
             using var key = machine.CreateSubKey(ProductRegistryPolicy.KeyPath, true);
-            key.SetValue(UpgradeLifecyclePolicy.MarkerValue, transaction, RegistryValueKind.String);
+            key.SetValue(UpgradeLifecyclePolicy.MarkerValue, UpgradeLifecyclePolicy.FormatMarker(transaction, phase), RegistryValueKind.String);
             key.Flush();
         }
 

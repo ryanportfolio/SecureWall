@@ -28,14 +28,21 @@
     <Version>0.4.2</Version>
   </PropertyGroup>
   <!-- In-place upgrade VM test build: Release code plus the fault points in
-       Installer/UpgradeFault.cs. The marked informational version lets the release
-       builder refuse it; tools/release/Build-SecureWallRelease.ps1 -Configuration
-       UpgradeFaultTest packages it apart from release artifacts. -->
+       Installer/UpgradeFault.cs, stamped by its informational version and an
+       assembly metadata attribute, which the release builder and installer test
+       refuse. tools/vm/Build-SecureWallUpgradeFaultTest.ps1 packages it apart
+       from release artifacts. -->
   <PropertyGroup Condition="'$(Configuration)' == 'UpgradeFaultTest'">
     <Optimize>true</Optimize>
     <DefineConstants>$(DefineConstants);UPGRADE_FAULT_TEST</DefineConstants>
     <InformationalVersion>$(Version)+upgrade-fault-test</InformationalVersion>
   </PropertyGroup>
+  <ItemGroup Condition="'$(Configuration)' == 'UpgradeFaultTest'">
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>SecureWallFaultTest</_Parameter1>
+      <_Parameter2>1</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
   <PropertyGroup>
     <ApplicationIcon>Resources\img\firewall.ico</ApplicationIcon>
   </PropertyGroup>

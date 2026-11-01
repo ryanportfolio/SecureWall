@@ -205,7 +205,10 @@ namespace pylorak.TinyWall
         // docs/SECURITY.md "In-place upgrade" gives the whole sequence. Every step is
         // SYSTEM MSI maintenance on an authenticated Program Files image. None of them
         // runs /msi-cleanup or touches the deny baseline, the Windows Firewall
-        // compatibility rules, the hosts file or the recovery journals.
+        // compatibility rules, the hosts file or the recovery journals. Restart-on-
+        // failure is off from step 3 until commit or rollback turns it back on; the
+        // start type stays Automatic throughout, so a reboot mid-swap still starts
+        // whatever service is present.
 
         // Step 3, old executable, before its files are removed.
         internal static int UpgradeStopForMsi(string transaction)
@@ -213,6 +216,7 @@ namespace pylorak.TinyWall
             try
             {
                 using var service = new ScmUpgradeService(ServiceExists);
+                var files = new MachineDataUpgradeFiles();
                 var timer = Stopwatch.StartNew();
                 UpgradeLifecyclePolicy.Stop(transaction, service,
                     authenticate: () =>
@@ -226,7 +230,7 @@ namespace pylorak.TinyWall
                     },
                     setAsidePriorSnapshot: () =>
                     {
-                        string? kept = UpgradeLifecyclePolicy.SetAsidePriorSnapshot(new MachineDataUpgradeFiles(), Utils.AppDataPath,
+                        string? kept = UpgradeLifecyclePolicy.SetAsidePriorSnapshot(files, Utils.AppDataPath,
                             transaction, DateTime.UtcNow.ToString("yyyyMMddHHmmss", System.Globalization.CultureInfo.InvariantCulture));
                         if (kept != null)
                             Warn("Upgrade " + transaction + ": an earlier attempt's policy snapshot was moved to " + kept + " and will not be restored. Review and delete it by hand.");
@@ -239,19 +243,29 @@ namespace pylorak.TinyWall
                         using var bfe = new ServiceController("BFE");
                         if (bfe.Status != ServiceControllerStatus.Running)
                             throw new InvalidOperationException("The Base Filtering Engine service (BFE) must be running before SecureWall can be upgraded.");
+                        UpgradeFault.Trip("upgrade-stop-pause");
                     },
-                    writeMarker: UpgradeMarker.Write,
+                    writeMarker: phase => UpgradeMarker.Write(transaction, phase),
                     elapsed: () => timer.Elapsed,
                     delay: System.Threading.Thread.Sleep,
-                    terminateControllers: TerminateInstallationControllers,
-                    snapshot: () =>
+                    terminateControllers: () =>
                     {
-                        UpgradeLifecyclePolicy.TakeSnapshot(new MachineDataUpgradeFiles(), Utils.AppDataPath, transaction);
+                        TerminateInstallationControllers();
+                        RequireNoInstallationControllers();
+                    },
+                    copySnapshot: () =>
+                    {
+                        UpgradeLifecyclePolicy.CopySnapshot(files, Utils.AppDataPath, transaction);
+                        UpgradeFault.Trip("upgrade-snapshot-fail");
+                    },
+                    writeManifest: () =>
+                    {
 #if !DEBUG
                         InstallationSafety.RequireProtectedMachineData();
 #endif
-                        UpgradeFault.Trip("upgrade-stop-fail");
+                        UpgradeLifecyclePolicy.WriteManifest(files, Utils.AppDataPath, transaction);
                     });
+                UpgradeFault.Trip("upgrade-stop-fail");
                 Utils.Log("Upgrade " + transaction + ": service stopped, controllers closed, policy snapshot taken.", Utils.LOG_ID_INSTALLER);
                 return 0;
             }
@@ -263,7 +277,8 @@ namespace pylorak.TinyWall
         }
 
         // Step 2, old executable, rollback: runs last, after Windows Installer put the
-        // old files and registration back.
+        // old files and registry values back. Idempotent and decided by the marker
+        // phase (UpgradeLifecyclePolicy.Restore), never by the service state alone.
         internal static int UpgradeRestoreForMsi(string transaction)
         {
             try
@@ -273,37 +288,53 @@ namespace pylorak.TinyWall
                 ValidateRegisteredServiceImage(true);
                 var files = new MachineDataUpgradeFiles();
                 string data = Utils.AppDataPath;
-                string? marker = UpgradeMarker.Read();
                 using var service = new ScmUpgradeService(ServiceExists);
                 if (!service.Registered)
                     throw new InvalidOperationException("The SecureWall service is not registered, so the previous version cannot be started.");
-                switch (UpgradeLifecyclePolicy.Restore(transaction, marker, UpgradeLifecyclePolicy.SnapshotComplete(files, data, transaction)))
+                IDictionary<string, string>? verified = UpgradeLifecyclePolicy.VerifiedSnapshot(files, data, transaction);
+                RestorePlan plan = UpgradeLifecyclePolicy.Restore(transaction, UpgradeMarker.Read(),
+                    service.State == LifecycleServiceState.Running, verified != null);
+                if (plan != RestorePlan.StartOnly)
                 {
-                    case UpgradeLifecyclePolicy.RestoreAction.Refuse:
-                        throw new InvalidOperationException("The upgrade-in-progress marker names another upgrade (" + marker + "). Nothing was restored.");
-                    case UpgradeLifecyclePolicy.RestoreAction.RestoreAndStart:
-                        var timer = Stopwatch.StartNew();
-                        if (!ServiceLifecyclePolicy.StopGracefully(() => service.State, service.Stop, () => timer.Elapsed, System.Threading.Thread.Sleep))
-                            throw new InvalidOperationException("The SecureWall service did not stop, so the policy snapshot was not restored.");
-                        UpgradeLifecyclePolicy.RestoreSnapshot(files, data, transaction);
+                    // Whichever binary runs: after a failed abort or a reboot it can
+                    // be the new one. Unstoppable means hands off: the snapshot and
+                    // the marker stay for local-console recovery.
+                    var timer = Stopwatch.StartNew();
+                    if (!ServiceLifecyclePolicy.StopGracefully(() => service.State, service.Stop, () => timer.Elapsed, System.Threading.Thread.Sleep))
+                        throw new InvalidOperationException("The SecureWall service did not stop, so the previous version's policy was not restored. The snapshot under " + UpgradeLifecyclePolicy.SnapshotDirectory(data, transaction) + " and the upgrade marker are kept.");
+                    TerminateInstallationControllers();
+                    RequireNoInstallationControllers();
+                    if (service.State != LifecycleServiceState.Stopped)
+                        throw new InvalidOperationException("The SecureWall service started again during rollback; nothing was restored.");
+                }
+                switch (plan)
+                {
+                    case RestorePlan.StopRestoreStart:
+                        UpgradeLifecyclePolicy.RestoreSnapshot(files, data, transaction, verified!);
                         break;
+                    case RestorePlan.StopDiscardStart:
+                        // Step 3 did not finish its snapshot, so nothing after it ran
+                        // and the live files are still this version's own.
+                        string unfinished = UpgradeLifecyclePolicy.SnapshotDirectory(data, transaction);
+                        if (files.DirectoryExists(unfinished)) files.DeleteDirectory(unfinished);
+                        break;
+                    case RestorePlan.StopAndHold:
+                        throw new InvalidOperationException("The policy snapshot under " + UpgradeLifecyclePolicy.SnapshotDirectory(data, transaction) +
+                            " is missing or does not match its manifest, and the upgraded version may already have rewritten the live policy files. The previous version was not started; the deny baseline keeps blocking. The snapshot and the upgrade marker are kept for local-console recovery.");
                 }
                 UpgradeFault.Trip("upgrade-restore-start-fail");
 #if !DEBUG
                 // The old version's profiles.json and hosts.bck.
                 MachineDataGuard.InstallDefaults();
 #endif
-                // Restores the start type the abort step disabled and the restart
-                // policy step 3 removed, also when the stop step failed before
-                // stopping anything. EnsureHealth only logs SCM write failures, so
-                // both are set here first.
-                SetAutomaticStart();
+                // The rollback owns the recovery settings: turn the restart actions
+                // back on (EnsureHealth skips them while the marker is active).
                 service.SetRestartOnFailure(true);
                 EnsureHealth(Utils.LOG_ID_INSTALLER, strictGuards: true);
                 if (!EnsureServiceInstalledAndRunning(Utils.LOG_ID_INSTALLER, true, transaction))
                     return -1;
                 CleanUpAfterUpgrade(transaction, () => UpgradeLifecyclePolicy.DeleteStaleSnapshots(files, data, null));
-                Utils.Log("Upgrade " + transaction + " rolled back: previous policy restored and service running.", Utils.LOG_ID_INSTALLER);
+                Utils.Log("Upgrade " + transaction + " rolled back (" + plan + "): previous version running.", Utils.LOG_ID_INSTALLER);
                 return 0;
             }
             catch (Exception exception)
@@ -311,25 +342,12 @@ namespace pylorak.TinyWall
                 LogFailure(exception);
                 return -1;
             }
-            finally
-            {
-                // The old files are back whatever failed above, so a reboot must
-                // start the service the abort step disabled.
-                try { if (ServiceExists()) SetAutomaticStart(); }
-                catch (Exception exception) { LogFailure(exception); }
-            }
-        }
-
-        private static void SetAutomaticStart()
-        {
-            using var scm = new ServiceControlManager();
-            scm.SetStartupMode(TinyWallService.SERVICE_NAME, ServiceStartMode.Automatic);
         }
 
         // Step 7, new executable, after its files and registry values are installed.
-        // The service starts with restart-on-failure still off, so a failing start
-        // ends here and the MSI rolls back; the service itself reapplies the restart
-        // policy after its first policy commit, and so does EnsureHealth below.
+        // Restart-on-failure stays off: a failing start ends here and the MSI rolls
+        // back, and the service's own EnsureHealth leaves the setting alone while the
+        // marker is active. Only commit or rollback turn it back on.
         internal static int UpgradeStartForMsi(string transaction)
         {
             try
@@ -345,13 +363,15 @@ namespace pylorak.TinyWall
                 bool registered = service.Registered;
                 UpgradeLifecyclePolicy.RequireStartable(transaction, registered,
                     registered ? service.State : LifecycleServiceState.Stopped,
-                    UpgradeLifecyclePolicy.SnapshotComplete(files, data, transaction), UpgradeMarker.Read());
+                    UpgradeLifecyclePolicy.VerifiedSnapshot(files, data, transaction) != null, UpgradeMarker.Read());
                 WindowsFirewall.RequireServiceRunning();
 #if !DEBUG
                 // This version's profiles.json and hosts.bck.
                 MachineDataGuard.InstallDefaults();
 #endif
                 UpgradeLifecyclePolicy.DeleteStaleSnapshots(files, data, transaction);
+                // Startup type and controller logon task; the restart actions are skipped.
+                EnsureHealth(Utils.LOG_ID_INSTALLER, strictGuards: true);
                 UpgradeFault.Trip("upgrade-start-pause");
                 UpgradeFault.Trip("upgrade-start-fail");
                 service.Start();
@@ -359,10 +379,7 @@ namespace pylorak.TinyWall
                 if (!UpgradeLifecyclePolicy.WaitForRunning(() => service.State, ServiceLifecyclePolicy.StartupTimeout,
                     () => timer.Elapsed, System.Threading.Thread.Sleep))
                     throw new InvalidOperationException("The upgraded SecureWall service did not reach Running: " + InstallationSafety.DescribeServiceStatus());
-                // EnsureHealth only logs SCM write failures; the restart actions must
-                // be back before the upgrade counts as done.
-                service.SetRestartOnFailure(true);
-                EnsureHealth(Utils.LOG_ID_INSTALLER, strictGuards: true);
+                UpgradeFault.Trip("upgrade-commit-pause");
                 Utils.Log("Upgrade " + transaction + ": upgraded service running.", Utils.LOG_ID_INSTALLER);
                 return 0;
             }
@@ -374,8 +391,10 @@ namespace pylorak.TinyWall
         }
 
         // Step 6, new executable, rollback: stops the new service before Windows
-        // Installer removes its files. Keeps the registration, the marker and the
-        // deny baseline; step 2 starts the old version afterwards.
+        // Installer removes its files. Restart-on-failure has been off since step 3,
+        // so no restart can be queued for the new binary; this confirms it is still
+        // off. Keeps the registration, the start type, the marker, the snapshot and
+        // the deny baseline; step 2 starts the old version afterwards.
         internal static int UpgradeAbortForMsi(string transaction)
         {
             try
@@ -385,26 +404,31 @@ namespace pylorak.TinyWall
                 using var service = new ScmUpgradeService(ServiceExists);
                 if (service.Registered)
                 {
-                    // The upgraded service reapplies its restart actions once it runs, so
-                    // a crash may have queued an SCM restart that clearing them does not
-                    // cancel. Disabled blocks it until the restore step, which runs last
-                    // with the old files back, sets the start type to Automatic again.
                     service.SetRestartOnFailure(false);
-                    using (var scm = new ServiceControlManager())
-                        scm.SetStartupMode(TinyWallService.SERVICE_NAME, ServiceStartMode.Disabled);
                     var timer = Stopwatch.StartNew();
-                    // The files are about to be removed, so a service that ignores
-                    // the stop request is terminated like a failed first install.
-                    ServiceLifecyclePolicy.Cleanup(true,
-                        () => ServiceLifecyclePolicy.StopGracefully(() => service.State, service.Stop, () => timer.Elapsed, System.Threading.Thread.Sleep),
-                        () =>
-                        {
-                            ValidateRegisteredServiceImage();
-                            InstallationSafety.TerminateFailedInstallService();
-                        },
-                        () => ServiceLifecyclePolicy.WaitUntil(() => service.State == LifecycleServiceState.Stopped,
-                            ServiceLifecyclePolicy.CleanupGrace, () => timer.Elapsed, System.Threading.Thread.Sleep),
-                        () => { });
+                    bool terminated = false;
+                    try
+                    {
+                        // The files are about to be removed, so a service that ignores
+                        // the stop request is terminated like a failed first install.
+                        ServiceLifecyclePolicy.Cleanup(true,
+                            () => ServiceLifecyclePolicy.StopGracefully(() => service.State, service.Stop, () => timer.Elapsed, System.Threading.Thread.Sleep),
+                            () =>
+                            {
+                                terminated = true;
+                                ValidateRegisteredServiceImage();
+                                InstallationSafety.TerminateFailedInstallService();
+                            },
+                            () => ServiceLifecyclePolicy.WaitUntil(() => service.State == LifecycleServiceState.Stopped,
+                                ServiceLifecyclePolicy.CleanupGrace, () => timer.Elapsed, System.Threading.Thread.Sleep),
+                            () => { });
+                    }
+                    finally
+                    {
+                        // Termination disabled the service; a reboot must still start
+                        // whatever version the rollback leaves in place.
+                        if (terminated) SetAutomaticStart();
+                    }
                 }
                 TerminateInstallationControllers();
                 Utils.Log("Upgrade " + transaction + " is rolling back: upgraded service stopped.", Utils.LOG_ID_INSTALLER);
@@ -417,12 +441,21 @@ namespace pylorak.TinyWall
             }
         }
 
-        // Step 9, new executable, commit phase after the transaction finished.
+        private static void SetAutomaticStart()
+        {
+            using var scm = new ServiceControlManager();
+            scm.SetStartupMode(TinyWallService.SERVICE_NAME, ServiceStartMode.Automatic);
+        }
+
+        // Step 9, new executable, commit phase after the transaction finished: the
+        // upgrade hands the recovery settings back, then cleans up.
         internal static int UpgradeCommitForMsi(string transaction)
         {
             try
             {
                 InstallationSafety.RequireSystemMaintenance();
+                using (var service = new ScmUpgradeService(ServiceExists))
+                    service.SetRestartOnFailure(true);
                 string? keep = UpgradeLifecyclePolicy.CommitKeeps(UpgradeMarker.Read(), transaction);
                 CleanUpAfterUpgrade(transaction, () => UpgradeLifecyclePolicy.DeleteStaleSnapshots(new MachineDataUpgradeFiles(), Utils.AppDataPath, keep));
                 Utils.Log("Upgrade " + transaction + " committed.", Utils.LOG_ID_INSTALLER);
@@ -446,9 +479,11 @@ namespace pylorak.TinyWall
             catch (Exception exception) { Warn("Upgrade " + transaction + ": the upgrade-in-progress marker could not be deleted. " + exception.Message); }
         }
 
-        // Controller repair asks this first, to show the upgrade notice instead of
-        // a repair error. EnsureServiceInstalledAndRunning enforces the same gate.
+        // Controller startup asks this first: a controller that finds an upgrade in
+        // progress shows a notice and exits instead of holding SecureWall.exe open.
+        // EnsureServiceInstalledAndRunning enforces the same gate for starts.
         internal static bool ServiceStartBlockedByUpgrade() => UpgradeMarker.BlocksAutomaticStart();
+
 
         // Emergency release. Main calls this only for SYSTEM MSI removal or
         // failed-install rollback after the machine-data guard rejected the tree.
@@ -728,6 +763,35 @@ namespace pylorak.TinyWall
         }
 
         // Terminate only controllers from this exact installation.
+        // The upgrade steps need every controller of this installation gone, or a
+        // file stays in use through RemoveFiles.
+        private static void RequireNoInstallationControllers()
+        {
+            using var ownProc = Process.GetCurrentProcess();
+            Process[] procs = Process.GetProcesses();
+            try
+            {
+                foreach (Process p in procs)
+                {
+                    bool controller;
+                    try
+                    {
+                        controller = p.Id != ownProc.Id &&
+                            string.Equals(p.ProcessName, Path.GetFileNameWithoutExtension(Utils.ExecutablePath), StringComparison.OrdinalIgnoreCase) &&
+                            string.Equals(p.MainModule?.FileName, Utils.ExecutablePath, StringComparison.OrdinalIgnoreCase);
+                    }
+                    catch (Exception) when (p.HasExited) { controller = false; }
+                    if (controller && !p.HasExited)
+                        throw new InvalidOperationException("A SecureWall controller (process " + p.Id + ") is still running and could not be closed.");
+                }
+            }
+            finally
+            {
+                foreach (var p in procs)
+                    p.Dispose();
+            }
+        }
+
         private static void TerminateInstallationControllers()
         {
             using var ownProc = Process.GetCurrentProcess();
@@ -829,8 +893,14 @@ namespace pylorak.TinyWall
             {
                 using var scm = new ServiceControlManager();
                 scm.SetStartupMode(TinyWallService.SERVICE_NAME, ServiceStartMode.Automatic);
-                scm.SetRestartOnFailure(TinyWallService.SERVICE_NAME,
-                    ServiceLifecyclePolicy.RestartDelays, ServiceLifecyclePolicy.RestartResetPeriod);
+                // During an in-place upgrade only its commit and rollback steps turn
+                // the restart actions back on; a start in between, the upgraded
+                // service's first start included, must not queue restarts mid-swap.
+                if (UpgradeLifecyclePolicy.UpgradeOwnsRecoverySettings(UpgradeMarker.Read(), UpgradeMarker.InstallerRunning()))
+                    Utils.Log("An in-place upgrade is running; the SecureWall restart actions are left to it.", logContext);
+                else
+                    scm.SetRestartOnFailure(TinyWallService.SERVICE_NAME,
+                        ServiceLifecyclePolicy.RestartDelays, ServiceLifecyclePolicy.RestartResetPeriod);
             }
             catch (System.ComponentModel.Win32Exception e)
             {

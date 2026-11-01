@@ -190,6 +190,11 @@ namespace pylorak.Windows.WFP
             return new SublayerCollection(this);
         }
 
+        public LayerKeyCollection GetLayerKeys()
+        {
+            return new LayerKeyCollection(this);
+        }
+
         public FilterEnumerator EnumerateFilters(bool getFilterConditions)
         {
             return new FilterEnumerator(this, null, getFilterConditions);

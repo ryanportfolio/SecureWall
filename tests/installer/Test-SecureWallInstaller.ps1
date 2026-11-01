@@ -151,6 +151,41 @@ foreach ($expected in $upgradeActions) {
 Assert-True ($wix.SelectSingleNode('//w:CustomAction[@Id="UpgradeStop"]', $ns).Return -eq 'check' -and $wix.SelectSingleNode('//w:CustomAction[@Id="UpgradeStart"]', $ns).Return -eq 'check') 'a failed stop or start rolls the upgrade back'
 Assert-True ($wix.SelectSingleNode('//w:InstallExecuteSequence/w:Custom[@Action="UpgradeStopRollback"]', $ns).Before -eq 'UpgradeStop' -and $wix.SelectSingleNode('//w:InstallExecuteSequence/w:Custom[@Action="UpgradeStartRollback"]', $ns).Before -eq 'UpgradeStart') 'each upgrade rollback twin is registered before its step'
 Assert-True ($wix.SelectSingleNode('//w:InstallExecuteSequence/w:Custom[@Action="UpgradeStop"]', $ns).Before -eq 'UninstallCustomRollback') 'old package stops itself before its files and registry values are removed'
+# Old-side steps must end up Before UnpublishFeatures (so before RemoveRegistryValues,
+# which removes the event source their failure events need, and RemoveFiles). Follow
+# each Before chain of custom actions until it reaches a standard action.
+function Get-BeforeAnchor {
+    param([string]$Action)
+    $seen = @{}
+    while ($true) {
+        if ($seen.ContainsKey($Action)) { return $null }
+        $seen[$Action] = $true
+        $node = $wix.SelectSingleNode("//w:InstallExecuteSequence/w:Custom[@Action='$Action']", $ns)
+        if ($null -eq $node) { return $Action }
+        if (-not $node.Before) { return $null }
+        $Action = $node.Before
+    }
+}
+foreach ($oldSide in 'UpgradeStop', 'UpgradeStopRollback') {
+    Assert-True ((Get-BeforeAnchor $oldSide) -eq 'UnpublishFeatures') "$oldSide is sequenced before UnpublishFeatures"
+}
+# FindRelatedProducts does not run in the old package during its nested removal, so
+# an old-side condition that reads one of its properties would silently be false.
+$relatedProperties = @($wix.SelectNodes('//w:Upgrade/w:UpgradeVersion', $ns) | ForEach-Object { $_.Property })
+foreach ($oldSide in 'UpgradeStop', 'UpgradeStopRollback', 'UninstallCustom', 'UninstallCustomRollback', 'RemoveProductKey', 'RemoveProductKey64') {
+    $condition = Get-SequenceCondition $oldSide
+    Assert-True ($null -ne $condition -and @($relatedProperties | Where-Object { $condition -match "\b$_\b" }).Count -eq 0) "$oldSide condition reads no FindRelatedProducts property"
+}
+# Explicit removal deletes HKLM\SOFTWARE\SecureWall in the commit phase, so a rolled-back
+# uninstall keeps InstallDir and Platform.
+foreach ($expected in @(
+    @{ Id = 'RemoveProductKey64'; Flag = ' /reg:64'; Condition = 'Installed AND REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE AND VersionNT64' },
+    @{ Id = 'RemoveProductKey'; Flag = ''; Condition = 'Installed AND REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE AND NOT VersionNT64' })) {
+    $action = $wix.SelectSingleNode("//w:CustomAction[@Id='$($expected.Id)']", $ns)
+    Assert-True ($null -ne $action -and $action.Execute -eq 'commit' -and $action.Impersonate -eq 'no' -and $action.Return -eq 'ignore' -and
+        $action.ExeCommand -eq ('"[SystemFolder]reg.exe" delete "HKLM\SOFTWARE\SecureWall" /f' + $expected.Flag)) "$($expected.Id) deletes the product key as a SYSTEM commit action"
+    Assert-True ((Get-SequenceCondition $expected.Id) -eq $expected.Condition) "$($expected.Id) runs only on explicit removal"
+}
 Assert-True ($wix.SelectSingleNode('//w:InstallExecuteSequence/w:Custom[@Action="UpgradeStart"]', $ns).Before -eq 'InstallCustomRollback') 'new package starts itself after its files and registry values are installed'
 $startController = $wix.SelectSingleNode('//w:CustomAction[@Id="StartController"]', $ns)
 Assert-True ($startController.ExeCommand -eq '' -and $startController.Execute -eq 'commit' -and -not $startController.Impersonate -and (Get-SequenceCondition 'StartController') -eq 'NOT Installed AND OLDER_UPGRADEABLE_FOUND AND UILevel=5' -and $wix.SelectSingleNode('//w:InstallExecuteSequence/w:Custom[@Action="UpgradeCommit"]', $ns).Before -eq 'StartController') 'upgrade restarts the installing user''s tray without autowhitelist after the commit step'
@@ -164,7 +199,9 @@ $wixProject = Read-RepoFile 'MsiSetup\MsiSetup.wixproj'
 Assert-True ($product -match '(?s)<\?ifdef PreUpgradeVersion \?>\s*<\?undef OldestUpgradeableVersion \?>\s*<\?define OldestUpgradeableVersion="\$\(var\.PreUpgradeVersion\)" \?>' -and $product -match "(?s)<\?ifndef PreUpgradeVersion \?>\s*<UpgradeVersion OnlyDetect='no' MigrateFeatures='yes' Property='OLDER_UPGRADEABLE_FOUND'.*?/>\s*<\?endif \?>" -and $wixProject -match "VersionLessThanOrEquals\('\`$\(SecureWallVersion\)', '0\.5\.0'\)") 'builds at or below 0.5.0, v0.5.0 included, keep a valid Upgrade table with no upgradeable range'
 
 # Fault injection for the upgrade VM cases lives only in the UpgradeFaultTest configuration.
-Assert-True ($product -match '(?s)<\?ifdef UpgradeFaultTest \?>\s*<!--.*?-->\s*<Property Id="SECUREWALLUPGRADEFAULTTEST" Value="1" />\s*<\?endif \?>') 'fault-test packages carry a property release checks can refuse'
+Assert-True ($product -match '(?s)<\?ifdef UpgradeFaultTest \?>\s*<!--.*?-->\s*<Property Id="SECUREWALL_FAULT_TEST" Value="1" />\s*<\?endif \?>') 'fault-test packages carry a property release checks can refuse'
+Assert-True ($product -match '(?s)<\?ifdef UpgradeFaultTest \?>\s*<\?define PackageName="SecureWall \(fault test\)" \?>\s*<\?else \?>\s*<\?define PackageName="\$\(var\.ProductName\)" \?>' -and $product -match '<Product Id="\*" Codepage="1250" Name="\$\(var\.PackageName\)"') 'fault-test packages show a (fault test) ProductName suffix'
+Assert-True ((Test-Path -LiteralPath (Join-Path $repoRoot 'tools\vm\Build-SecureWallUpgradeFaultTest.ps1') -PathType Leaf) -and (Read-RepoFile 'tools\vm\Build-SecureWallUpgradeFaultTest.ps1') -match "artifacts\\upgrade-fault-test") 'fault-test packages have their own builder and output folder'
 Assert-True ($wixProject -match "(?s)Condition="" '\`$\(Configuration\)' == 'UpgradeFaultTest' "">\s*<DefineConstants>UpgradeFaultTest</DefineConstants>") 'only the UpgradeFaultTest installer configuration defines the fault property'
 Assert-True ($project -match "(?s)<PropertyGroup Condition=""'\`$\(Configuration\)' == 'UpgradeFaultTest'"">.*?UPGRADE_FAULT_TEST.*?\+upgrade-fault-test</InformationalVersion>" -and ([regex]::Matches($project, 'UPGRADE_FAULT_TEST')).Count -eq 1) 'only the UpgradeFaultTest application configuration compiles fault points and marks its version'
 $faultSource = Read-RepoFile 'TinyWall\Installer\UpgradeFault.cs'
@@ -338,8 +375,8 @@ Assert-True ($builder -match 'ValidateSet\(''x86'', ''x64'', ''arm64''\)') 'rele
 Assert-True ($builder -match 'SHA256SUMS\.txt') 'release builder emits SHA-256 manifest'
 Assert-True ($builder -match '\[switch\]\$SuppressValidation') 'release builder exposes explicit sandbox ICE bypass'
 Assert-True ($builder -notmatch '(?im)^\s*(Start-Process\s+msiexec|&\s*msiexec|msiexec\.exe)') 'release builder never installs generated MSI files'
-Assert-True ($builder -match "upgrade-fault-test" -and $builder -match '\$isFaultBuild -ne \(\$Configuration -eq ''UpgradeFaultTest''\)') 'release builder refuses a fault-test executable outside the UpgradeFaultTest configuration'
-Assert-True ($builder -match "(?s)if \(\`$Configuration -eq 'UpgradeFaultTest'\) \{\s*Join-Path \`$repoRoot 'artifacts\\upgrade-fault-test'") 'fault-test packages never land in artifacts\release by default'
+Assert-True ($builder -notmatch 'UpgradeFaultTest') 'release builder never references the fault-test configuration'
+Assert-True ($builder -match "-match 'fault-test'" -and $builder.Contains("Contains('SecureWallFaultTest')") -and $builder -match 'refusing to package it') 'release builder refuses an executable with either fault-test stamp'
 
 $releaseWorkflow = Read-RepoFile '.github\workflows\release.yml'
 Assert-True ($releaseWorkflow -match 'contents:\s*write') 'release workflow grants upload job write access'
@@ -350,7 +387,8 @@ $ciWorkflow = Read-RepoFile '.github\workflows\ci.yml'
 Assert-True ($releaseWorkflow -notmatch 'UpgradeFaultTest' -and $ciWorkflow -notmatch 'UpgradeFaultTest') 'release and CI workflows never build the fault-test configuration'
 $stagedExecutable = Join-Path $repoRoot 'MsiSetup\Sources\ProgramFiles\SecureWall\SecureWall.exe'
 if (Test-Path -LiteralPath $stagedExecutable -PathType Leaf) {
-    Assert-True ((Get-Item -LiteralPath $stagedExecutable).VersionInfo.ProductVersion -notmatch 'upgrade-fault-test') 'staged installer payload is not a fault-test build'
+    $stagedText = [System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes($stagedExecutable))
+    Assert-True ((Get-Item -LiteralPath $stagedExecutable).VersionInfo.ProductVersion -notmatch 'fault-test' -and -not $stagedText.Contains('SecureWallFaultTest')) 'staged installer payload is not a fault-test build'
 }
 
 if ($ArtifactsDirectory) {
@@ -382,7 +420,7 @@ if ($ArtifactsDirectory) {
             Assert-True ((Get-MsiProperty $installer $msiPath 'ProductName') -eq 'SecureWall') "$name ProductName is SecureWall"
             Assert-True ((Get-MsiProperty $installer $msiPath 'ProductVersion') -eq '0.4.2.0') "$name ProductVersion is 0.4.2.0"
             Assert-True ((Get-MsiProperty $installer $msiPath 'ALLUSERS') -eq '1') "$name is per-machine"
-            Assert-True ($null -eq (Get-MsiProperty $installer $msiPath 'SECUREWALLUPGRADEFAULTTEST')) "$name is not an upgrade fault-test package"
+            Assert-True ($null -eq (Get-MsiProperty $installer $msiPath 'SECUREWALL_FAULT_TEST')) "$name is not an upgrade fault-test package"
         }
     }
 }

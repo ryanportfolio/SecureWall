@@ -1337,8 +1337,23 @@ namespace pylorak.TinyWall
             ApplyFirewallSettings(confCopy);
         }
 
+        // A controller that starts during an in-place upgrade must not hold
+        // SecureWall.exe open through RemoveFiles or start the service mid-swap.
+        private bool ExitIfUpgrading()
+        {
+            if (!TinyWallDoctor.ServiceStartBlockedByUpgrade())
+                return false;
+            MessageBox.Show(Prompting.UpgradeLifecyclePolicy.InProgressMessage, Resources.Messages.TinyWall, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            Tray.Visible = false;
+            ExitThread();
+            return true;
+        }
+
         private void InitController()
         {
+            if (ExitIfUpgrading())
+                return;
+
             mnuTrafficRate.Text = string.Format(CultureInfo.CurrentCulture, "{0}: {1}   {2}: {3}", Resources.Messages.TrafficIn, "...", Resources.Messages.TrafficOut, "...");
 
             // The logon task starts the controller elevated. Without this, UIPI drops the TaskbarCreated
@@ -1391,11 +1406,11 @@ namespace pylorak.TinyWall
 #if !DEBUG
             if (comError)
             {
-                // During an in-place upgrade the service is stopped on purpose and
-                // must not be started until setup does it.
-                if (TinyWallDoctor.ServiceStartBlockedByUpgrade())
-                    MessageBox.Show(Prompting.UpgradeLifecyclePolicy.InProgressMessage, Resources.Messages.TinyWall, MessageBoxButtons.OK, MessageBoxIcon.Information);
-                else if (TinyWallDoctor.EnsureServiceInstalledAndRunning(Utils.LOG_ID_GUI, false))
+                // An upgrade that began after the check above: the service is
+                // stopped on purpose and must not be started until setup does it.
+                if (ExitIfUpgrading())
+                    return;
+                if (TinyWallDoctor.EnsureServiceInstalledAndRunning(Utils.LOG_ID_GUI, false))
                     LoadSettingsFromServer(out comError, true);
                 else
                     MessageBox.Show(Resources.Messages.TheTinyWallServiceIsUnavailable, Resources.Messages.TinyWall, MessageBoxButtons.OK, MessageBoxIcon.Error);
