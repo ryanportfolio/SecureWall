@@ -10,6 +10,7 @@ using System.Globalization;
 using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace pylorak.TinyWall
@@ -267,10 +268,8 @@ namespace pylorak.TinyWall
             }
 
             // Rebuilding the list resets its scroll position and selection, so remember
-            // which rows were at the top and selected, and put them back afterwards.
-            ListViewItem? oldTop = list.Items.Count > 0 ? list.TopItem : null;
-            string? topKey = (oldTop != null && oldTop.Index > 0) ? RowKey(oldTop) : null;
-            int topIndex = oldTop?.Index ?? 0;
+            // the scroll position and the selected rows, and put them back afterwards.
+            int topIndex = list.Items.Count > 0 ? (list.TopItem?.Index ?? 0) : 0;
             string? focusedKey = (list.FocusedItem != null) ? RowKey(list.FocusedItem) : null;
             var selectedKeys = new HashSet<string>(StringComparer.Ordinal);
             foreach (ListViewItem li in list.SelectedItems)
@@ -280,7 +279,6 @@ namespace pylorak.TinyWall
             list.BeginUpdate();
             list.Items.Clear();
             list.Items.AddRange(itemColl.ToArray());
-            ListViewItem? newTop = null;
             foreach (ListViewItem li in list.Items)
             {
                 string key = RowKey(li);
@@ -288,20 +286,29 @@ namespace pylorak.TinyWall
                     li.Selected = true;
                 if ((focusedKey != null) && (key == focusedKey))
                     li.Focused = true;
-                if ((newTop == null) && (topKey != null) && (key == topKey))
-                    newTop = li;
+            }
+
+            // Keep the scrollbar where the user left it: scroll back down by the same number
+            // of rows while redrawing is still off, so the list never paints at the top first.
+            // The row offset is kept rather than the row, because rows above it come and go on
+            // every refresh. The list control clamps the offset when the list got shorter.
+            if ((topIndex > 0) && (list.Items.Count > 0))
+            {
+                int rowHeight = list.GetItemRect(0).Height;
+                NativeMethods.SendMessage(list.Handle, NativeMethods.LVM_SCROLL, IntPtr.Zero, new IntPtr(topIndex * rowHeight));
             }
             list.EndUpdate();
 
-            // A user at the top stays there and sees new rows arrive. Otherwise keep the same
-            // row at the top, or the same position if that row is gone.
-            if ((newTop == null) && (topIndex > 0) && (list.Items.Count > 0))
-                newTop = list.Items[Math.Min(topIndex, list.Items.Count - 1)];
-            if (newTop != null)
-                list.TopItem = newTop;
-
             // Load process icons asynchronously
             IconScanner.Rescan(itemColl, list, IconList);
+        }
+
+        private static class NativeMethods
+        {
+            internal const int LVM_SCROLL = 0x1000 + 20;
+
+            [DllImport("user32.dll")]
+            internal static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
         }
 
         // Identifies a row across refreshes: every column except the timestamp, which changes
