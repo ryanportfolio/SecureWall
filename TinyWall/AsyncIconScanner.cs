@@ -62,7 +62,10 @@ namespace pylorak.TinyWall
                                         icon_idx = imageList.Images.IndexOfKey(icon_path);
                                         LoadedIcons.TryAdd(icon_path, icon_idx);
                                     }
-                                    li.ImageIndex = icon_idx;
+                                    // A refresh can move another row's content into this item
+                                    // before this runs.
+                                    if (PathExtractor(li) == icon_path)
+                                        li.ImageIndex = icon_idx;
                                 }
                                 // Ignore any errors during icon loading, it is purely aesthetical
                                 catch { }
