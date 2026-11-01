@@ -50,6 +50,9 @@ namespace pylorak.TinyWall
         [DataMember(EmitDefaultValue = false)]
         public bool DisplayOffBlock { get; set; } = false;
 
+        [DataMember(EmitDefaultValue = false)]
+        public List<AlwaysAllowRule> AlwaysAllowRules { get; set; } = new List<AlwaysAllowRule>();
+
         public ServerProfileConfiguration()
         { }
 

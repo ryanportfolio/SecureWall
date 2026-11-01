@@ -92,10 +92,15 @@ namespace pylorak.TinyWall
                 : PromptActionStatus.ApplyFailed;
         }
 
-        internal PromptActionStatus AllowPrompt(Guid token)
+        internal PromptActionStatus AllowPrompt(Guid token) =>
+            SendAllow(TwMessagePromptAction.CreateAllowRequest(token));
+
+        internal PromptActionStatus AllowPromptAlways(Guid token) =>
+            SendAllow(TwMessagePromptAction.CreateAllowAlwaysRequest(token));
+
+        private PromptActionStatus SendAllow(TwMessagePromptAction request)
         {
-            TwMessage response = Endpoint.QueueMessage(
-                TwMessagePromptAction.CreateAllowRequest(token)).Response;
+            TwMessage response = Endpoint.QueueMessage(request).Response;
             if (response is TwMessagePromptAction action)
                 return action.Status;
             if (response is TwMessageLocked)

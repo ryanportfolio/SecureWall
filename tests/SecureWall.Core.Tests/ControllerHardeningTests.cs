@@ -1,3 +1,4 @@
+using pylorak.TinyWall;
 using pylorak.TinyWall.Prompting;
 
 namespace SecureWall.Core.Tests;
@@ -20,6 +21,9 @@ internal static class ControllerHardeningTests
         ("expired and revoked prompts go to the missed list, answered ones do not", UnansweredPromptsAreMissed),
         ("a live prompt replaces its missed entry and the list is bounded", MissedListDedupesAndBounds),
         ("allow on an expired or revoked token keeps the prompt in the missed list", FailedAllowIsMissed),
+        ("always allow sends its own request for the same token and completes the prompt", AlwaysAllowUsesItsRequest),
+        ("always allow rules match any folder by file name and only the exact signer", AlwaysAllowRuleMatching),
+        ("only a granted always allow counts as owner activity", AlwaysAllowActivity),
         ("locked allow unlocks retries the same token and relocks", LockedAllowUnlocksAndRelocks),
         ("cancelled popup unlock keeps the prompt blocked and open", CancelledUnlockKeepsPromptOpen),
         ("allow after an unlock elsewhere retries without relocking", AlreadyUnlockedRetriesWithoutRelock),
@@ -180,6 +184,59 @@ internal static class ControllerHardeningTests
         now = Start.AddSeconds(1);
         view.Allow();
         Check(actions.AllowCount == 0 && view.Closed && display.CurrentToken == null);
+    }
+
+    private static void AlwaysAllowUsesItsRequest()
+    {
+        var actions = new Actions();
+        var views = new List<View>();
+        using var display = new PromptDisplayCoordinator(actions, () => NewView(views), () => Start);
+        var prompt = Prompt(Start.AddMinutes(2));
+        display.Reconcile(new[] { prompt });
+        views[0].AlwaysAllow();
+        Check(actions.AllowAlwaysCount == 1 && actions.AllowCount == 0 && actions.AllowTokens.Single() == prompt.Token);
+        Check(views[0].Closed && display.CurrentToken == null && display.MissedPrompts.Count == 0);
+
+        // A locked service: the same Always allow is retried after the unlock, then relocked.
+        var locked = new Actions { UnlockResult = PromptUnlockResult.Unlocked };
+        locked.AllowResults.Enqueue(PromptActionStatus.Locked);
+        var lockedViews = new List<View>();
+        using var lockedDisplay = new PromptDisplayCoordinator(locked, () => NewView(lockedViews), () => Start);
+        lockedDisplay.Reconcile(new[] { Prompt(Start.AddMinutes(2)) });
+        lockedViews[0].AlwaysAllow();
+        Check(locked.AllowAlwaysCount == 2 && locked.AllowCount == 0 && locked.RelockCount == 1 && lockedViews[0].Closed);
+    }
+
+    private static void AlwaysAllowRuleMatching()
+    {
+        const string anthropic = "CN=\"Anthropic, PBC\", O=\"Anthropic, PBC\", C=US";
+        var rule = new AlwaysAllowRule("claude.exe", anthropic, "Anthropic, PBC");
+        Check(rule.NameMatches(@"C:\Users\me\AppData\Local\AnthropicClaude\app-4.29.0\claude.exe"));
+        Check(rule.NameMatches(@"C:\Users\me\.local\bin\CLAUDE.EXE"));
+        Check(!rule.NameMatches(@"C:\Users\me\Downloads\claude.exe.bak"));
+        Check(!rule.NameMatches(@"C:\Users\me\Downloads\notclaude.exe"));
+        Check(rule.Matches(@"D:\anywhere\claude.exe", anthropic));
+        Check(!rule.Matches(@"D:\anywhere\claude.exe", "CN=\"Anthropic, PBC\", O=Someone Else"));
+        Check(!rule.Matches(@"D:\anywhere\claude.exe", anthropic.ToLowerInvariant()));
+        Check(!new AlwaysAllowRule("claude.exe", string.Empty, string.Empty).NameMatches(@"C:\x\claude.exe"));
+        Check(!new AlwaysAllowRule(string.Empty, anthropic, "Anthropic, PBC").Matches(@"C:\x\claude.exe", anthropic));
+
+        var rules = new List<AlwaysAllowRule>();
+        Check(AlwaysAllowRule.AddTo(rules, rule));
+        Check(!AlwaysAllowRule.AddTo(rules, new AlwaysAllowRule("CLAUDE.exe", anthropic, "other display name")));
+        Check(AlwaysAllowRule.AddTo(rules, new AlwaysAllowRule("claude.exe", "CN=Other", "Other")));
+        Check(rules.Count == 2);
+    }
+
+    private static void AlwaysAllowActivity()
+    {
+        foreach (PromptActionStatus status in Enum.GetValues<PromptActionStatus>())
+        {
+            bool counted = ControllerActivityPolicy.IsUserActivity(MessageType.ALLOW_PROMPT_ALWAYS, MessageType.ALLOW_PROMPT_ALWAYS, status);
+            Check(counted == (status == PromptActionStatus.Allowed));
+        }
+        Check(!ControllerActivityPolicy.IsUserActivity(MessageType.ALLOW_PROMPT_ALWAYS, MessageType.ALLOW_PROMPT, PromptActionStatus.Allowed));
+        Check(!ControllerActivityPolicy.IsUserActivity(MessageType.ALLOW_PROMPT_ALWAYS, MessageType.RESPONSE_LOCKED, null));
     }
 
     private static void PopupStaysUntilTokenExpiry()
@@ -494,8 +551,14 @@ internal static class ControllerHardeningTests
     private static void Check(bool value) { if (!value) throw new InvalidOperationException("Hardening assertion failed."); }
     private sealed class Actions : IPromptActionClient
     {
-        internal int AllowCount, DismissCount, TimeoutCount, UnlockCount, RelockCount;
+        internal int AllowCount, AllowAlwaysCount, DismissCount, TimeoutCount, UnlockCount, RelockCount;
         internal readonly List<Guid> AllowTokens = new();
+        public PromptActionStatus AllowAlways(Guid token)
+        {
+            AllowAlwaysCount++;
+            AllowTokens.Add(token);
+            return AllowResults.Count > 0 ? AllowResults.Dequeue() : PromptActionStatus.Allowed;
+        }
         internal PromptActionStatus DismissResult = PromptActionStatus.Dismissed;
         internal Queue<PromptActionStatus> AllowResults = new();
         internal PromptUnlockResult UnlockResult = PromptUnlockResult.NotUnlocked;
@@ -514,6 +577,7 @@ internal static class ControllerHardeningTests
     private sealed class View : IPromptView
     {
         public event EventHandler? AllowRequested;
+        public event EventHandler? AlwaysAllowRequested;
         public event EventHandler? IgnoreRequested;
         public event EventHandler? PromptClosed { add { } remove { } }
         public event EventHandler? PromptTimedOut;
@@ -521,6 +585,7 @@ internal static class ControllerHardeningTests
         internal int Waiting = -1;
         internal readonly List<PromptActionStatus> Failures = new();
         internal void Allow() => AllowRequested?.Invoke(this, EventArgs.Empty);
+        internal void AlwaysAllow() => AlwaysAllowRequested?.Invoke(this, EventArgs.Empty);
         internal void Ignore() => IgnoreRequested?.Invoke(this, EventArgs.Empty);
         internal void Timeout() => PromptTimedOut?.Invoke(this, EventArgs.Empty);
         public void ShowPrompt(PromptWireDto prompt) { }

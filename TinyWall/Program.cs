@@ -87,6 +87,8 @@ namespace pylorak.TinyWall
 
             popup.AllowRequested += (sender, eventArgs) =>
                 popup.ShowActionFailure(PromptActionStatus.ApplyFailed);
+            popup.AlwaysAllowRequested += (sender, eventArgs) =>
+                popup.ShowActionFailure(PromptActionStatus.ApplyFailed);
             popup.IgnoreRequested += ExitPreview;
             popup.PromptClosed += ExitPreview;
             popup.PromptTimedOut += ExitPreview;
@@ -120,6 +122,7 @@ namespace pylorak.TinyWall
                 TwMessagePromptAction.CreateDismissRequest(token),
                 TwMessagePromptAction.CreateTimeoutDismissRequest(token),
                 TwMessagePromptAction.CreateAllowRequest(token),
+                TwMessagePromptAction.CreateAllowAlwaysRequest(token),
             };
 
             foreach (TwMessage message in messages)

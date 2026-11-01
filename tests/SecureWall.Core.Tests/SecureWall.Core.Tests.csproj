@@ -28,6 +28,7 @@
     <Compile Include="..\..\TinyWall\ExceptionSubject.cs" Link="ExceptionSubject.cs" />
     <Compile Include="..\..\TinyWall\FirewallException.cs" Link="FirewallException.cs" />
     <Compile Include="..\..\TinyWall\ServerConfiguration.cs" Link="ServerConfiguration.cs" />
+    <Compile Include="..\..\TinyWall\AlwaysAllowRule.cs" Link="AlwaysAllowRule.cs" />
   </ItemGroup>
 
   <!--
