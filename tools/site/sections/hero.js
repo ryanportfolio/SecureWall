@@ -238,7 +238,7 @@
     `
 onmessage = ({ data: { image, w, h, scale, opts } }) => {
   const ctx = new OffscreenCanvas(w, h).getContext("2d");
-  ctx.drawImage(image, 0, 0);
+  ctx.drawImage(image, 0, 0, w, h);
   image.close();
   const px = fieldPixels(ctx.getImageData(0, 0, w, h).data, w, h, scale, opts);
   postMessage(px, [px.buffer]);
@@ -248,7 +248,11 @@ onmessage = ({ data: { image, w, h, scale, opts } }) => {
     if (worker === undefined) {
       worker = null;
       try {
-        if (typeof OffscreenCanvas === "function") worker = new Worker(URL.createObjectURL(new Blob([WORKER], { type: "text/javascript" })));
+        if (typeof OffscreenCanvas === "function") {
+          const url = URL.createObjectURL(new Blob([WORKER], { type: "text/javascript" }));
+          worker = new Worker(url);
+          URL.revokeObjectURL(url);
+        }
       } catch {
         worker = null;
       }
@@ -290,7 +294,7 @@ onmessage = ({ data: { image, w, h, scale, opts } }) => {
         scratch.width = w;
         scratch.height = h;
         const ctx = scratch.getContext("2d", { willReadFrequently: true });
-        ctx.drawImage(image, 0, 0);
+        ctx.drawImage(image, 0, 0, w, h);
         image.close();
         px = fieldPixels(ctx.getImageData(0, 0, w, h).data, w, h, scale, opts);
       }
@@ -632,6 +636,7 @@ gl_FragColor=vec4(c,mix(1.,uAlpha,smoothstep(uFadeFrom,1.,o))*uOpacity*(1.-smoot
     stopFooter = SW.onFrame(() => {
       if (!rise) return;
       rise = 0;
+      appear = 0;
       text?.setAmount(0);
       rings?.setAmount(0);
       SW.lens();

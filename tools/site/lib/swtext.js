@@ -52,8 +52,11 @@
 //     that terrain's previous frame, capped at 0.1; now is performance.now().
 //     The terrain is transparent, so it draws after opaque meshes: changes
 //     made here to an opaque mesh (a SliceText without blend) show from the
-//     next frame, while terrain uniforms (setMound) and meshes drawn after
-//     the terrain (a SliceText with blend) take them in this frame. A throwing fn is
+//     next frame, while terrain uniforms (setMound) and the uniforms of meshes
+//     drawn after the terrain (a SliceText with blend: setFade, place's
+//     homography) take them in this frame; instance matrices and visibility
+//     (setAmount, place's footprint) always apply from the next frame. A
+//     throwing fn is
 //     unsubscribed.
 //
 //   glyphMask(element, { pad = 0.15, width = 2048, edge = 0.05, bold = 0 })
@@ -101,7 +104,8 @@
 //     hidden until placed. With blend, it is drawn with the transparent
 //     objects after the terrain (renderOrder 2), face first, so each pixel
 //     takes only its nearest slice and setFade fades it as one surface;
-//     placement changes made in onFrame then show in the same frame.
+//     setFade and place's homography made in onFrame then show in the same
+//     frame (see onFrame).
 //     .mesh                     the InstancedMesh
 //     .map                      homography from the last place(), or null
 //     .place(camera, renderer)  maps mask.box onto the plane at topZ, so the
