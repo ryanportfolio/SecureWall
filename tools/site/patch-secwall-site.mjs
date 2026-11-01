@@ -41,6 +41,11 @@ const BUNDLE_PATCHES = [
     "this.mesh.name=this.options.name;(window.__swLayers=window.__swLayers||[]).push(this);",
     "window.__swLayers",
   ],
+  [
+    'this.compositePass.name="Final Composite",',
+    'this.compositePass.name="Final Composite",window.__swComposite=this.compositePass,',
+    "window.__swComposite",
+  ],
 ];
 
 class Failure extends Error {}
