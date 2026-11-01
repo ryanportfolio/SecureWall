@@ -64,7 +64,8 @@ namespace pylorak.TinyWall.Installer
             MachineDataPolicy.CheckTree(path, entry => Check(entry, false), Directory.GetFileSystemEntries);
         }
 
-        private static bool Check(string path, bool ancestor)
+        // Also validates the update staging folder (UpdateApplier).
+        internal static bool Check(string path, bool ancestor)
         {
             FileAttributes attributes = File.GetAttributes(path);
             if ((attributes & FileAttributes.ReparsePoint) != 0)

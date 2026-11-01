@@ -1,6 +1,6 @@
 # In-place MSI upgrade and "Check for updates": design plan
 
-Baseline: `de7ac3dc` (v0.4.2). Status: approved by the owner on 2026-11-01 with the recommended answers below. Phase A shipped in v0.5.0 (#38, #42); Phase B is not built.
+Baseline: `de7ac3dc` (v0.4.2). Status: approved by the owner on 2026-11-01 with the recommended answers below. Phase A shipped in v0.5.0 (#38, #42). Phase B steps B1 to B6 are built; prereleases are offered by default (decision 3). The B7 VM harness and B8 VM cases remain.
 
 Today an upgrade means uninstalling SecureWall in Settings > Apps and installing the new MSI. Between the two the PC has no SecureWall policy at all: `/msi-cleanup` releases the persistent deny baseline, the Windows Firewall compatibility rules and the service. This plan replaces that with two features, built in this order:
 
@@ -334,7 +334,7 @@ Approved by the owner on 2026-11-01 ("Yes, recommended").
 
 1. **v0.4.2 and older:** one last manual uninstall-and-install reaches v0.5.0. No re-caching of old packages.
 2. **Signing:** owner-held ECDSA P-256 key in the Windows CNG store, plus an offline backup key, with a manual signing step per release. No CI-secret key. Authenticode is reconsidered before the first non-prerelease release.
-3. **Prereleases:** not settled. The plan offered no recommendation here, so the approval does not cover it. The build defaults "Include prereleases" to off, as the original brief asked (the owner opts in), and this is confirmed with the owner before step B5. Note for that conversation: `release.yml` refuses to attach unsigned MSIs to a non-prerelease release, so until Authenticode exists every release is a prerelease, and with the setting off the button never offers anything.
+3. **Prereleases:** on by default (owner, 2026-11-01). Until Authenticode exists every release is a prerelease, because `release.yml` refuses to attach unsigned MSIs to a full release, so with the setting off the button would never offer anything. Only an explicit choice is stored, so the default can change once full releases exist.
 4. **Network permit:** a transient grant of at most 10 minutes per network phase, for the requesting user only, never saved.
 5. **Automatic checks:** manual button only.
 6. **Password lock:** Install requires unlocking when a password is set. Because the permit request is a password-gated message, the check itself also asks for the password when locked.

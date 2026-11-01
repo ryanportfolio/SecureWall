@@ -51,6 +51,7 @@ namespace pylorak.TinyWall
             InitializeDiagnosticsControls();
             InitializeAlwaysAllowTab();
             InitializeIgnoredTab();
+            InitializeUpdateControls();
             Utils.SetRightToLeft(this);
             if (Utils.IsDarkModeActive(controller))
             {
@@ -162,6 +163,7 @@ namespace pylorak.TinyWall
                 label10.Visible = false;
                 lblAboutHomepageLink.Text = "SecureWall source (GPLv3)";
                 chkAskForExceptionDetails.Checked = TmpConfig.Controller.AskForExceptionDetails;
+                LoadUpdateSettings();
                 comboLanguages.SelectedIndex = 0;
                 for (int i = 0; i < comboLanguages.Items.Count; ++i)
                 {
@@ -389,6 +391,7 @@ namespace pylorak.TinyWall
 
             TmpConfig.Controller.Language = ((IdWithName)comboLanguages.SelectedItem).Id;
             TmpConfig.Controller.UiTheme = ((IdWithName)comboUiTheme.SelectedItem).Id;
+            SaveUpdateSettings();
 
             // The form is shown modeless; DialogResult alone closes only a modal form.
             this.DialogResult = DialogResult.OK;

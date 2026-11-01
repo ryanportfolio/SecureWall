@@ -36,6 +36,8 @@ namespace pylorak.TinyWall
                 MessageType.ADD_TEMPORARY_EXCEPTION => (TwMessage?)JsonSerializer.Deserialize<TwMessageAddTempException>(ref reader, SourceGenerationContext.Default.TwMessageAddTempException),
                 MessageType.ALLOW_PROMPT => (TwMessage?)JsonSerializer.Deserialize<TwMessagePromptAction>(ref reader, SourceGenerationContext.Default.TwMessagePromptAction),
                 MessageType.ALLOW_PROMPT_ALWAYS => (TwMessage?)JsonSerializer.Deserialize<TwMessagePromptAction>(ref reader, SourceGenerationContext.Default.TwMessagePromptAction),
+                MessageType.UPDATE_NETWORK_GRANT => (TwMessage?)JsonSerializer.Deserialize<TwMessageUpdateNetwork>(ref reader, SourceGenerationContext.Default.TwMessageUpdateNetwork),
+                MessageType.UPDATE_NETWORK_RELEASE => (TwMessage?)JsonSerializer.Deserialize<TwMessageUpdateNetwork>(ref reader, SourceGenerationContext.Default.TwMessageUpdateNetwork),
                 _ => throw new JsonException($"Tried to deserialize unsupported type with discriminator {(MessageType)discriminator}."),
             };
             return ret;
@@ -75,6 +77,8 @@ namespace pylorak.TinyWall
                     JsonSerializer.Serialize<TwMessageSimple>(writer, typedVal, SourceGenerationContext.Default.TwMessageSimple); break;
                 case TwMessageAddTempException typedVal:
                     JsonSerializer.Serialize<TwMessageAddTempException>(writer, typedVal, SourceGenerationContext.Default.TwMessageAddTempException); break;
+                case TwMessageUpdateNetwork typedVal:
+                    JsonSerializer.Serialize<TwMessageUpdateNetwork>(writer, typedVal, SourceGenerationContext.Default.TwMessageUpdateNetwork); break;
                 default:
                     throw new JsonException($"Tried to serialize unsupported type {value.GetType()}.");
             };
@@ -448,6 +452,33 @@ namespace pylorak.TinyWall
         {
             return new TwMessageAddTempException(Array.Empty<FirewallExceptionV3>());
         }
+    }
+
+    // Check for updates. The request carries nothing: the service identifies the caller from
+    // the pipe connection itself. The response says what the service did.
+    internal record TwMessageUpdateNetwork : TwMessage
+    {
+        public UpdateGrantStatus Status { get; }
+        public int SecondsLeft { get; }
+
+        [JsonConstructor]
+        public TwMessageUpdateNetwork(MessageType type, UpdateGrantStatus status, int secondsLeft) :
+            base(type)
+        {
+            if (type != MessageType.UPDATE_NETWORK_GRANT && type != MessageType.UPDATE_NETWORK_RELEASE)
+                throw new ArgumentOutOfRangeException(nameof(type));
+            Status = status;
+            SecondsLeft = secondsLeft;
+        }
+
+        internal static TwMessageUpdateNetwork CreateGrantRequest() =>
+            new TwMessageUpdateNetwork(MessageType.UPDATE_NETWORK_GRANT, UpdateGrantStatus.Failed, 0);
+
+        internal static TwMessageUpdateNetwork CreateReleaseRequest() =>
+            new TwMessageUpdateNetwork(MessageType.UPDATE_NETWORK_RELEASE, UpdateGrantStatus.Failed, 0);
+
+        internal TwMessageUpdateNetwork CreateResponse(UpdateGrantStatus status, int secondsLeft = 0) =>
+            new TwMessageUpdateNetwork(Type, status, secondsLeft);
     }
 
     public record TwMessageDisplayPowerEvent : TwMessage

@@ -917,6 +917,7 @@ namespace pylorak.TinyWall
             Guid openedChangeset = GlobalInstances.ClientChangeset;
 
             var sf = new SettingsForm(Utils.DeepClone(ActiveConfig.Service), Utils.DeepClone(ActiveConfig.Controller));
+            sf.CheckForUpdatesRequested += (_, includePrereleases) => CheckForUpdates(includePrereleases);
             ActiveForms.Add(sf);
             sf.FormClosed += (_, _) => SettingsFormClosed(sf, openedChangeset);
             sf.Show();
@@ -953,6 +954,7 @@ namespace pylorak.TinyWall
                         live.SettingsTabIndex = edited.SettingsTabIndex;
                         live.Language = edited.Language;
                         live.UiTheme = edited.UiTheme;
+                        live.UpdateIncludePrereleases = edited.UpdateIncludePrereleases;
                     }
                     ActiveConfig.Controller.Save();
 
@@ -1402,6 +1404,7 @@ namespace pylorak.TinyWall
                     () => new BlockedConnectionPopup(),
                     performAction: action => Task.Run(action));
                 InitMissedPromptsMenu(PromptCoordinator);
+                InitUpdatesMenu();
                 PromptPollTimer.Enabled = true;
 
                 barrier.Wait();
@@ -1428,6 +1431,7 @@ namespace pylorak.TinyWall
            if ((FirewallState.Mode != FirewallMode.Unknown) || (!StartupOpts.startup))
             {
                 Tray.Visible = true;
+                ShowUpdatedNotice();
 
                 if (StartupOpts.autowhitelist)
                 {
@@ -1451,6 +1455,7 @@ namespace pylorak.TinyWall
             {
                 ServiceTimer.Enabled = false;
                 Tray.Visible = true;
+                ShowUpdatedNotice();
             }
         }
     }

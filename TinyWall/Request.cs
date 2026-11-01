@@ -9,6 +9,8 @@ namespace pylorak.TinyWall
         private object ResponseSyncRoot { get { return this; } }
 
         public TwMessage Request { get; init; }
+        // The authenticated pipe client's process ID; 0 for requests the service makes itself.
+        public uint ClientProcessId { get; init; }
         public TwMessage Response
         {
             get

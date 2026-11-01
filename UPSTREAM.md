@@ -114,6 +114,6 @@ SecureWall uses a distinct product name, executable identity, Windows service na
 
 Source-file namespaces and some internal class names remain `pylorak.TinyWall` to keep the fork reviewable and reduce unnecessary divergence. They do not identify the installed product.
 
-SecureWall has no update feed and contains no update client. The TinyWall updater and its feed URL were removed (see "Not applicable" above).
+The TinyWall updater and its feed URL were removed (see "Not applicable" above), and SecureWall never contacts TinyWall's update server. SecureWall has its own user-initiated release check against its GitHub releases, run by the controller and verified with release keys embedded in `SecureWall.exe` (`docs/SECURITY.md`, "Check for updates").
 
 SecureWall is not TinyWall and is not endorsed by TinyWall's author.

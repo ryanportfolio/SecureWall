@@ -113,6 +113,19 @@ namespace pylorak.TinyWall
             return PromptActionStatus.ApplyFailed;
         }
 
+        // Check for updates. Locked comes back as RESPONSE_LOCKED with status Failed.
+        internal MessageType RequestUpdateNetwork(out UpdateGrantStatus status)
+        {
+            TwMessage response = Endpoint.QueueMessage(TwMessageUpdateNetwork.CreateGrantRequest()).Response;
+            status = response is TwMessageUpdateNetwork grant ? grant.Status : UpdateGrantStatus.Failed;
+            return response.Type;
+        }
+
+        internal void ReleaseUpdateNetwork()
+        {
+            _ = Endpoint.QueueMessage(TwMessageUpdateNetwork.CreateReleaseRequest()).Response;
+        }
+
         public MessageType SwitchFirewallMode(FirewallMode mode)
         {
             return Endpoint.QueueMessage(TwMessageModeSwitch.CreateRequest(mode)).Response.Type;

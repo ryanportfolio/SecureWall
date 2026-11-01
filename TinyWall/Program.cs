@@ -124,6 +124,9 @@ namespace pylorak.TinyWall
                 TwMessagePromptAction.CreateIgnoreRequest(token),
                 TwMessagePromptAction.CreateAllowRequest(token),
                 TwMessagePromptAction.CreateAllowAlwaysRequest(token),
+                TwMessageUpdateNetwork.CreateGrantRequest(),
+                TwMessageUpdateNetwork.CreateGrantRequest().CreateResponse(UpdateGrantStatus.Granted, 600),
+                TwMessageUpdateNetwork.CreateReleaseRequest(),
             };
 
             foreach (TwMessage message in messages)
@@ -133,6 +136,9 @@ namespace pylorak.TinyWall
                 if (copy.Type != message.Type)
                     return 1;
                 if (copy is TwMessagePromptAction action && action.Token != token)
+                    return 1;
+                if (copy is TwMessageUpdateNetwork grant && message is TwMessageUpdateNetwork original &&
+                    (grant.Status != original.Status || grant.SecondsLeft != original.SecondsLeft))
                     return 1;
                 if (copy is TwMessageReadPendingPrompts prompts &&
                     (prompts.Prompts.Length != 1 || prompts.Prompts[0].Token != token))
@@ -211,8 +217,10 @@ namespace pylorak.TinyWall
             };
             int requestCount = 0;
 
-            TwMessage HandleRequest(TwMessage request)
+            TwMessage HandleRequest(TwMessage request, uint clientProcessId)
             {
+                if (clientProcessId != (uint)System.Diagnostics.Process.GetCurrentProcess().Id)
+                    return TwMessageError.Instance;
                 Interlocked.Increment(ref requestCount);
                 if (request is TwMessageReadPendingPrompts readRequest)
                     return readRequest.CreateResponse(new[] { prompt });
@@ -399,6 +407,10 @@ namespace pylorak.TinyWall
                 return RunUpgradeStep(args, UpgradeLifecyclePolicy.AbortMode, TinyWallDoctor.UpgradeAbortForMsi);
             if (Utils.StringArrayContains(args, UpgradeLifecyclePolicy.CommitMode))
                 return RunUpgradeStep(args, UpgradeLifecyclePolicy.CommitMode, TinyWallDoctor.UpgradeCommitForMsi);
+            // Check for updates: the elevated step that verifies a downloaded release and
+            // starts its MSI. It shows its own error dialogs and never starts a controller.
+            if (Utils.StringArrayContains(args, UpdateApplyPolicy.Switch))
+                return Installer.UpdateApplier.Run(args);
 
             var opts = new CmdLineArgs();
             if (!Environment.UserInteractive || Utils.StringArrayContains(args, "/service"))

@@ -30,6 +30,7 @@
     <Compile Include="..\..\TinyWall\ServerConfiguration.cs" Link="ServerConfiguration.cs" />
     <Compile Include="..\..\TinyWall\AlwaysAllowRule.cs" Link="AlwaysAllowRule.cs" />
     <Compile Include="..\..\TinyWall\IgnoredApp.cs" Link="IgnoredApp.cs" />
+    <Compile Include="..\..\TinyWall\SecureWallProduct.cs" Link="SecureWallProduct.cs" />
   </ItemGroup>
 
   <!--

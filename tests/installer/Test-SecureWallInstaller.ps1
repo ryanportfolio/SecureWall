@@ -133,7 +133,7 @@ Assert-True ($launchConditions -contains 'Installed OR NOT OLDER_UPGRADEABLE_FOU
 $freshOnly = 'NOT Installed AND NOT OLDER_UPGRADEABLE_FOUND'
 Assert-True ((Get-SequenceCondition 'InstallCustom') -eq $freshOnly -and (Get-SequenceCondition 'InstallCustomRollback') -eq $freshOnly) 'first-install activation and its teardown rollback never run during an upgrade'
 $detect = $wix.SelectSingleNode('//w:CustomAction[@Id="StartControllerAndDetect"]', $ns)
-Assert-True ($detect.ExeCommand -eq '/autowhitelist' -and (Get-SequenceCondition 'StartControllerAndDetect') -eq "$freshOnly AND UILevel=5") 'autowhitelist runs only on a fresh full-UI install'
+Assert-True ($detect.ExeCommand -eq '/autowhitelist' -and (Get-SequenceCondition 'StartControllerAndDetect') -eq "$freshOnly AND UILevel=5 AND NOT SECUREWALL_SUPPRESS_USER_ACTIONS") 'autowhitelist runs only on a fresh full-UI install'
 $autowhitelistActions = @($wix.SelectNodes('//w:CustomAction[contains(@ExeCommand, "/autowhitelist")]', $ns))
 Assert-True ($autowhitelistActions.Count -eq 1 -and @($autowhitelistActions | Where-Object { (Get-SequenceCondition $_.Id) -notmatch 'NOT OLDER_UPGRADEABLE_FOUND' }).Count -eq 0) 'every /autowhitelist action excludes upgrades'
 $upgradeActions = @(
@@ -189,7 +189,7 @@ foreach ($expected in @(
 }
 Assert-True ($wix.SelectSingleNode('//w:InstallExecuteSequence/w:Custom[@Action="UpgradeStart"]', $ns).Before -eq 'InstallCustomRollback') 'new package starts itself after its files and registry values are installed'
 $startController = $wix.SelectSingleNode('//w:CustomAction[@Id="StartController"]', $ns)
-Assert-True ($startController.ExeCommand -eq '' -and $startController.Execute -eq 'commit' -and -not $startController.Impersonate -and (Get-SequenceCondition 'StartController') -eq 'NOT Installed AND OLDER_UPGRADEABLE_FOUND AND UILevel=5' -and $wix.SelectSingleNode('//w:InstallExecuteSequence/w:Custom[@Action="UpgradeCommit"]', $ns).Before -eq 'StartController') 'upgrade restarts the installing user''s tray without autowhitelist after the commit step'
+Assert-True ($startController.ExeCommand -eq '' -and $startController.Execute -eq 'commit' -and -not $startController.Impersonate -and (Get-SequenceCondition 'StartController') -eq 'NOT Installed AND OLDER_UPGRADEABLE_FOUND AND UILevel=5 AND NOT SECUREWALL_SUPPRESS_USER_ACTIONS' -and $wix.SelectSingleNode('//w:InstallExecuteSequence/w:Custom[@Action="UpgradeCommit"]', $ns).Before -eq 'StartController') 'upgrade restarts the installing user''s tray without autowhitelist after the commit step'
 $registryKey = $wix.SelectSingleNode('//w:Component[@Id="RegistryKeys"]/w:RegistryKey', $ns)
 Assert-True ($null -ne $registryKey -and $registryKey.Key -eq 'Software\SecureWall' -and -not $registryKey.ForceDeleteOnUninstall -and -not $registryKey.Action) 'MSI never deletes HKLM\Software\SecureWall, which holds the recovery journals'
 $registryValues = @{}
@@ -207,6 +207,19 @@ Assert-True ($wixProject -match "(?s)Condition="" '\`$\(Configuration\)' == 'Upg
 Assert-True ($project -match "(?s)<PropertyGroup Condition=""'\`$\(Configuration\)' == 'UpgradeFaultTest'"">.*?UPGRADE_FAULT_TEST.*?\+upgrade-fault-test</InformationalVersion>" -and ([regex]::Matches($project, 'UPGRADE_FAULT_TEST')).Count -eq 1) 'only the UpgradeFaultTest application configuration compiles fault points and marks its version'
 $faultSource = Read-RepoFile 'TinyWall\Installer\UpgradeFault.cs'
 Assert-True ($faultSource -match '\[Conditional\("UPGRADE_FAULT_TEST"\)\]' -and $faultSource -match '(?s)static void Trip\(string point\)\s*\{\s*#if UPGRADE_FAULT_TEST') 'other builds drop every fault call and the fault body'
+# Check for updates: an update approved with another administrator's credentials runs no
+# action as that administrator on the requesting user's desktop.
+$suppress = $wix.SelectSingleNode('//w:Property[@Id="SECUREWALL_SUPPRESS_USER_ACTIONS"]', $ns)
+Assert-True ($null -ne $suppress -and $suppress.Secure -eq 'yes' -and -not $suppress.Value) 'the update helper''s suppress property is declared secure and unset by default'
+Assert-True ((Get-SequenceCondition 'StartController') -match 'NOT SECUREWALL_SUPPRESS_USER_ACTIONS$' -and (Get-SequenceCondition 'StartControllerAndDetect') -match 'NOT SECUREWALL_SUPPRESS_USER_ACTIONS$') 'tray starts are skipped when user actions are suppressed'
+$fatal = Read-RepoFile 'MsiSetup\SecureWallFatalErrorDlg.wxs'
+[xml]$fatalXml = $fatal
+foreach ($button in 'OpenSecureWallLog', 'OpenSetupLog') {
+    $hide = $fatalXml.SelectSingleNode("//w:Control[@Id='$button']/w:Condition[@Action='hide']", $ns)
+    Assert-True ($null -ne $hide -and $hide.InnerText.Trim() -eq 'SECUREWALL_SUPPRESS_USER_ACTIONS') "failure page hides $button when user actions are suppressed"
+}
+$applyPolicy = Read-RepoFile 'TinyWall\Prompting\UpdateApplyPolicy.cs'
+Assert-True ($applyPolicy.Contains('SuppressUserActionsProperty = "SECUREWALL_SUPPRESS_USER_ACTIONS"') -and $applyPolicy.Contains('UpgradeCode = "{D257A00C-9D9B-4948-910F-5524F20819D0}"')) 'the update helper names the package''s suppress property and UpgradeCode'
 Assert-True ($product -match 'Name="DeleteFlag" Type="raw"' -and $product.Contains('SECUREWALLDELETEPENDING <> "#1"')) 'MSI recognizes raw DWORD delete-pending flag and requires completed deletion before reinstall'
 Assert-True ($product.Contains('Close Services and other service-management tools, or restart Windows')) 'pending service deletion has an actionable installer message'
 Assert-True ($product.Contains('NOT RollbackDisabled')) 'launch condition rejects disabled rollback'
@@ -379,6 +392,31 @@ Assert-True ($builder -notmatch '(?im)^\s*(Start-Process\s+msiexec|&\s*msiexec|m
 Assert-True ($builder -notmatch 'UpgradeFaultTest') 'release builder never references the fault-test configuration'
 Assert-True ($builder -match "-match 'fault-test'" -and $builder.Contains("Contains('SecureWallFaultTest')") -and $builder -match 'refusing to package it') 'release builder refuses an executable with either fault-test stamp'
 
+# Signed release manifest (docs/plans/2026-11-01-in-place-upgrade-and-updater.md, Part 2).
+foreach ($line in @(
+    "'# SecureWall-Release-Manifest: 1'",
+    "'# Repository: ryanportfolio/SecureWall'",
+    '"# Tag: v$builtVersion"',
+    '"# Version: $builtVersion"',
+    '"# Prerelease: $(if ($FullRelease) { ''false'' } else { ''true'' })"',
+    '"# Commit: $commit"')) {
+    Assert-True ($builder.Contains($line)) "release builder writes manifest header line $line"
+}
+Assert-True ($builder.Contains('git -C $repoRoot rev-parse HEAD') -and $builder -match '\[switch\]\$FullRelease') 'manifest header records the built commit and defaults to prerelease'
+$signer = Read-RepoFile 'tools\release\Sign-SecureWallRelease.ps1'
+Assert-True ($signer.Contains("TinyWall\Prompting\SignedReleaseManifest.cs") -and $signer.Contains('already has SHA256SUMS.txt.sig') -and $signer.Contains('embeds the updater test key')) 'release signer uses the updater''s parser, never overwrites a signature and refuses the test key'
+Assert-True ((Read-RepoFile 'tools\release\New-SecureWallReleaseKeys.ps1').Contains('CngExportPolicies]::None')) 'primary release key is created non-exportable'
+$testKeyFile = Join-Path $repoRoot 'tools\release\keys\test.pub'
+$testKey = if (Test-Path -LiteralPath $testKeyFile -PathType Leaf) {
+    @(([System.IO.File]::ReadAllLines($testKeyFile)) | Where-Object { $_.Trim() -and -not $_.StartsWith('#') })[0].Trim()
+} else { $null }
+function Test-EmbedsText([string]$Path, [string]$Text) {
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    $even = [System.Text.Encoding]::Unicode.GetString($bytes)
+    $odd = [System.Text.Encoding]::Unicode.GetString($bytes, 1, $bytes.Length - 1)
+    return $even.Contains($Text) -or $odd.Contains($Text)
+}
+
 $releaseWorkflow = Read-RepoFile '.github\workflows\release.yml'
 Assert-True ($releaseWorkflow -match 'contents:\s*write') 'release workflow grants upload job write access'
 Assert-True ($releaseWorkflow -match 'Build-SecureWallRelease\.ps1') 'release workflow uses repository release builder'
@@ -396,6 +434,9 @@ $stagedExecutable = Join-Path $repoRoot 'MsiSetup\Sources\ProgramFiles\SecureWal
 if (Test-Path -LiteralPath $stagedExecutable -PathType Leaf) {
     $stagedText = [System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes($stagedExecutable))
     Assert-True ((Get-Item -LiteralPath $stagedExecutable).VersionInfo.ProductVersion -notmatch 'fault-test' -and -not $stagedText.Contains('SecureWallFaultTest')) 'staged installer payload is not a fault-test build'
+    if ($testKey) {
+        Assert-True (-not (Test-EmbedsText $stagedExecutable $testKey)) 'staged installer payload does not trust the updater test key'
+    }
 }
 
 if ($ArtifactsDirectory) {
@@ -416,6 +457,8 @@ if ($ArtifactsDirectory) {
     if ((Test-Path -LiteralPath $hashManifest -PathType Leaf) -and
         (($expectedMsi | Where-Object { -not (Test-Path -LiteralPath (Join-Path $artifactRoot $_) -PathType Leaf) }).Count -eq 0)) {
         $manifestText = [System.IO.File]::ReadAllText($hashManifest)
+        $manifestVersion = [regex]::Match($project, '<Version>([0-9]+\.[0-9]+\.[0-9]+)</Version>').Groups[1].Value
+        Assert-True ($manifestText -match "(?s)\A# SecureWall-Release-Manifest: 1\r?\n# Repository: ryanportfolio/SecureWall\r?\n# Tag: v$([regex]::Escape($manifestVersion))\r?\n# Version: $([regex]::Escape($manifestVersion))\r?\n# Prerelease: (true|false)\r?\n# Commit: [0-9a-f]{40}\r?\n") 'hash manifest starts with the signed release header'
         foreach ($name in $expectedMsi) {
             $hash = (Get-FileHash -LiteralPath (Join-Path $artifactRoot $name) -Algorithm SHA256).Hash.ToLowerInvariant()
             Assert-True ($manifestText -match ([regex]::Escape("$hash  $name"))) "hash manifest matches $name"

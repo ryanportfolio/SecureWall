@@ -15,7 +15,19 @@ flowchart LR
     M -->|OK: PUT_SETTINGS, changeset at open| S
     S -->|changeset moved since open| W[Retry warning; nothing from Manage applied]
 ```
-- `TinyWall/Message.cs`: source-generated JSON protocol over the authenticated named pipe.
+- `TinyWall/Message.cs`: source-generated JSON protocol over the authenticated named pipe. The pipe server passes each request's client process ID (`GetNamedPipeClientProcessId`) to the service, which uses it only to identify the requester of an update permit.
+- Check for updates (`TinyWallController.Updates.cs`, `UpdateDialog.cs`, Manage > Maintenance): the controller reads GitHub releases through `ReleaseCheckClient.cs` (the only `HttpClient` user besides the AI client) under the pure `Prompting/ReleaseCheck.cs` policy, and verifies `SHA256SUMS.txt.sig` with `Prompting/SignedReleaseManifest.cs` against the keys in `Prompting/ReleaseKeys.cs`. The service's only part is a transient per-user TCP 443 permit (`UPDATE_NETWORK_GRANT`, password-gated; `Prompting/UpdateNetworkGrant.cs`, `UpdateNetworkClient.cs`), held in its dynamic WFP session and never saved. The elevated `/apply-update` step (`Installer/UpdateApplier.cs`, `Prompting/UpdateApplyPolicy.cs`) re-verifies everything from protected copies before starting msiexec:
+
+```mermaid
+flowchart LR
+    U[Check for updates] -->|password if locked| G[UPDATE_NETWORK_GRANT]
+    G --> S[Service: permit for this user's SecureWall.exe, TCP 443, at most 10 min]
+    U -->|HTTPS, GitHub hosts only| R[GitHub releases + SHA256SUMS.txt + .sig]
+    R -->|signature, tag, version, platform, prerelease line| D[Update window]
+    D -->|Install: fresh permit, download MSI to LocalAppData| H[/apply-update, elevated/]
+    H -->|verify, copy to ProgramData\SecureWall Updates, verify again, check MSI| M[msiexec full UI: in-place upgrade]
+    U -.->|release, exit, LOCK, expiry| X[Permit removed]
+```
 
 Modes are Normal, BlockAll, AllowOutgoing and Disabled (`Prompting/FirewallModePolicy.cs`). Learning mode was removed; its enum value stays reserved so old messages and configs parse, a switch to it is refused, and a stored or imported startup mode of Learning becomes Normal.
 

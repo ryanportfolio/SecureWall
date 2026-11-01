@@ -91,7 +91,8 @@ internal static class Program
             .Concat(AiExplainHardeningTests.Cases)
             .Concat(InstallerDiagnosticsTests.Cases)
             .Concat(ProfileMergeTests.Cases)
-            .Concat(UpdateFeedRemovalTests.Cases).ToArray();
+            .Concat(UpdateFeedRemovalTests.Cases)
+            .Concat(ReleaseUpdateTests.Cases).ToArray();
         var failed = 0;
 
         foreach (var (name, test) in tests)
