@@ -63,8 +63,8 @@ namespace pylorak.TinyWall.Prompting
         private readonly Dictionary<Guid, Entry> _byToken = new Dictionary<Guid, Entry>();
         private readonly Dictionary<string, Guid> _byIdentity =
             new Dictionary<string, Guid>(StringComparer.Ordinal);
-        private readonly Dictionary<string, DateTimeOffset> _cooldowns =
-            new Dictionary<string, DateTimeOffset>(StringComparer.Ordinal);
+        private readonly Dictionary<string, (DateTimeOffset Until, PromptIdentity Identity)> _cooldowns =
+            new Dictionary<string, (DateTimeOffset Until, PromptIdentity Identity)>(StringComparer.Ordinal);
         private readonly LinkedList<Guid> _fifo = new LinkedList<Guid>();
 
         internal PromptQueue(IClock clock)
@@ -119,9 +119,9 @@ namespace pylorak.TinyWall.Prompting
                 DateTimeOffset now = _clock.UtcNow;
                 PurgeExpired(now);
 
-                if (_cooldowns.TryGetValue(identity.Key, out DateTimeOffset cooldownUntil))
+                if (_cooldowns.TryGetValue(identity.Key, out var cooldown))
                 {
-                    if (cooldownUntil > now)
+                    if (cooldown.Until > now)
                     {
                         return new PromptEnqueueResult(
                             PromptEnqueueStatus.SuppressedByCooldown,
@@ -197,6 +197,23 @@ namespace pylorak.TinyWall.Prompting
             }
         }
 
+        // Ends the Ignore cooldown for matching identities, so an app removed from the Ignored
+        // list prompts on its next block instead of up to five minutes later.
+        internal void EndCooldowns(Func<PromptIdentity, bool> match)
+        {
+            lock (_guard)
+            {
+                var ended = new List<string>();
+                foreach (KeyValuePair<string, (DateTimeOffset Until, PromptIdentity Identity)> cooldown in _cooldowns)
+                {
+                    if (match(cooldown.Value.Identity))
+                        ended.Add(cooldown.Key);
+                }
+                foreach (string key in ended)
+                    _cooldowns.Remove(key);
+            }
+        }
+
         // The identity behind a pending token, for slow checks that must run outside the lock.
         internal PromptIdentity? PendingIdentity(Guid token)
         {
@@ -265,7 +282,7 @@ namespace pylorak.TinyWall.Prompting
 
                 BlockedConnectionPrompt prompt = entry.ToSnapshot();
                 Remove(entry);
-                _cooldowns[entry.Identity.Key] = now.Add(_ignoreCooldown);
+                _cooldowns[entry.Identity.Key] = (now.Add(_ignoreCooldown), entry.Identity);
                 return new PromptActionResult(PromptActionStatus.Dismissed, prompt);
             }
         }
@@ -295,9 +312,9 @@ namespace pylorak.TinyWall.Prompting
                 Remove(entry);
 
             var endedCooldowns = new List<string>();
-            foreach (KeyValuePair<string, DateTimeOffset> cooldown in _cooldowns)
+            foreach (KeyValuePair<string, (DateTimeOffset Until, PromptIdentity Identity)> cooldown in _cooldowns)
             {
-                if (cooldown.Value <= now)
+                if (cooldown.Value.Until <= now)
                     endedCooldowns.Add(cooldown.Key);
             }
 

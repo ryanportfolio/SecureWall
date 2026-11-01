@@ -1589,6 +1589,17 @@ namespace pylorak.TinyWall
             return SerializationHelper.Serialize(copy).SequenceEqual(after);
         }
 
+        // An app removed from the Ignored list prompts again on its next block, even within the
+        // five-minute cooldown its Ignore started.
+        private void EndRemovedIgnoreCooldowns(ServerConfiguration previous, ServerConfiguration candidate)
+        {
+            List<IgnoredApp> kept = candidate.ActiveProfile.IgnoredApps;
+            List<IgnoredApp> removed = previous.ActiveProfile.IgnoredApps.FindAll(
+                app => app.IsValid && !kept.Exists(other => other != null && other.SameEntry(app)));
+            if (removed.Count > 0)
+                BlockedPromptQueue.EndCooldowns(identity => removed.Exists(app => app.Matches(identity)));
+        }
+
         private void ApplyConfiguration(ServerConfiguration candidate, FirewallMode mode)
         {
             if (!FirewallModePolicy.IsRuntimeMode(mode) || !FirewallModePolicy.IsStartupMode(candidate.StartupMode))
@@ -1638,6 +1649,7 @@ namespace pylorak.TinyWall
                         {
                             ResetPromptCandidates(revokeTokens: !PreservePromptTokens);
                             VisibleState.Mode = mode;
+                            EndRemovedIgnoreCooldowns(previous, candidate);
                         }
                         GlobalInstances.ServerChangeset = Guid.NewGuid();
                     }),
