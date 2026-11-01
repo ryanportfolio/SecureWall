@@ -32,6 +32,8 @@ namespace pylorak.TinyWall
         }
 
         internal ConfigContainer TmpConfig;
+        // An import replaced the whole configuration, controller settings included.
+        internal bool ImportedConfig { get; private set; }
 
         private readonly AsyncIconScanner IconScanner;
         private readonly List<ListViewItem> ExceptionItems = new();
@@ -383,12 +385,15 @@ namespace pylorak.TinyWall
             TmpConfig.Controller.Language = ((IdWithName)comboLanguages.SelectedItem).Id;
             TmpConfig.Controller.UiTheme = ((IdWithName)comboUiTheme.SelectedItem).Id;
 
+            // The form is shown modeless; DialogResult alone closes only a modal form.
             this.DialogResult = DialogResult.OK;
+            this.Close();
         }
 
         private void btnCancel_Click(object sender, EventArgs e)
         {
             this.DialogResult = DialogResult.Cancel;
+            this.Close();
         }
 
         private void listRecommendedGlobalProfiles_ItemCheck(object sender, ItemCheckEventArgs e)
@@ -523,6 +528,7 @@ namespace pylorak.TinyWall
                 try
                 {
                     TmpConfig = SerializationHelper.DeserializeFromFile(ofd.FileName, new ConfigContainer(), true);
+                    ImportedConfig = true;
                 }
                 catch
                 {

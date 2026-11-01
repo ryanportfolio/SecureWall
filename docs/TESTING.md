@@ -41,13 +41,14 @@ Do not run this matrix on the development host. Use an expendable Windows VM wit
 |---|---|
 | Unknown executable makes outbound TCP connection | One bottom-right prompt; connection stays blocked until Allow |
 | Network Activity live view | Fresh install shows allowed, blocked, active, and listening filters; rows refresh within about one second |
+| Network Activity beside Manage | Both windows open and usable at once, and a prompt popup still takes clicks; unblock an app from Network Activity, then press OK in Manage after also changing the theme and the password: the save is refused with the retry warning, the new rule stays, and the theme and password are unchanged. Close Network Activity before pressing OK in an unrefused Manage: its window size and columns are kept. Click the popup while Manage is in front, then press Space and Alt+F4: the popup stays unanswered |
 | Allowed / blocked evidence | WFP permit is labeled Allowed; WFP drop is labeled Blocked; app/service, protocol, endpoints, direction, and timestamp are visible |
 | Local listener | TCP/UDP endpoint is labeled Listening (local endpoint); UI does not claim external reachability |
 | TinyWall remains installed | SecureWall MSI and `/install` both refuse; no SecureWall service/provider/filter is activated |
 | Allow outgoing | Permanent exact executable exception; retry succeeds; no inbound listener rule |
 | Ignore and close | No policy change; five-minute identity cooldown; traffic remains blocked |
 | Unanswered popup | Popup stays until its token expires, with no cooldown; typing Enter, Space, Escape or Alt+F4 in another window leaves it open; the expired prompt appears under "Blocked apps not answered" in the tray menu with a balloon |
-| Prompts revoked by another Allow | Queued prompts for other apps leave the screen and appear in "Blocked apps not answered"; allowing one there asks for confirmation (and the password when locked) and writes an outbound-only rule; a fresh block from that app replaces the entry with a live prompt |
+| Prompts revoked by another Allow | Queued prompts for other apps leave the screen and appear in "Blocked apps not answered"; allowing one there asks for confirmation (and the password when locked), writes an outbound-only rule, and leaves SecureWall locked again; a fresh block from that app replaces the entry with a live prompt |
 | Repeated drops | Coalesced prompt, bounded queue, no notification flood |
 | Explicitly blocked executable | No prompt; remains blocked |
 | BlockAll / AllowOutgoing / Disabled | No default-block prompt |
