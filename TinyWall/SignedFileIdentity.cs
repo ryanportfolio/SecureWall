@@ -23,14 +23,28 @@ namespace pylorak.TinyWall
         public string Name { get; }
 
         // Only drive-letter paths on local fixed drives are read: opening a UNC or WebDAV path
-        // from the LocalSystem service would authenticate to whatever host the path names.
+        // from the LocalSystem service would authenticate to whatever host the path names. No
+        // folder or file along the path may be a reparse point either, since a symbolic link
+        // can point at a network host. The attributes are read without following links; a link
+        // swapped in between this check and the read is not caught (see SECURITY.md).
         internal static bool IsLocalFixedPath(string? path)
         {
-            if (path == null || path.Length < 3 || !char.IsLetter(path[0]) || path[1] != ':' || path[2] != '\\')
+            if (path == null || path.Length < 4 || !char.IsLetter(path[0]) || path[1] != ':' || path[2] != '\\')
                 return false;
             try
             {
-                return new DriveInfo(path.Substring(0, 1)).DriveType == DriveType.Fixed;
+                if (new DriveInfo(path.Substring(0, 1)).DriveType != DriveType.Fixed)
+                    return false;
+                string current = path.Substring(0, 3);
+                foreach (string part in path.Substring(3).Split('\\'))
+                {
+                    if (part.Length == 0 || part == "." || part == "..")
+                        return false;
+                    current = Path.Combine(current, part);
+                    if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+                        return false;
+                }
+                return true;
             }
             catch (Exception)
             {

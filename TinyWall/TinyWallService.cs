@@ -2748,7 +2748,9 @@ namespace pylorak.TinyWall
         private readonly ConcurrentDictionary<string, byte> AlwaysAllowMismatchLogged = new(StringComparer.OrdinalIgnoreCase);
         // Files that failed the check (or whose exception could not be added), by size and
         // write time, so a retrying app is prompted without hashing the file on every drop.
-        private readonly ConcurrentDictionary<string, (long Length, DateTime WriteUtc, DateTime UntilUtc)> AlwaysAllowRejected =
+        // An entry counts only while the configuration it was checked against is still active:
+        // a rule added or removed since then gets a fresh check.
+        private readonly ConcurrentDictionary<string, (long Length, DateTime WriteUtc, DateTime UntilUtc, ServerConfiguration Config)> AlwaysAllowRejected =
             new(StringComparer.OrdinalIgnoreCase);
 
         // Runs on the prompt timer thread outside the queue lock (signature checks are slow).
@@ -2760,7 +2762,8 @@ namespace pylorak.TinyWall
             if (identity.Kind != PromptIdentityKind.Executable || !identity.CanAllow ||
                 identity.ExecutablePath is not string path || !PromptAllowPolicy.RequiresExistenceCheck(path))
                 return false;
-            List<AlwaysAllowRule> rules = ActiveConfig.Service.ActiveProfile.AlwaysAllowRules;
+            ServerConfiguration config = ActiveConfig.Service;
+            List<AlwaysAllowRule> rules = config.ActiveProfile.AlwaysAllowRules;
             if (!rules.Exists(rule => rule != null && rule.NameMatches(path)))
                 return false;
             if (AlwaysAllowQueued.ContainsKey(path))
@@ -2768,13 +2771,13 @@ namespace pylorak.TinyWall
             if (!SignedFileIdentity.IsLocalFixedPath(path))
                 return false;
             // An existing exception (a block, or an allow the owner narrowed) is never widened silently.
-            if (HasExceptionForSubject(new ExecutableSubject(path)) || WasRejected(path))
+            if (HasExceptionForSubject(new ExecutableSubject(path)) || WasRejected(path, config))
                 return false;
 
             SignedFileIdentity? signer = SignedFileIdentity.TryRead(path);
             if (signer == null || !rules.Exists(rule => rule != null && rule.Matches(path, signer.Subject)))
             {
-                RememberRejected(path);
+                RememberRejected(path, config);
                 if (AlwaysAllowMismatchLogged.Count < 64 && AlwaysAllowMismatchLogged.TryAdd(path, 0))
                     Utils.Log("Always allow did not apply to " + path + ": its name matches a rule, but it is not a file on a local fixed drive with a valid embedded signature from that rule's signer. It is prompted instead.", Utils.LOG_ID_SERVICE);
                 return false;
@@ -2808,7 +2811,7 @@ namespace pylorak.TinyWall
                 {
                     string path = entry.Key;
                     // The rule must still trust the signer the check found, not just the name.
-                    if (!File.Exists(path) ||
+                    if (!SignedFileIdentity.IsLocalFixedPath(path) || !File.Exists(path) ||
                         !ActiveConfig.Service.ActiveProfile.AlwaysAllowRules.Exists(rule => rule != null && rule.Matches(path, entry.Value)))
                         continue;
                     var subject = new ExecutableSubject(path);
@@ -2831,8 +2834,9 @@ namespace pylorak.TinyWall
             catch (Exception exception)
             {
                 // Prompt these paths for a while instead of retrying the same failing change on every drop.
+                ServerConfiguration config = ActiveConfig.Service;
                 foreach (string path in paths)
-                    RememberRejected(path);
+                    RememberRejected(path, config);
                 Utils.LogException(exception, Utils.LOG_ID_SERVICE);
             }
             finally
@@ -2845,14 +2849,15 @@ namespace pylorak.TinyWall
         private static bool HasExceptionForSubject(ExceptionSubject subject) =>
             ActiveConfig.Service.ActiveProfile.AppExceptions.Exists(existing => existing.Subject.Equals(subject));
 
-        private bool WasRejected(string path)
+        // Both run only after IsLocalFixedPath accepted the path.
+        private bool WasRejected(string path, ServerConfiguration config)
         {
             if (!AlwaysAllowRejected.TryGetValue(path, out var rejected))
                 return false;
             try
             {
                 var file = new FileInfo(path);
-                if (DateTime.UtcNow < rejected.UntilUtc && file.Exists &&
+                if (ReferenceEquals(rejected.Config, config) && DateTime.UtcNow < rejected.UntilUtc && file.Exists &&
                     file.Length == rejected.Length && file.LastWriteTimeUtc == rejected.WriteUtc)
                     return true;
             }
@@ -2861,16 +2866,18 @@ namespace pylorak.TinyWall
             return false;
         }
 
-        private void RememberRejected(string path)
+        private void RememberRejected(string path, ServerConfiguration config)
         {
             try
             {
+                if (!SignedFileIdentity.IsLocalFixedPath(path))
+                    return;
                 var file = new FileInfo(path);
                 if (!file.Exists)
                     return;
                 if (AlwaysAllowRejected.Count >= 256)
                     AlwaysAllowRejected.Clear();
-                AlwaysAllowRejected[path] = (file.Length, file.LastWriteTimeUtc, DateTime.UtcNow.AddMinutes(10));
+                AlwaysAllowRejected[path] = (file.Length, file.LastWriteTimeUtc, DateTime.UtcNow.AddMinutes(10), config);
             }
             catch (Exception) { }
         }
