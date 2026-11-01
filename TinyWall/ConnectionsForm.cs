@@ -145,8 +145,12 @@ namespace pylorak.TinyWall
             {
                 // Try to resolve PIDs heuristically
                 var ProcessPathInfoMap = new Dictionary<string, List<ProcessSnapshotEntry>>();
+                // Creation times by PID, including processes this app may not open (the snapshot
+                // reads those without a handle).
+                var creationByPid = new Dictionary<uint, long>();
                 foreach (var p in ProcessManager.CreateToolhelp32SnapshotExtended())
                 {
+                    creationByPid[p.ProcessId] = p.CreationTime;
                     if (string.IsNullOrEmpty(p.ImagePath))
                         continue;
 
@@ -163,13 +167,14 @@ namespace pylorak.TinyWall
                     var key = e.AppPath.ToLowerInvariant();
                     ProcessPathInfoMap.TryGetValue(key, out List<ProcessSnapshotEntry>? p);
 
-                    // The service names the process for blocks it matched to a Security-log event.
-                    // Keep that PID only while it still belongs to a process with this path that
-                    // started before the block: Unblock and Close process act on it.
+                    // The service names the process for blocks it matched to a Security-log event,
+                    // after checking its path and start time, and sends that process's creation
+                    // time. Keep the PID only while the process holding it has that exact creation
+                    // time: Unblock and Close process act on it.
                     if (e.ProcessId != 0)
                     {
-                        uint pid = e.ProcessId;
-                        if (p != null && p.Exists(s => s.ProcessId == pid && s.CreationTime < e.Timestamp.ToFileTime()))
+                        if (e.ProcessCreation != 0 && creationByPid.TryGetValue(e.ProcessId, out long creation) &&
+                            creation == e.ProcessCreation)
                             continue;
                         e.ProcessId = 0;
                     }
