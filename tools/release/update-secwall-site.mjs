@@ -308,6 +308,7 @@ try {
       fail("usage: --version <x.y.z> --out <dir> [--from <dir>] [--skip-link-check] | --download <dir> | --check-live <x.y.z>");
     }
     const from = arg("--from");
+    if (process.argv.includes("--from") && !from) fail("--from needs a directory");
     const skipLinks = process.argv.includes("--skip-link-check");
     if (skipLinks && process.env.CI) fail("--skip-link-check is for local use only");
     await update(version, path.resolve(out), { from: from && path.resolve(from), skipLinks });

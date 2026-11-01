@@ -18,7 +18,8 @@
 //   node tools/release/update-secwall-site.mjs --download .tmp/site-live
 //   node tools/site/patch-secwall-site.mjs --from .tmp/site-live --out .tmp/site-patched
 //
-// Deploying is left to the caller. A preview: vercel deploy .tmp/site-patched
+// --out is deleted and rebuilt; a non-empty --out without an index.html is
+// refused. Deploying is left to the caller. A preview: vercel deploy .tmp/site-patched
 
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -59,7 +60,6 @@ function listFiles(dir) {
 
 // Section files with this extension, sorted by name.
 function sectionFiles(ext) {
-  if (!fs.existsSync(SECTIONS)) return [];
   return fs.readdirSync(SECTIONS, { withFileTypes: true })
     .filter(e => e.isFile() && e.name.endsWith(ext))
     .map(e => e.name)
@@ -74,6 +74,9 @@ function overlaps(a, b) {
 function patch(from, out) {
   if (overlaps(out, from) || overlaps(from, out)) fail(`--out ${out} must not overlap --from ${from}`);
   if (!fs.existsSync(path.join(from, "index.html"))) fail(`${from} has no index.html`);
+  if (fs.existsSync(out) && fs.readdirSync(out).length &&!fs.existsSync(path.join(out, "index.html"))) {
+    fail(`--out ${out} is not empty and holds no site; refusing to replace it`);
+  }
   fs.rmSync(out, { recursive: true, force: true });
   fs.cpSync(from, out, { recursive: true });
   const read = rel => fs.readFileSync(path.join(out, rel), "utf8");

@@ -4,8 +4,10 @@
    tagline. The tagline moves below the headline. The headline sets in three
    centred lines, like concept 01: the 3D letters are drawn from its layout,
    and the screen centre keeps them clear of the post-processing's colour
-   fringes, which grow toward the edges. Below 1024 px the headline is
-   smaller, centred and lifted, for the same reason. */
+   fringes, which grow toward the edges. Its size also follows the viewport
+   height, so on short windows it stays below the header instead of rising
+   off the top. Below 1024 px the headline is smaller, centred and lifted,
+   for the same reason. */
 .sw-hero-3d .js-hero h1{color:transparent!important;transition:color .8s ease}
 .sw-hero-3d .js-hero{background:linear-gradient(0deg,rgba(9,13,20,.6),transparent 32%)!important}
 .js-hero h1{line-height:1!important}
@@ -13,7 +15,7 @@
 .js-hero .grid>div:first-child{width:100%!important}
 .js-hero .grid>div:nth-child(2){width:100%!important;margin-left:0!important;margin-top:28px}
 .js-hero p.t-lazare{max-width:560px!important}
-.js-hero h1{font-size:190px!important;line-height:.9!important;max-width:9ch;margin-left:auto!important;margin-right:auto!important;text-align:center}
+.js-hero h1{font-size:min(190px,13.2vw,calc((100vh - 250px) / 2.75))!important;line-height:.9!important;max-width:9ch;margin-left:auto!important;margin-right:auto!important;text-align:center}
 }
 @media(max-width:1023.98px){
 .js-hero h1{font-size:min(72px,18.5vw)!important;text-align:center;margin-bottom:max(35px,6vh)!important}

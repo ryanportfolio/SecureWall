@@ -137,8 +137,9 @@
 //     mound = the hero terrain's active setMound entry; mounds = the active
 //     entry per terrain name (null when none).
 //
-// Any setup failure logs one console.warn and leaves that terrain (and the
-// headlines on it) as the page had it.
+// The first setup failure logs one console.warn and leaves that terrain (and
+// the headlines on it) as the page had it. A terrain the site never builds
+// (no WebGL) is not reported: onTerrain callbacks simply never run.
 (() => {
   "use strict";
 

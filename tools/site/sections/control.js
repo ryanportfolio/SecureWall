@@ -198,6 +198,9 @@
       if (performance.now() - lastFrame > STALL) {
         stalled = true;
         showCards(0);
+        // The letters stay in the scene, which the footer renders too.
+        rise = 0;
+        text.setAmount(0);
       } else {
         watch = setTimeout(watchFrames, STALL / 2);
       }

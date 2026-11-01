@@ -5,6 +5,12 @@
 .sw-footer-phrase{flex:1 0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;margin:0;padding:4vh 5vw 24vh;color:transparent!important;font-family:'Geist Mono',monospace;font-weight:700;text-align:center;pointer-events:none;opacity:0}
 .sw-footer-phrase>span{color:transparent!important}
 .sw-footer-live{display:block;font-size:min(30vw,44vh);line-height:.85;letter-spacing:-.04em}
+/* Short windows: smaller and less bottom space, so "LIVE" stays below the
+   header. */
+@media(max-height:760px) and (min-aspect-ratio:1/1){
+.sw-footer-phrase{padding-bottom:16vh}
+.sw-footer-live{font-size:min(30vw,36vh)}
+}
 .sw-footer-line{display:block;max-width:90vw;font-size:clamp(18px,3.2vw,52px);line-height:1.15;letter-spacing:-.02em}
 /* Ink layer: darkens the 3D faces (footer.js); hidden until they stand. */
 .sw-footer-ink{position:fixed;left:0;top:0;width:100vw;height:100vh;pointer-events:none;mix-blend-mode:multiply;opacity:0;z-index:1}

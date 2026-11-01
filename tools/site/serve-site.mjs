@@ -43,7 +43,10 @@ http.createServer((req, res) => {
   }
   if (rel.endsWith("/")) rel += "index.html";
   const file = path.join(root, rel);
-  if (path.relative(root, file).startsWith("..") || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
+  // A file can vanish between checks while the patch tool rewrites the
+  // folder being served; that is a 404, not a crash.
+  const isFile = !path.relative(root, file).startsWith("..") && fs.statSync(file, { throwIfNoEntry: false })?.isFile();
+  if (!isFile) {
     res.writeHead(404, { "Content-Type": "text/plain" }).end("not found");
     return;
   }
@@ -51,5 +54,5 @@ http.createServer((req, res) => {
     "Content-Type": types[path.extname(file)] ?? "application/octet-stream",
     "Cache-Control": "no-store",
   });
-  fs.createReadStream(file).pipe(res);
+  fs.createReadStream(file).on("error", () => res.destroy()).pipe(res);
 }).listen(port, () => console.log(`serving ${root} at http://localhost:${port}/`));
