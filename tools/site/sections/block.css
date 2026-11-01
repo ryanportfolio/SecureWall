@@ -1,7 +1,6 @@
-/* Block: hide the DOM title while the 3D letters stand; its text stays in the
-   accessibility tree and selectable. sw-block-flat: the camera is too close
-   to the terrain for the letters, so the DOM title shows again. */
-.sw-block-3d:not(.sw-block-flat) .sw-block-title{color:transparent!important}
-.sw-block-3d .sw-block-title{transition:color .8s ease}
-/* Ink layer: darkens the 3D faces (block.js); hidden until they stand. */
-.sw-block-ink{position:fixed;left:0;top:0;width:100vw;height:100vh;pointer-events:none;mix-blend-mode:multiply;opacity:0;z-index:1}
+/* Block: from setup on, the DOM title never shows its own text (no colour
+   transition, so it cannot fade through); its text stays in the
+   accessibility tree. The charcoal panel with the cut-out words (block.js)
+   sits over the WebGL canvas and under the site header; hidden until shown. */
+.sw-block-3d .sw-block-title,.sw-block-3d .sw-block-title *{color:transparent!important;-webkit-text-stroke-color:transparent!important;text-shadow:none!important}
+.sw-block-panel{position:fixed;left:0;top:0;width:100vw;pointer-events:none;visibility:hidden;z-index:1;will-change:transform}

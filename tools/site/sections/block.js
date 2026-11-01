@@ -1,518 +1,300 @@
-// Block section: "Block by default" as a dark charcoal 3D wall of type.
-// "Block" stands as tall extruded letters on a terrain mound, so the contour
-// lines pile up against its base; "by default" sits smaller on one line in
-// front of it, nearer the viewer, covering the foot of "Block".
+// Block section: "Block by default" as a charcoal panel with the words cut
+// out of it (concept 06). The panel slides up over the terrain while the
+// title shows; the live terrain glows through the letter-shaped holes.
 //
-// Built with window.SWText (tools/site/lib/swtext.js). The h2 keeps its DOM
-// text and per-word animation; each word gets a glyph mask, and the 3D layout
-// (sizes, one line for "by default") comes from moving and scaling each mask's
-// box, so the page's own layout is never changed. The pieces follow the h2's
-// visible state (lowest computed opacity among the h2, its ancestors and its
-// words): they rise with it as it shows and sink into the terrain as it hides.
-// They are re-placed while the title comes in, and while it is at least half
-// shown and the camera moves, so they stay on the title's box and keep their
-// size on screen; while hiding they stay put in the scene. As soon as the
-// section is set up, <html> gets sw-block-3d and block.css makes the DOM h2
-// transparent, so the flat heading never shows first.
+// No 3D: the panel is one page canvas over the WebGL canvas, drawn only when
+// the viewport, the font or the text changes, and moved with a CSS transform.
+// Each hole gets a cut wall along its top and left edges and a soft shadow
+// the panel casts onto the terrain inside it; the panel's edges cast a soft
+// shadow onto the terrain beyond them.
 //
-// The per-frame work runs only while the site renders WebGL, and the site
-// stops rendering past .js-webgl-scroll-end. A quick scroll can get there
-// before the ink layer (a fixed page canvas, below) has faded, so while it
-// shows, a timer checks that frames still arrive and hides it when they stop.
+// The panel follows the h2's visible state (lowest computed opacity among the
+// h2, its ancestors and its words). The site slides the words in from the
+// left as the title shows and out to the right as it hides further down the
+// page, so the words' x offset gives the direction: before the section the
+// panel waits below the viewport and its top edge slides up as the title
+// shows; past it, the panel leaves upward (its bottom edge slides up) and
+// comes back down from the top when scrolling back.
 //
-// Depth: the scroll camera drops from about 0.17 to 0.10 above the top
-// terrain layer while the title shows, and widens its lens from about 89 to
-// 110 degrees. All heights are set from the distance D between the camera and
-// the face of "Block": D follows the camera's height (BLOCK_DIST of it) while
-// that keeps every face corner clear of the near plane, and grows past it when
-// it would not, so the letters move down into the terrain instead of being
-// cut. The mound's plateau (snapped to a terrain layer, D grown to match), the
-// walls and "by default" are set from D, so the look keeps its proportions.
-// "by default" stands on the plateau at the foot of "Block", so the mound
-// never covers it. Only if even that fails (a camera too close to
-// the terrain floor) do the letters sink and <html> also gets sw-block-flat,
-// which shows the DOM h2 again.
+// <html> gets sw-block-3d as soon as the section is set up, and block.css
+// makes the DOM h2 transparent from then on; the h2 keeps its text in the
+// accessibility tree. The canvas is decorative (aria-hidden).
 //
-// Concept 06 (a charcoal panel with cut-out letters) would reuse the colors,
-// heights and mound settings below.
+// Frames: the site stops WebGL rendering (and so SWText.onFrame) past
+// .js-webgl-scroll-end. While the panel shows, a requestAnimationFrame
+// watchdog hides it once frames stop arriving; the next frame shows it again.
 (() => {
   "use strict";
   const SW = window.SWText;
   if (!SW) return;
 
-  // Colors, linear RGB. The site's post-process lifts dark tones toward white,
-  // so the faces start near black to read as charcoal on screen. Sides: a
-  // lighter grey at the top edge that SliceText darkens toward the base, so
-  // the walls read apart from the faces.
-  const FACE = [0.009, 0.009, 0.011];
-  const SIDES = [0.15, 0.15, 0.165];
-  const SMALL_FACE = [0.009, 0.009, 0.011];
-  const SMALL_SIDES = [0.15, 0.15, 0.165];
-  const BEVEL = 1.6;
-  // The same post-process lifts black to about 30% grey, lighter than the
-  // concept's charcoal. An ink layer (a page canvas of the faces' glyph
-  // masks, blended with multiply over the WebGL canvas) darkens the faces by
-  // INK while the letters stand fully; it fades in over the last INK_FROM..1
-  // of the rise, while the faces are still moving into place.
-  const INK = "rgb(150, 150, 152)";
-  const INK_FROM = 0.97;
-  const INK_DPR = 2;
+  // Panel colours. The canvas sits above the WebGL canvas, so the site's
+  // post-processing does not lift them: PANEL is the on-screen colour.
+  const PANEL = "#1a1a1a";
+  const WALL = "#2b2b2b";
+  const EDGE = "rgba(255, 255, 255, 0.09)";
+  const HOLE_SHADOW = "rgba(0, 0, 0, 0.62)";
+  const EDGE_SHADOW = 0.58; // alpha at the panel edge, fading out over BAND
+  const GRAIN = 7; // grain alpha, out of 255
 
-  // Heights, mesh-local z, as multiples of D (see above). "Block" rises
-  // BLOCK_RISE x D above the mound's plateau; "by default" is a low slab
-  // SMALL_RISE x D above it; both bases are buried BURY x D below it.
-  const TERRAIN_TOP = 0.95;
-  const BLOCK_DIST = 0.72;
-  const BLOCK_RISE = 0.39;
-  const BLOCK_SLICES = 48;
-  const SMALL_RISE = 0.05;
-  const SMALL_SLICES = 14;
-  const BURY = 0.2;
-  // Every face corner stays at least NEAR_MARGIN x the near plane distance
-  // from the camera (view depth).
-  const NEAR_MARGIN = 1.35;
-  // Lowest plateau the letters may stand on; below it they sink (flat).
-  const MIN_LEVEL = 0.12;
-  // Terrain layers sit every LAYER_STEP in z, the top one at TERRAIN_TOP.
-  // setMound raises the height by MOUND_TOP past a layer's cut-off.
-  const LAYER_STEP = 0.05;
-  const MOUND_TOP = 0.01;
-  // On a portrait viewport the camera sees the mound's front slope from close
-  // by, and a plateau at the top layers stacks many layer rims there into
-  // grey bands. The plateau goes this many layers lower, nearer the terrain
-  // around it, so only a few rims remain to curve around the letters' feet.
-  const PORTRAIT_DROP = 4;
+  // Layout, in fractions of the viewport. The panel's top edge rests TOP_REST
+  // below the viewport top, leaving a strip of terrain under the site header.
+  // The letters fill the panel inside SIDE (each side), PAD_TOP and
+  // PAD_BOTTOM; LINE_GAP is the gap between line boxes, in font sizes.
+  const TOP_REST = 0.15;
+  const TOP_MIN = 104; // px, clears the site header's links
+  const SIDE = 0.055;
+  const PAD_TOP = 0.065;
+  const PAD_BOTTOM = 0.06;
+  const LINE_GAP = 0.11;
+  // Cut depth and hole shadow, in font sizes.
+  const WALL_X = 0.012;
+  const WALL_Y = 0.03;
+  const SHADOW_BLUR = 0.06;
+  const SHADOW_X = 0.02;
+  const SHADOW_Y = 0.05;
+  // Soft shadow band beyond the panel's top and bottom edges, px.
+  const BAND = 90;
+  const MAX_DPR = 2;
+  // Watchdog: rAF ticks without a WebGL frame before the panel hides.
+  const STALE_TICKS = 4;
 
-  // Mound under "Block": the terrain rises toward the plateau's layer cut-off
-  // where a blurred copy of the "Block" glyphs is high, so the contour lines
-  // pile up against the letters' base. The mound's own mask covers the
-  // "Block" box grown by MOUND_SPREAD_X of its width on each side,
-  // MOUND_SPREAD_UP of its height above and MOUND_SPREAD_DOWN below (toward
-  // the viewer); MOUND_BLUR is the blur radius as a fraction of the mound
-  // canvas width. MOUND_GAIN: how far the slope reaches (higher = steeper,
-  // wider plateau). MOUND_LOD: mip used.
-  const MOUND_SPREAD_X = 0.2;
-  const MOUND_SPREAD_UP = 0.15;
-  const MOUND_SPREAD_DOWN = 0.7;
-  const MOUND_BLUR = 0.16;
-  const MOUND_GAIN = 1.6;
-  const MOUND_LOD = 1;
-  const MOUND_CANVAS = [512, 384];
+  SW.onTerrain(() => {
+    const root = document.documentElement;
+    // From here on the DOM h2 never shows its own text (block.css).
+    root.classList.add("sw-block-3d");
 
-  // 3D layout, relative to the DOM title. "Block" is scaled by BLOCK_SCALE
-  // (capped to MAX_WIDTH of the viewport) and keeps the top of its line;
-  // "by default" uses SMALL_RATIO of that size, one line, centred. Its text
-  // top sits where the foot of "Block" meets the plateau on screen, raised by
-  // OVERLAP x its own line height so it covers the foot. BASELINE: where the
-  // glyphs of "Block" end, as a fraction of its text rect's height.
-  const BLOCK_SCALE = 1.55;
-  const SMALL_RATIO = 0.4;
-  const OVERLAP = 0.3;
-  const BASELINE = 0.78;
-  const MAX_WIDTH = 0.9;
-  const MASK_PAD = 0.08;
-  const MASK_EDGE = 0.05;
-
-  // Sink speed (per second) toward the title's visible state. On the way up
-  // the letters follow the title's opacity, so they stand while it shows.
-  const SPEED = 6;
-  // Frames stopped (ms) before the ink layer is hidden; the timer that
-  // checks runs every STALL / 2 while it shows.
-  const STALL = 200;
-  // The letters follow the title's box (and the camera) while the title is at
-  // least this visible; below it, while it hides, they stay put in the scene.
-  // The words' slide-in is horizontal and the layout is centred, so this
-  // does not make the letters slide.
-  const PLACE_FROM = 0.5;
-  // Camera matrix change that triggers a re-place while the title shows.
-  const CAMERA_EPSILON = 1e-4;
-
-  // Adds the class that makes the DOM heading transparent, at once: the
-  // stylesheet's color transition is for handing the page back to the DOM
-  // heading, not for hiding it.
-  function hideHeading(el, cls) {
-    const old = el.style.transition;
-    el.style.transition = "none";
-    document.documentElement.classList.add(cls);
-    getComputedStyle(el).color; // applies the class before the transition returns
-    el.style.transition = old;
-  }
-
-  SW.onTerrain(layer => {
-    const owner = {};
-    const range = document.createRange();
-    const T = SW.three(layer);
     let title = null;
     let chain = null; // elements whose opacity and visibility count
-    let words = null; // [{ el, mask, proxy, text, rise }]
-    let placed = false;
-    let hidden = false; // DOM heading hidden (sw-block-3d)
-    let rise = 0;
-    let lastShown = 0;
-    let stop = null;
-    // Frame watchdog for the ink layer (see the header).
-    let lastFrame = 0;
-    let watch = 0;
-    let stalled = false;
-    let frame = 0;
-    let level = TERRAIN_TOP;
-    let moundStrength = -1;
-    let moundMap = null;
-    let moundLevel = -1;
-    let ok = true;
-    let isFlat = false;
-    let a = null;
-    let b = null;
-    let ink = null;
-    let inkKey = "";
-    let inkShown = -1;
-    const seen = new Float64Array(34);
-
-    // A mask whose box is moved and scaled; SliceText and setMound read only
-    // canvas, texture and box.
-    const proxyOf = mask => ({
-      get canvas() {
-        return mask.canvas;
-      },
-      get texture() {
-        return mask.texture;
-      },
-      box: null,
-      update: mask.update,
-    });
-
-    // The mound's mask: a blurred copy of the "Block" mask on a larger box.
-    const mound = { canvas: document.createElement("canvas"), texture: null, box: null, map: null, key: "" };
-    mound.canvas.width = MOUND_CANVAS[0];
-    mound.canvas.height = MOUND_CANVAS[1];
-    mound.texture = new T.Texture(mound.canvas);
-
-    // Grows the "Block" text rect into the mound box and redraws the mound
-    // canvas when the "Block" mask or its place in the box changed.
-    function updateMound(mask, maskBox, r) {
-      const dx = r.width * MOUND_SPREAD_X;
-      const up = r.height * MOUND_SPREAD_UP;
-      const m = (mound.box = new DOMRect(r.left - dx, r.top - up, r.width + 2 * dx, r.height * (1 + MOUND_SPREAD_UP + MOUND_SPREAD_DOWN)));
-      const { width: cw, height: ch } = mound.canvas;
-      const x = ((maskBox.left - m.left) / m.width) * cw;
-      const y = ((maskBox.top - m.top) / m.height) * ch;
-      const w = (maskBox.width / m.width) * cw;
-      const h = (maskBox.height / m.height) * ch;
-      const tex = mask.texture;
-      const key = `${tex.uuid}|${tex.version}|${Math.round(x)}|${Math.round(y)}|${Math.round(w)}|${Math.round(h)}`;
-      if (key === mound.key) return;
-      mound.key = key;
-      const ctx = mound.canvas.getContext("2d");
-      // Blur by casting the glyphs' shadow back from off the left edge.
-      const shift = cw * 2;
-      ctx.clearRect(0, 0, cw, ch);
-      ctx.shadowColor = "#000";
-      ctx.shadowOffsetX = shift;
-      ctx.shadowBlur = MOUND_BLUR * cw;
-      ctx.drawImage(mask.canvas, x - shift, y, w, h);
-      ctx.shadowBlur = MOUND_BLUR * cw * 0.4;
-      ctx.drawImage(mask.canvas, x - shift, y, w, h);
-      ctx.shadowColor = "transparent";
-      mound.texture.needsUpdate = true;
-    }
-
-    const textRect = el => {
-      range.selectNodeContents(el);
-      return range.getBoundingClientRect();
-    };
+    let words = null; // the h2's word elements
+    let panel = null;
+    let grain = null;
+    let key = "";
+    let fontWait = "";
+    let travel = [0, 0]; // [down, up] px offsets that put the panel off screen
+    let dir = -1; // -1: before the section (panel below), 1: past it (above)
+    let shownNow = false;
+    let lastY = NaN;
+    let ticks = 0;
+    let watching = false;
+    const scratch = [document.createElement("canvas"), document.createElement("canvas")];
 
     function build() {
-      const divs = [...title.children];
-      const byText = t => divs.find(d => d.textContent.trim() === t);
-      const parts = [
-        ["block", byText("Block"), BLOCK_RISE, BLOCK_SLICES, FACE, SIDES],
-        ["by", byText("by"), SMALL_RISE, SMALL_SLICES, SMALL_FACE, SMALL_SIDES],
-        ["default", byText("default"), SMALL_RISE, SMALL_SLICES, SMALL_FACE, SMALL_SIDES],
-      ];
-      if (parts.some(p => !p[1])) throw new Error("block title words not found");
-      words = parts.map(([name, el, rise, slices, face, sides]) => {
-        const mask = SW.glyphMask(el, { pad: MASK_PAD, edge: MASK_EDGE });
-        const proxy = proxyOf(mask);
-        // Heights are set from the camera before each place().
-        const text = new SW.SliceText(layer, { mask: proxy, slices, baseZ: TERRAIN_TOP - 0.01, topZ: TERRAIN_TOP + 0.01, face, sides, bevel: BEVEL });
-        text.mesh.name = `sw-block-${name}`;
-        return { el, mask, proxy, text, rise };
-      });
+      words = [...title.children].filter(d => d.textContent.trim());
+      if (words.length !== 3) throw new Error("block title words not found");
       chain = [title, ...title.querySelectorAll("*")];
-      for (let e = title.parentElement; e && e !== document.documentElement; e = e.parentElement) chain.push(e);
+      for (let e = title.parentElement; e && e !== root; e = e.parentElement) chain.push(e);
+      panel = document.createElement("canvas");
+      panel.className = "sw-block-panel";
+      panel.setAttribute("aria-hidden", "true");
+      panel.dataset.swSection = "block";
+      document.body.append(panel);
     }
 
-    // Mask box and text rect for a word whose text rect t moves to (x, y) at
-    // scale k.
-    function setBox(w, t, x, y, k) {
-      const m = w.mask.box;
-      w.proxy.box = new DOMRect(x + (m.left - t.left) * k, y + (m.top - t.top) * k, m.width * k, m.height * k);
-      w.rect = new DOMRect(x, y, t.width * k, t.height * k);
-    }
-
-    // View ray through client point (x, y), mesh-local (the terrain mesh's
-    // world matrix is identity): a on the near plane, b on the far plane.
-    function ray(x, y, camera, canvas) {
-      a ||= new T.Vector3();
-      b ||= new T.Vector3();
-      const nx = ((x - canvas.left) / canvas.width) * 2 - 1;
-      const ny = 1 - ((y - canvas.top) / canvas.height) * 2;
-      a.set(nx, ny, -1).unproject(camera);
-      b.set(nx, ny, 1).unproject(camera);
-    }
-
-    // Smallest drop below the camera (mesh-local z) at which a plane keeps
-    // every corner of rect r NEAR_MARGIN x the near distance away in view
-    // depth. Along a view ray both view depth and the drop below the camera
-    // grow linearly from 0, so their ratio is fixed per corner. Infinity when
-    // a corner's ray does not go down.
-    function dropFor(r, camera, canvas) {
-      let need = 0;
-      for (let i = 0; i < 4; i++) {
-        ray(r.left + (i & 1 ? r.width : 0), r.top + (i & 2 ? r.height : 0), camera, canvas);
-        const fall = a.z - b.z; // drop from the near point to the far point
-        if (!(fall > 0)) return Infinity;
-        // Depth per unit drop, measured from the near point to the far one.
-        const perDrop = (camera.far - camera.near) / fall;
-        need = Math.max(need, (NEAR_MARGIN * camera.near) / perDrop);
-      }
-      return need;
-    }
-
-    // Client y where the vertical line below client point (x, y) on the plane
-    // at z1 meets the plane at z2.
-    function dropY(x, y, z1, z2, camera, canvas) {
-      ray(x, y, camera, canvas);
-      const k = (z1 - a.z) / (b.z - a.z);
-      a.lerp(b, k);
-      a.z = z2;
-      a.project(camera);
-      return canvas.top + ((1 - a.y) / 2) * canvas.height;
-    }
-
-    // The ink layer: decorative, added once the letters first place.
-    function buildInk() {
-      ink = document.createElement("canvas");
-      ink.className = "sw-block-ink";
-      ink.setAttribute("aria-hidden", "true");
-      ink.dataset.swSection = "block";
-      document.body.append(ink);
-    }
-
-    // Redraws the ink layer when a face box, a mask or the viewport changed.
-    function drawInk() {
-      const k = Math.min(INK_DPR, devicePixelRatio || 1);
-      const W = Math.round(innerWidth * k);
-      const H = Math.round(innerHeight * k);
-      let key = `${W}x${H}`;
-      for (const w of words) {
-        const r = w.proxy.box;
-        key += `|${w.mask.texture.version}|${Math.round(r.x * k)},${Math.round(r.y * k)},${Math.round(r.width * k)},${Math.round(r.height * k)}`;
-      }
-      if (key === inkKey) return;
-      inkKey = key;
-      if (ink.width !== W || ink.height !== H) {
-        ink.width = W;
-        ink.height = H;
-      }
-      const ctx = ink.getContext("2d");
-      ctx.globalCompositeOperation = "source-over";
-      ctx.clearRect(0, 0, W, H);
-      for (const w of words) {
-        const r = w.proxy.box;
-        ctx.drawImage(w.mask.canvas, r.x * k, r.y * k, r.width * k, r.height * k);
-      }
-      ctx.globalCompositeOperation = "source-in";
-      ctx.fillStyle = INK;
-      ctx.fillRect(0, 0, W, H);
-      ctx.globalCompositeOperation = "source-over";
-    }
-
-    // Lays the words out, sets every height from the camera and places the
-    // meshes. true when placed, false when the letters cannot stand, null
-    // while a word has no size (nothing changes).
-    function placeAll(camera, renderer) {
-      for (const w of words) if (!w.mask.update()) return null;
-      const canvas = renderer.domElement.getBoundingClientRect();
-      const camZ = camera.matrixWorld.elements[14];
-      const vw = innerWidth;
-      const [block, by, def] = words;
-      const tb = textRect(block.el);
-      const ty = textRect(by.el);
-      const td = textRect(def.el);
-      const space = td.width / 7; // one monospace advance
-      const s = Math.min(BLOCK_SCALE, (MAX_WIDTH * vw) / tb.width);
-      const kc = Math.min(s * SMALL_RATIO, (MAX_WIDTH * vw) / (ty.width + space + td.width));
-      const cx = vw / 2;
-      // Block: centered, keeping the top of its line.
-      setBox(block, tb, cx - (tb.width * s) / 2, tb.top, s);
-      // Smallest distance from the camera down to the face of "Block".
-      let d = Math.max(BLOCK_DIST * (camZ - TERRAIN_TOP), (camZ - TERRAIN_TOP) / (1 + BLOCK_RISE), dropFor(block.rect, camera, canvas));
-      // by default: one line, centered, its top on the foot of "Block" (where
-      // the foot meets the plateau on screen, which does not depend on d).
-      const r = block.rect;
-      const foot = dropY(cx, r.top + r.height * BASELINE, camZ - d, camZ - (1 + BLOCK_RISE) * d, camera, canvas);
-      const y = foot - OVERLAP * td.height * kc;
-      const lw = (ty.width + space + td.width) * kc;
-      const x0 = cx - lw / 2;
-      setBox(by, ty, x0, y, kc);
-      setBox(def, td, x0 + (ty.width + space) * kc, y, kc);
-      // Its face lies (1 + BLOCK_RISE - SMALL_RISE) x d below the camera.
-      const small = Math.max(dropFor(by.rect, camera, canvas), dropFor(def.rect, camera, canvas));
-      d = Math.max(d, small / (1 + BLOCK_RISE - SMALL_RISE));
-      // The plateau lands on a terrain layer (layers sit every LAYER_STEP in
-      // z), at or below where d puts it; d grows to match. The face of
-      // "Block" keeps its place on screen, so this does not show.
-      const plateau = LAYER_STEP * Math.floor((camZ - (1 + BLOCK_RISE) * d) / LAYER_STEP + 1e-6) - (innerHeight > innerWidth ? PORTRAIT_DROP * LAYER_STEP : 0);
-      d = (camZ - plateau) / (1 + BLOCK_RISE);
-      if (!Number.isFinite(d) || plateau < MIN_LEVEL) return false;
-      let ok = true;
-      for (const w of words) {
-        w.text.topZ = plateau + w.rise * d;
-        w.text.baseZ = plateau - BURY * d;
-        ok = w.text.place(camera, renderer) && ok;
-      }
-      if (!ok) return false;
-      // The mound fills layers up to level + MOUND_TOP / uDepthOffset (the
-      // library adds MOUND_TOP to the height): set it halfway between the
-      // plateau's layer and the next, so the plateau is the top layer drawn.
-      level = plateau + LAYER_STEP / 2 - MOUND_TOP / layer.mesh.material.uniforms.uDepthOffset.value;
-      updateMound(block.mask, block.proxy.box, block.rect);
-      // Kept from the last success when the grown box cannot be mapped.
-      mound.map = SW.planeMap(camera, renderer, mound.box, block.text.topZ) ?? mound.map;
-      if (!ink) buildInk();
-      drawInk();
-      return true;
-    }
-
-    // True when the camera's view or projection moved past CAMERA_EPSILON (or
-    // the viewport resized) since the last time this returned true. The camera
-    // drifts by tiny amounts at rest; those do not trigger a re-place.
-    function cameraMoved(camera) {
-      const a = camera.matrixWorld.elements;
-      const p = camera.projectionMatrix.elements;
-      let moved = seen[32] !== innerWidth || seen[33] !== innerHeight;
-      for (let i = 0; i < 16 && !moved; i++) {
-        if (Math.abs(seen[i] - a[i]) > CAMERA_EPSILON || Math.abs(seen[16 + i] - p[i]) > CAMERA_EPSILON * (1 + Math.abs(p[i]))) moved = true;
-      }
-      if (!moved) return false;
-      for (let i = 0; i < 16; i++) {
-        seen[i] = a[i];
-        seen[16 + i] = p[i];
-      }
-      seen[32] = innerWidth;
-      seen[33] = innerHeight;
-      return true;
-    }
-
+    // Lowest opacity along the chain (0 if any is hidden); sets dir from the
+    // words' horizontal offset while they move.
     function shownAmount() {
       let min = 1;
+      let x = 0;
       for (const e of chain) {
         const css = getComputedStyle(e);
         if (css.visibility === "hidden" || css.display === "none") return 0;
         const o = parseFloat(css.opacity);
         if (o < min) min = o;
+        if (e.parentElement === title && css.transform.startsWith("matrix(")) x += parseFloat(css.transform.split(",")[4]);
       }
+      if (x > 0.5) dir = 1;
+      else if (x < -0.5) dir = -1;
       return min > 0 ? min : 0;
     }
 
-    // Finds the title and hides the DOM heading; the words are built on the
-    // first frame, once the site has split the title into them.
-    function setup() {
-      title ||= document.querySelector("h2.sw-block-title");
-      if (!title) return false;
-      if (!hidden) {
-        hidden = true;
-        hideHeading(title, "sw-block-3d");
+    function grainPattern(ctx) {
+      const n = 160;
+      const c = document.createElement("canvas");
+      c.width = c.height = n;
+      const g = c.getContext("2d");
+      const img = g.createImageData(n, n);
+      for (let i = 0; i < img.data.length; i += 4) {
+        const light = Math.random() < 0.5;
+        img.data[i] = img.data[i + 1] = img.data[i + 2] = light ? 255 : 0;
+        img.data[i + 3] = Math.round(Math.random() * GRAIN);
       }
-      return true;
+      g.putImageData(img, 0, 0);
+      return ctx.createPattern(c, "repeat");
     }
 
-    function showInk(amount) {
-      inkShown = amount;
-      ink.style.opacity = String(amount);
+    // The panel with the words cut out, in `color`, on scratch canvas i.
+    function stencil(i, w, h, color, lines, k) {
+      const c = scratch[i];
+      if (c.width !== w || c.height !== h) {
+        c.width = w;
+        c.height = h;
+      }
+      const ctx = c.getContext("2d");
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = color;
+      ctx.fillRect(0, 0, w, h);
+      if (i === 0) {
+        grain ||= grainPattern(ctx);
+        ctx.fillStyle = grain;
+        ctx.fillRect(0, 0, w, h);
+      }
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.font = lines.font;
+      ctx.fillStyle = "#000";
+      for (const l of lines) ctx.fillText(l.text, l.x * k, l.y * k);
+      ctx.globalCompositeOperation = "source-over";
+      return c;
     }
 
-    // While the ink layer shows: hides it once frames have stopped for STALL
-    // ms, else checks again. Not running while it is hidden.
-    function watchFrames() {
-      watch = 0;
-      if (!(inkShown > 0)) return;
-      if (performance.now() - lastFrame > STALL) {
-        stalled = true;
-        showInk(0);
-      } else {
-        watch = setTimeout(watchFrames, STALL / 2);
+    // Redraws the panel when the viewport, the text or the font changed.
+    function draw() {
+      const W = innerWidth;
+      const H = innerHeight;
+      const css = getComputedStyle(title);
+      const family = css.fontFamily;
+      const weight = css.fontWeight;
+      const texts = words.map(w => w.textContent.trim());
+      const loaded = document.fonts?.check(`${weight} 100px ${family}`) ?? true;
+      const k = Math.min(MAX_DPR, devicePixelRatio || 1);
+      const next = `${W}x${H}@${k}|${weight} ${family}|${texts.join(" ")}|${loaded}`;
+      if (next === key) return;
+      key = next;
+      if (!loaded && fontWait !== family) {
+        fontWait = family;
+        document.fonts.load(`${weight} 100px ${family}`).then(() => (key = ""), () => {});
+      }
+
+      const top = Math.round(Math.max(TOP_MIN, H * TOP_REST));
+      const PH = H - top; // panel height, CSS px
+      const CH = PH + 2 * BAND;
+      travel = [H - top + BAND, H + BAND];
+
+      // Measure at 100 px, then scale the block of lines to fit the panel.
+      const ctx0 = scratch[1].getContext("2d");
+      ctx0.font = `${weight} 100px ${family}`;
+      const m = texts.map(t => ctx0.measureText(t));
+      const boxW = Math.max(...m.map(x => x.actualBoundingBoxLeft + x.actualBoundingBoxRight));
+      const boxH = m.reduce((s, x) => s + x.actualBoundingBoxAscent + x.actualBoundingBoxDescent, 0) + LINE_GAP * 100 * (m.length - 1);
+      const areaW = W * (1 - 2 * SIDE);
+      const areaH = PH - H * (PAD_TOP + PAD_BOTTOM);
+      const s = Math.min(areaW / boxW, areaH / boxH);
+      const size = 100 * s;
+      const lines = [];
+      lines.font = `${weight} ${size * k}px ${family}`;
+      let y = H * PAD_TOP + (areaH - boxH * s) / 2;
+      m.forEach((x, i) => {
+        const l = x.actualBoundingBoxLeft * s;
+        const r = x.actualBoundingBoxRight * s;
+        y += x.actualBoundingBoxAscent * s;
+        lines.push({ text: texts[i], x: W / 2 - (r - l) / 2, y });
+        y += x.actualBoundingBoxDescent * s + LINE_GAP * size;
+      });
+
+      const w = Math.round(W * k);
+      const ph = Math.round(PH * k);
+      const ch = Math.round(CH * k);
+      const band = Math.round(BAND * k);
+      if (panel.width !== w || panel.height !== ch) {
+        panel.width = w;
+        panel.height = ch;
+      }
+      panel.style.top = `${top - BAND}px`;
+      panel.style.height = `${CH}px`;
+      const front = stencil(0, w, ph, PANEL, lines, k);
+      const wall = stencil(1, w, ph, WALL, lines, k);
+      const ctx = panel.getContext("2d");
+      ctx.clearRect(0, 0, w, ch);
+      // Soft shadows on the terrain beyond the top and bottom edges.
+      const up = ctx.createLinearGradient(0, 0, 0, band);
+      up.addColorStop(0, "rgba(0,0,0,0)");
+      up.addColorStop(0.55, `rgba(0,0,0,${EDGE_SHADOW * 0.35})`);
+      up.addColorStop(1, `rgba(0,0,0,${EDGE_SHADOW})`);
+      ctx.fillStyle = up;
+      ctx.fillRect(0, 0, w, band);
+      const down = ctx.createLinearGradient(0, band + ph, 0, ch);
+      down.addColorStop(0, `rgba(0,0,0,${EDGE_SHADOW})`);
+      down.addColorStop(0.45, `rgba(0,0,0,${EDGE_SHADOW * 0.35})`);
+      down.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = down;
+      ctx.fillRect(0, band + ph, w, ch - band - ph);
+      // Inside the holes: the panel's shadow on the terrain, then the cut
+      // wall along the top and left edges, both clipped to the panel.
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, band, w, ph);
+      ctx.clip();
+      ctx.shadowColor = HOLE_SHADOW;
+      ctx.shadowBlur = SHADOW_BLUR * size * k;
+      ctx.shadowOffsetX = SHADOW_X * size * k;
+      ctx.shadowOffsetY = SHADOW_Y * size * k;
+      ctx.drawImage(front, 0, band);
+      ctx.shadowColor = "transparent";
+      ctx.drawImage(wall, WALL_X * size * k, band + WALL_Y * size * k);
+      ctx.restore();
+      ctx.drawImage(front, 0, band);
+      // A faint lit rim on the edges.
+      ctx.fillStyle = EDGE;
+      ctx.fillRect(0, band, w, Math.max(1, Math.round(1.5 * k)));
+      ctx.fillRect(0, band + ph - Math.max(1, Math.round(1.5 * k)), w, Math.max(1, Math.round(1.5 * k)));
+      lastY = NaN;
+    }
+
+    function setShown(on) {
+      if (on === shownNow) return;
+      shownNow = on;
+      panel.style.visibility = on ? "visible" : "hidden";
+      if (on && !watching) {
+        watching = true;
+        ticks = 0;
+        requestAnimationFrame(watch);
       }
     }
 
-    // Puts the page back to the DOM title; SWText logs the error.
-    function fail(err) {
-      stop?.();
-      clearTimeout(watch);
-      document.documentElement.classList.remove("sw-block-3d", "sw-block-flat");
-      ink?.remove();
-      SW.clearMound(owner);
-      for (const w of words ?? []) w.text.dispose();
-      mound.texture.dispose();
-      throw err;
+    // Hides the panel once WebGL frames stop arriving.
+    function watch() {
+      if (!shownNow) {
+        watching = false;
+        return;
+      }
+      if (++ticks > STALE_TICKS) {
+        watching = false;
+        setShown(false);
+        return;
+      }
+      requestAnimationFrame(watch);
     }
 
-    stop = SW.onFrame(({ renderer, camera, dt, now }) => {
+    function undo() {
+      root.classList.remove("sw-block-3d");
+      panel?.remove();
+    }
+
+    const stop = SW.onFrame(() => {
       try {
-        lastFrame = now;
-        if (!setup()) return;
-        if (!words) build();
+        ticks = 0;
+        title ||= document.querySelector("h2.sw-block-title");
+        if (!title) return;
+        if (!panel) build();
         const shown = shownAmount();
-        const rising = shown > lastShown;
-        lastShown = shown;
-        const moved = cameraMoved(camera);
-        frame++;
-        // Placed on every frame the title comes in (its words move), so the
-        // letters stand as it does.
-        if ((shown >= PLACE_FROM || (rising && shown > 0)) && (moved || rising || !placed || frame % 30 === 0)) {
-          const result = placeAll(camera, renderer);
-          if (result !== null) ok = result;
-          if (result) placed = true;
+        if (shown <= 0.001) {
+          setShown(false);
+          return;
         }
-        const target = placed && ok ? shown : 0;
-        // The letters cannot stand: the DOM title shows instead.
-        const flat = shown > 0 && !ok;
-        if (flat !== isFlat) {
-          isFlat = flat;
-          document.documentElement.classList.toggle("sw-block-flat", flat);
+        draw();
+        // The title's own opacity curve is already eased by the site.
+        const y = Math.round((dir < 0 ? travel[0] : -travel[1]) * (1 - shown) * 10) / 10;
+        if (y !== lastY) {
+          lastY = y;
+          panel.style.transform = `translate3d(0, ${y}px, 0)`;
         }
-        // Back from a stall (rendering stopped and resumed): no higher than
-        // the title is now, so nothing shows that it hides.
-        if (stalled) {
-          stalled = false;
-          rise = Math.min(rise, target);
-        }
-        // Up: with the title's opacity. Down: sink at SPEED.
-        rise = target > rise ? target : rise + (target - rise) * Math.min(1, dt * SPEED);
-        if (Math.abs(target - rise) < 0.001) rise = target;
-        const eased = rise * rise * (3 - 2 * rise);
-        for (const w of words) w.text.setAmount(eased);
-        if (ink) {
-          const t = Math.min(1, Math.max(0, (eased - INK_FROM) / (1 - INK_FROM)));
-          const shownInk = target > 0 ? Math.round(t * t * (3 - 2 * t) * 100) / 100 : 0;
-          if (shownInk !== inkShown) showInk(shownInk);
-          if (inkShown > 0 && !watch) watch = setTimeout(watchFrames, STALL / 2);
-        }
-        if (placed && mound.map && (eased !== moundStrength || mound.map !== moundMap || level !== moundLevel)) {
-          moundStrength = eased;
-          moundMap = mound.map;
-          moundLevel = level;
-          SW.setMound(owner, { mask: mound, map: mound.map, strength: eased, level, lod: MOUND_LOD, gain: MOUND_GAIN });
-        }
+        setShown(true);
       } catch (err) {
-        fail(err);
+        // Put the page back to the DOM title; SWText logs the error.
+        stop();
+        undo();
+        throw err;
       }
     });
-    try {
-      setup();
-    } catch (err) {
-      fail(err);
-    }
   });
 })();
