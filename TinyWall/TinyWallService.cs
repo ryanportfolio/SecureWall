@@ -1579,11 +1579,11 @@ namespace pylorak.TinyWall
         // filter, so pending prompts for other apps stay valid.
         private static bool IsIgnoredAppsOnlyChange(ServerConfiguration previous, ServerConfiguration candidate, bool modeUnchanged)
         {
-            if (!modeUnchanged)
+            List<IgnoredApp> before = previous.ActiveProfile.IgnoredApps, now = candidate.ActiveProfile.IgnoredApps;
+            // Cheap exit first: Allow applies its change while holding the prompt-queue lock.
+            if (!modeUnchanged || (before.Count == now.Count && before.TrueForAll(app => now.Exists(other => other.SameEntry(app)))))
                 return false;
             byte[] after = SerializationHelper.Serialize(candidate);
-            if (SerializationHelper.Serialize(previous).SequenceEqual(after))
-                return false;
             ServerConfiguration copy = Utils.DeepClone(previous);
             copy.ActiveProfile.IgnoredApps = candidate.ActiveProfile.IgnoredApps;
             return SerializationHelper.Serialize(copy).SequenceEqual(after);

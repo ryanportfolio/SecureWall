@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Runtime.Serialization;
 using pylorak.TinyWall.Prompting;
 
@@ -77,18 +76,26 @@ namespace pylorak.TinyWall
             };
         }
 
+        // Compares only the fields Matches uses: a package entry's path is display only.
         internal bool SameEntry(IgnoredApp other) =>
             Kind == other.Kind &&
-            SameText(ExecutablePath, other.ExecutablePath) &&
+            (Kind == IgnoredAppKind.Package || SameText(ExecutablePath, other.ExecutablePath)) &&
             SameText(PackageSid, other.PackageSid) &&
             SameText(ServiceName, other.ServiceName);
 
         internal string DisplayName => Kind switch
         {
-            IgnoredAppKind.Package => string.IsNullOrWhiteSpace(ExecutablePath) ? "App package" : Path.GetFileName(ExecutablePath),
+            IgnoredAppKind.Package => string.IsNullOrWhiteSpace(ExecutablePath) ? "App package" : FileName(ExecutablePath) + " (app package)",
             IgnoredAppKind.Service => ServiceName + " (Windows service)",
-            _ => Path.GetFileName(ExecutablePath),
+            _ => FileName(ExecutablePath),
         };
+
+        // .NET Framework's Path.GetFileName throws on characters a hand-edited import can hold.
+        private static string FileName(string path)
+        {
+            int slash = path.LastIndexOfAny(new[] { '\\', '/' });
+            return slash < 0 ? path : path.Substring(slash + 1);
+        }
 
         internal string Detail => Kind == IgnoredAppKind.Package ? PackageSid : ExecutablePath;
 
