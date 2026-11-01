@@ -53,6 +53,18 @@
 		<OutputPath>bin\$(Configuration)\</OutputPath>
 		<IntermediateOutputPath>obj\$(Platform)\$(Configuration)\</IntermediateOutputPath>
 	</PropertyGroup>
+	<!-- In-place upgrade VM test packages (docs/HARDENING-VALIDATION.md). Never released:
+	     the installer contract test refuses a package with SECUREWALLUPGRADEFAULTTEST. -->
+	<PropertyGroup Condition=" '$(Configuration)' == 'UpgradeFaultTest' ">
+		<DefineConstants>UpgradeFaultTest</DefineConstants>
+		<OutputPath>bin\$(Configuration)\</OutputPath>
+		<IntermediateOutputPath>obj\$(Platform)\$(Configuration)\</IntermediateOutputPath>
+	</PropertyGroup>
+	<!-- Development builds below 0.5.0 keep the pre-upgrade Upgrade table (see Product.wxs). -->
+	<PropertyGroup>
+		<SecureWallVersion>$([System.Text.RegularExpressions.Regex]::Replace($([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)..\TinyWall\TinyWall.csproj')), '(?s)^.*?&lt;Version&gt;([0-9.]+)&lt;/Version&gt;.*$', '$1'))</SecureWallVersion>
+		<DefineConstants Condition="$([MSBuild]::VersionLessThan('$(SecureWallVersion)', '0.5.0'))">$(DefineConstants);PreUpgradeVersion=$(SecureWallVersion)</DefineConstants>
+	</PropertyGroup>
 	<ItemGroup>
     <Compile Include="SecureWallChecklistDlg.wxs" />
     <Compile Include="SecureWallExitDlg.wxs" />

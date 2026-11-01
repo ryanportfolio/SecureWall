@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('Debug', 'Release')]
+    # UpgradeFaultTest builds the in-place upgrade VM test packages into
+    # artifacts\upgrade-fault-test. They are never attached to a release.
+    [ValidateSet('Debug', 'Release', 'UpgradeFaultTest')]
     [string]$Configuration = 'Release',
 
     [ValidateSet('x86', 'x64', 'arm64')]
@@ -32,7 +34,12 @@ if (-not $WixRoot) {
     $WixRoot = Join-Path $repoRoot '.tmp\tools\wix314'
 }
 if (-not $OutputDirectory) {
-    $OutputDirectory = Join-Path $repoRoot 'artifacts\release'
+    $OutputDirectory = if ($Configuration -eq 'UpgradeFaultTest') {
+        Join-Path $repoRoot 'artifacts\upgrade-fault-test'
+    }
+    else {
+        Join-Path $repoRoot 'artifacts\release'
+    }
 }
 
 $WixRoot = [System.IO.Path]::GetFullPath($WixRoot)
@@ -89,6 +96,12 @@ if (-not (Test-Path -LiteralPath $application -PathType Leaf)) {
 }
 if ((Get-Item -LiteralPath $application).VersionInfo.ProductName -ne 'SecureWall') {
     throw 'Built executable ProductName is not SecureWall.'
+}
+# The UpgradeFaultTest configuration marks its informational version. Its fault
+# points must never reach a Debug or Release package.
+$isFaultBuild = (Get-Item -LiteralPath $application).VersionInfo.ProductVersion -match 'upgrade-fault-test'
+if ($isFaultBuild -ne ($Configuration -eq 'UpgradeFaultTest')) {
+    throw "Built executable fault-test marker does not match configuration $Configuration."
 }
 
 & (Join-Path $repoRoot 'MsiSetup\PrepareSources.ps1') -Configuration $Configuration

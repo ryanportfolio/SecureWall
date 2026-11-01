@@ -27,12 +27,32 @@ step. License.rtf is also installed beside SecureWall.exe.
                 <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="WixUI_Bmp_Banner" />
                 <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
                 <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
-                <Control Id="Title" Type="Text" X="15" Y="6" Width="290" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Ready to install" />
+                <Control Id="Title" Type="Text" X="15" Y="6" Width="290" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Ready to install">
+                    <Condition Action="hide">OLDER_UPGRADEABLE_FOUND</Condition>
+                </Control>
+                <Control Id="UpgradeTitle" Type="Text" X="15" Y="6" Width="290" Height="15" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="{\WixUI_Font_Title}Ready to upgrade">
+                    <Condition Action="show">OLDER_UPGRADEABLE_FOUND</Condition>
+                </Control>
                 <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="Click Install to start. Windows asks for administrator permission." />
                 <Control Id="StepsLabel" Type="Text" X="25" Y="60" Width="320" Height="10" NoPrefix="yes" Text="Setup will:" />
-                <Control Id="StepFiles" Type="Text" X="25" Y="75" Width="320" Height="10" NoPrefix="yes" Text="• Install SecureWall in [INSTALLDIR]" />
-                <Control Id="StepService" Type="Text" X="25" Y="89" Width="320" Height="10" NoPrefix="yes" Text="• Start the SecureWall service and turn on blocking" />
-                <Control Id="StepTray" Type="Text" X="25" Y="103" Width="320" Height="20" NoPrefix="yes" Text="• Start the SecureWall tray app, which adds rules for known apps it finds on this computer" />
+                <Control Id="StepFiles" Type="Text" X="25" Y="75" Width="320" Height="10" NoPrefix="yes" Text="• Install SecureWall in [INSTALLDIR]">
+                    <Condition Action="hide">OLDER_UPGRADEABLE_FOUND</Condition>
+                </Control>
+                <Control Id="StepService" Type="Text" X="25" Y="89" Width="320" Height="10" NoPrefix="yes" Text="• Start the SecureWall service and turn on blocking">
+                    <Condition Action="hide">OLDER_UPGRADEABLE_FOUND</Condition>
+                </Control>
+                <Control Id="StepTray" Type="Text" X="25" Y="103" Width="320" Height="20" NoPrefix="yes" Text="• Start the SecureWall tray app, which adds rules for known apps it finds on this computer">
+                    <Condition Action="hide">OLDER_UPGRADEABLE_FOUND</Condition>
+                </Control>
+                <Control Id="UpgradeStepStop" Type="Text" X="25" Y="75" Width="320" Height="20" NoPrefix="yes" Hidden="yes" Text="• Stop SecureWall and replace its files in [INSTALLDIR]. Your rules and settings are kept.">
+                    <Condition Action="show">OLDER_UPGRADEABLE_FOUND</Condition>
+                </Control>
+                <Control Id="UpgradeStepBlocked" Type="Text" X="25" Y="96" Width="320" Height="20" NoPrefix="yes" Hidden="yes" Text="• Block all connections to other computers until the new version starts, usually under a minute. Open connections drop.">
+                    <Condition Action="show">OLDER_UPGRADEABLE_FOUND</Condition>
+                </Control>
+                <Control Id="UpgradeStepStart" Type="Text" X="25" Y="117" Width="320" Height="10" NoPrefix="yes" Hidden="yes" Text="• Start the new version and the SecureWall tray app">
+                    <Condition Action="show">OLDER_UPGRADEABLE_FOUND</Condition>
+                </Control>
                 <Control Id="LicenseLine" Type="Line" X="25" Y="140" Width="320" Height="0" />
                 <Control Id="LicenseNotice" Type="Text" X="25" Y="150" Width="320" Height="40" NoPrefix="yes" Text="SecureWall is free software under the GNU General Public License version 3 and comes with no warranty. Copyright © [Manufacturer]." />
             </Dialog>

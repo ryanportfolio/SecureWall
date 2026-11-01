@@ -54,7 +54,9 @@ namespace pylorak.TinyWall
 #endif
         }
 
-        internal static bool EnsureServiceInstalledAndRunning(string logContext, bool installing)
+        // upgradeTransaction is set only by the upgrade restore step, the one other
+        // starter that may run while its own upgrade-in-progress marker is present.
+        internal static bool EnsureServiceInstalledAndRunning(string logContext, bool installing, string? upgradeTransaction = null)
         {
             try
             {
@@ -76,6 +78,10 @@ namespace pylorak.TinyWall
                 ValidateRegisteredServiceImage(true);
                 WindowsFirewall.RequireServiceRunning();
                 if (IsServiceRunning(logContext, installing)) return true;
+                // An in-place upgrade stops the service and swaps its files; starting
+                // either version in between would lock files or break the swap.
+                if (UpgradeLifecyclePolicy.BlocksStart(UpgradeMarker.Read(), UpgradeMarker.InstallerRunning(), upgradeTransaction))
+                    throw new InvalidOperationException(UpgradeLifecyclePolicy.InProgressMessage);
                 if (mayInstall)
                 {
                     if (!ServiceExists())
@@ -194,6 +200,228 @@ namespace pylorak.TinyWall
 
         // Only failed first-install rollback may escalate beyond graceful SCM stop.
         internal static int RollbackFailedInstallForMsi() => CleanupForMsi(true);
+
+        // In-place upgrade steps. Decisions and ordering live in UpgradeLifecyclePolicy;
+        // docs/SECURITY.md "In-place upgrade" gives the whole sequence. Every step is
+        // SYSTEM MSI maintenance on an authenticated Program Files image. None of them
+        // runs /msi-cleanup or touches the deny baseline, the Windows Firewall
+        // compatibility rules, the hosts file or the recovery journals.
+
+        // Step 3, old executable, before its files are removed.
+        internal static int UpgradeStopForMsi(string transaction)
+        {
+            try
+            {
+                using var service = new ScmUpgradeService(ServiceExists);
+                var timer = Stopwatch.StartNew();
+                UpgradeLifecyclePolicy.Stop(transaction, service,
+                    authenticate: () =>
+                    {
+                        InstallationSafety.RequireSystemMaintenance();
+#if !DEBUG
+                        InstallationSafety.RequireProtectedMachineData();
+#endif
+                        RequireServiceNotPendingDeletion();
+                        ValidateRegisteredServiceImage(true);
+                    },
+                    requirePrerequisites: () =>
+                    {
+                        // The new service cannot start without them; refuse while
+                        // the old one still runs.
+                        WindowsFirewall.RequireServiceRunning();
+                        using var bfe = new ServiceController("BFE");
+                        if (bfe.Status != ServiceControllerStatus.Running)
+                            throw new InvalidOperationException("The Base Filtering Engine service (BFE) must be running before SecureWall can be upgraded.");
+                    },
+                    writeMarker: UpgradeMarker.Write,
+                    elapsed: () => timer.Elapsed,
+                    delay: System.Threading.Thread.Sleep,
+                    terminateControllers: TerminateInstallationControllers,
+                    snapshot: () =>
+                    {
+                        UpgradeLifecyclePolicy.TakeSnapshot(new MachineDataUpgradeFiles(), Utils.AppDataPath, transaction);
+#if !DEBUG
+                        InstallationSafety.RequireProtectedMachineData();
+#endif
+                        UpgradeFault.Trip("upgrade-stop-fail");
+                    });
+                Utils.Log("Upgrade " + transaction + ": service stopped, controllers closed, policy snapshot taken.", Utils.LOG_ID_INSTALLER);
+                return 0;
+            }
+            catch (Exception exception)
+            {
+                LogFailure(exception);
+                return -1;
+            }
+        }
+
+        // Step 2, old executable, rollback: runs last, after Windows Installer put the
+        // old files and registration back.
+        internal static int UpgradeRestoreForMsi(string transaction)
+        {
+            try
+            {
+                InstallationSafety.RequireSystemMaintenance();
+                RequireServiceNotPendingDeletion();
+                ValidateRegisteredServiceImage(true);
+                var files = new MachineDataUpgradeFiles();
+                string data = Utils.AppDataPath;
+                string? marker = UpgradeMarker.Read();
+                using var service = new ScmUpgradeService(ServiceExists);
+                if (!service.Registered)
+                    throw new InvalidOperationException("The SecureWall service is not registered, so the previous version cannot be started.");
+                switch (UpgradeLifecyclePolicy.Restore(transaction, marker, UpgradeLifecyclePolicy.SnapshotComplete(files, data, transaction)))
+                {
+                    case UpgradeLifecyclePolicy.RestoreAction.Refuse:
+                        throw new InvalidOperationException("The upgrade-in-progress marker names another upgrade (" + marker + "). Nothing was restored.");
+                    case UpgradeLifecyclePolicy.RestoreAction.RestoreAndStart:
+                        var timer = Stopwatch.StartNew();
+                        if (!ServiceLifecyclePolicy.StopGracefully(() => service.State, service.Stop, () => timer.Elapsed, System.Threading.Thread.Sleep))
+                            throw new InvalidOperationException("The SecureWall service did not stop, so the policy snapshot was not restored.");
+                        UpgradeLifecyclePolicy.RestoreSnapshot(files, data, transaction);
+                        break;
+                }
+                UpgradeFault.Trip("upgrade-restore-start-fail");
+#if !DEBUG
+                // The old version's profiles.json and hosts.bck.
+                MachineDataGuard.InstallDefaults();
+#endif
+                // Restores the restart policy step 3 removed, also when the stop
+                // step failed before stopping anything.
+                EnsureHealth(Utils.LOG_ID_INSTALLER, strictGuards: true);
+                if (!EnsureServiceInstalledAndRunning(Utils.LOG_ID_INSTALLER, true, transaction))
+                    return -1;
+                UpgradeMarker.Clear(transaction);
+                UpgradeLifecyclePolicy.DeleteStaleSnapshots(files, data, null);
+                Utils.Log("Upgrade " + transaction + " rolled back: previous policy restored and service running.", Utils.LOG_ID_INSTALLER);
+                return 0;
+            }
+            catch (Exception exception)
+            {
+                LogFailure(exception);
+                return -1;
+            }
+        }
+
+        // Step 7, new executable, after its files and registry values are installed.
+        // The service starts with restart-on-failure still off, so a failing start
+        // ends here and the MSI rolls back; the service itself reapplies the restart
+        // policy after its first policy commit, and so does EnsureHealth below.
+        internal static int UpgradeStartForMsi(string transaction)
+        {
+            try
+            {
+                InstallationSafety.RequireSystemMaintenance();
+                InstallationSafety.RequireNoTinyWall();
+                InstallationSafety.RequireNoConflictingWfpObjects();
+                RequireServiceNotPendingDeletion();
+                ValidateRegisteredServiceImage(true);
+                var files = new MachineDataUpgradeFiles();
+                string data = Utils.AppDataPath;
+                using var service = new ScmUpgradeService(ServiceExists);
+                bool registered = service.Registered;
+                UpgradeLifecyclePolicy.RequireStartable(transaction, registered,
+                    registered ? service.State : LifecycleServiceState.Stopped,
+                    UpgradeLifecyclePolicy.SnapshotComplete(files, data, transaction), UpgradeMarker.Read());
+                WindowsFirewall.RequireServiceRunning();
+#if !DEBUG
+                // This version's profiles.json and hosts.bck.
+                MachineDataGuard.InstallDefaults();
+#endif
+                UpgradeLifecyclePolicy.DeleteStaleSnapshots(files, data, transaction);
+                UpgradeFault.Trip("upgrade-start-pause");
+                UpgradeFault.Trip("upgrade-start-fail");
+                service.Start();
+                var timer = Stopwatch.StartNew();
+                if (!UpgradeLifecyclePolicy.WaitForRunning(() => service.State, ServiceLifecyclePolicy.StartupTimeout,
+                    () => timer.Elapsed, System.Threading.Thread.Sleep))
+                    throw new InvalidOperationException("The upgraded SecureWall service did not reach Running: " + InstallationSafety.DescribeServiceStatus());
+                EnsureHealth(Utils.LOG_ID_INSTALLER, strictGuards: true);
+                Utils.Log("Upgrade " + transaction + ": upgraded service running.", Utils.LOG_ID_INSTALLER);
+                return 0;
+            }
+            catch (Exception exception)
+            {
+                LogFailure(exception);
+                return -1;
+            }
+        }
+
+        // Step 6, new executable, rollback: stops the new service before Windows
+        // Installer removes its files. Keeps the registration, the marker and the
+        // deny baseline; step 2 starts the old version afterwards.
+        internal static int UpgradeAbortForMsi(string transaction)
+        {
+            try
+            {
+                InstallationSafety.RequireSystemMaintenance();
+                ValidateRegisteredServiceImage(true);
+                using var service = new ScmUpgradeService(ServiceExists);
+                if (service.Registered)
+                {
+                    service.SetRestartOnFailure(false);
+                    var timer = Stopwatch.StartNew();
+                    bool terminated = false;
+                    try
+                    {
+                        // The files are about to be removed, so a service that ignores
+                        // the stop request is terminated like a failed first install.
+                        ServiceLifecyclePolicy.Cleanup(true,
+                            () => ServiceLifecyclePolicy.StopGracefully(() => service.State, service.Stop, () => timer.Elapsed, System.Threading.Thread.Sleep),
+                            () =>
+                            {
+                                terminated = true;
+                                ValidateRegisteredServiceImage();
+                                InstallationSafety.TerminateFailedInstallService();
+                            },
+                            () => ServiceLifecyclePolicy.WaitUntil(() => service.State == LifecycleServiceState.Stopped,
+                                ServiceLifecyclePolicy.CleanupGrace, () => timer.Elapsed, System.Threading.Thread.Sleep),
+                            () => { });
+                    }
+                    finally
+                    {
+                        // Termination disabled the service. A reboot must still start
+                        // whatever version the rollback leaves in place.
+                        if (terminated)
+                        {
+                            using var scm = new ServiceControlManager();
+                            scm.SetStartupMode(TinyWallService.SERVICE_NAME, ServiceStartMode.Automatic);
+                        }
+                    }
+                }
+                TerminateInstallationControllers();
+                Utils.Log("Upgrade " + transaction + " is rolling back: upgraded service stopped.", Utils.LOG_ID_INSTALLER);
+                return 0;
+            }
+            catch (Exception exception)
+            {
+                LogFailure(exception);
+                return -1;
+            }
+        }
+
+        // Step 9, new executable, commit phase after the transaction finished.
+        internal static int UpgradeCommitForMsi(string transaction)
+        {
+            try
+            {
+                InstallationSafety.RequireSystemMaintenance();
+                UpgradeLifecyclePolicy.DeleteStaleSnapshots(new MachineDataUpgradeFiles(), Utils.AppDataPath,
+                    UpgradeLifecyclePolicy.CommitKeeps(UpgradeMarker.Read(), transaction));
+                UpgradeMarker.Clear(transaction);
+                Utils.Log("Upgrade " + transaction + " committed.", Utils.LOG_ID_INSTALLER);
+                return 0;
+            }
+            catch (Exception exception)
+            {
+                LogFailure(exception);
+                return -1;
+            }
+        }
+
+        // Controller repair asks this first, to show the upgrade notice instead of
+        // a repair error. EnsureServiceInstalledAndRunning enforces the same gate.
+        internal static bool ServiceStartBlockedByUpgrade() => UpgradeMarker.BlocksAutomaticStart();
 
         // Emergency release. Main calls this only for SYSTEM MSI removal or
         // failed-install rollback after the machine-data guard rejected the tree.
@@ -396,13 +624,56 @@ namespace pylorak.TinyWall
                 Staged("WFP object removal", RemoveWfpObjects),
                 RemoveRegistration,
                 Warn, LogFailure);
+            RemoveProductRegistry();
             return released ? 0 : -1;
         }
 
+        // Last step of explicit removal. The MSI no longer deletes HKLM\SOFTWARE\SecureWall,
+        // because an in-place upgrade must keep the recovery journals below it. The key
+        // goes only once both journals hold no restorable record; otherwise it stays for
+        // the retry that needs them, minus the upgrade marker. Failure is logged and
+        // does not fail the removal: nothing left here weakens protection.
+        private static void RemoveProductRegistry()
+        {
+            Stage("SecureWall registry key removal");
+            try
+            {
+                using var machine = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
+                using var key = machine.OpenSubKey(ProductRegistryPolicy.KeyPath, true);
+                if (key == null) return;
+                int firewallRecords = 0;
+                using (var firewall = key.OpenSubKey(ProductRegistryPolicy.FirewallJournal))
+                    if (firewall != null) firewallRecords = firewall.ValueCount + firewall.SubKeyCount;
+                int auditRecords = RegistryAuditPolicyJournal.Instance.ReadAll(out _).Count;
+                string[] values = key.GetValueNames();
+                ProductRegistryPolicy.Removal? removal = ProductRegistryPolicy.Plan(key.GetSubKeyNames(), values, firewallRecords, auditRecords);
+                if (removal == null)
+                {
+                    foreach (string marker in ProductRegistryPolicy.MarkerOnly(values))
+                        key.DeleteValue(marker, false);
+                    Warn("HKLM\\" + ProductRegistryPolicy.KeyPath + " is kept because a recovery journal below it still holds a record.");
+                    return;
+                }
+                foreach (string subkey in removal.Value.Subkeys)
+                    key.DeleteSubKeyTree(subkey, false);
+                foreach (string value in removal.Value.Values)
+                    key.DeleteValue(value, false);
+                key.Flush();
+                key.Close();
+                if (removal.Value.DeleteKey)
+                    machine.DeleteSubKeyTree(ProductRegistryPolicy.KeyPath, false);
+            }
+            catch (Exception exception)
+            {
+                LogFailure(exception);
+            }
+        }
+
         // A healthy journal entry that fails to restore aborts ordinary cleanup,
-        // like the firewall-rule journal: the MSI deletes HKLM\Software\SecureWall
-        // on uninstall and standalone /uninstall removes the service that would
-        // retry, so continuing would leave the audit policy modified with no record.
+        // like the firewall-rule journal: removal deletes HKLM\Software\SecureWall
+        // once the journals are clear and standalone /uninstall removes the service
+        // that would retry, so continuing would leave the audit policy modified
+        // with no record.
         // Malformed records hold no recoverable value and never block uninstall.
         private static void RestoreAuditPolicy()
         {

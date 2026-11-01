@@ -4,19 +4,20 @@
 <!--
 SecureWall setup flow. Every page the user steps through is SecureWall's own:
 
-First install:
+First install and in-place upgrade from v0.5.0 or later:
  - SecureWallWelcomeDlg
  - SecureWallChecklistDlg (local install, fail-closed behavior, Windows Firewall)
- - SecureWallReadyDlg (license notice; SecureWallLicenseDlg shows the full text)
+ - SecureWallReadyDlg (license notice; SecureWallLicenseDlg shows the full text;
+   an upgrade lists the stop, the blocked window and the restart instead)
  - SecureWallProgressDlg
  - SecureWallExitDlg, SecureWallCancelledDlg or SecureWallFatalError
 
-There is no maintenance flow: launch conditions reject repair, change and
-upgrade, and removal from Settings > Apps sets REMOVE=ALL, which skips the
-welcome pages. Stock WixUI dialogs remain only for Windows Installer prompts
-that apply as-is: cancel confirmation, errors, files in use, disk space and
-the initial preparing screen. Privileged code is supported only under protected
-Program Files, so there is no directory chooser.
+There is no maintenance flow: launch conditions reject repair and change, and
+removal from Settings > Apps sets REMOVE=ALL, which skips the welcome pages.
+Stock WixUI dialogs remain only for Windows Installer prompts that apply as-is:
+cancel confirmation, errors, files in use, disk space and the initial preparing
+screen. Privileged code is supported only under protected Program Files, so
+there is no directory chooser; an upgrade reuses the recorded INSTALLDIR.
 -->
 
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
