@@ -1,6 +1,6 @@
 # In-place MSI upgrade and "Check for updates": design plan
 
-Baseline: `de7ac3dc` (v0.4.2). Status: design only, awaiting owner approval. Nothing here is built, installed or run.
+Baseline: `de7ac3dc` (v0.4.2). Status: approved by the owner on 2026-11-01 with the recommended answers below. Nothing here is built, installed or run yet.
 
 Today an upgrade means uninstalling SecureWall in Settings > Apps and installing the new MSI. Between the two the PC has no SecureWall policy at all: `/msi-cleanup` releases the persistent deny baseline, the Windows Firewall compatibility rules and the service. This plan replaces that with two features, built in this order:
 
@@ -256,12 +256,14 @@ Each step ends with the core tests, full MSBuild Debug and Release, the installe
 13. B7 Docs and `UpdateFeedRemovalTests` changes from the table above.
 14. B8 VM cases R1 to R9 and a full U2 rerun through the button. Release.
 
-## Open decisions
+## Decisions
 
-1. **v0.4.2 and older:** accept one last manual uninstall-and-install to reach v0.5.0? Recommended; the alternative is re-caching patched copies of every old package.
-2. **Signing:** owner-held ECDSA key with a manual signing step per release (recommended), a CI-secret key (automatic, weaker), or start with Authenticode now (cost and eligibility to confirm)?
-3. **Prereleases:** every release so far is a prerelease, so an updater that skips them finds nothing. Should "Include prereleases" default to on while SecureWall is alpha, or stay off until the owner turns it on?
-4. **Network permit:** transient 10-minute grant per check (recommended) or a persistent setting like the AI permit?
-5. **Automatic checks:** manual button only (recommended for now) or a weekly background check that only notifies?
-6. **Password lock:** require unlocking before Install when a password is set? Recommended for consistency with Manage, although any administrator can run the MSI directly.
-7. **Release split:** ship the upgrade alone as v0.5.0 and the updater next (recommended, smaller VM gate), or both together?
+Approved by the owner on 2026-11-01 ("Yes, recommended").
+
+1. **v0.4.2 and older:** one last manual uninstall-and-install reaches v0.5.0. No re-caching of old packages.
+2. **Signing:** owner-held ECDSA P-256 key in the Windows CNG store, plus an offline backup key, with a manual signing step per release. No CI-secret key. Authenticode is reconsidered before the first non-prerelease release.
+3. **Prereleases:** not settled. The plan offered no recommendation here, so the approval does not cover it. The build defaults "Include prereleases" to off, as the original brief asked (the owner opts in), and this is confirmed with the owner before step B5.
+4. **Network permit:** a transient 10-minute grant per check, never saved.
+5. **Automatic checks:** manual button only.
+6. **Password lock:** Install requires unlocking when a password is set.
+7. **Release split:** the in-place upgrade ships alone as v0.5.0; the updater follows in a later release.
