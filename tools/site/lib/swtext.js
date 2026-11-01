@@ -19,8 +19,9 @@
 //     "Layers Hero", whether it was pushed to __swLayers before or after this
 //     call. layer.mesh is the terrain InstancedMesh; layer is its parent
 //     Object3D. This library is the only code that overrides __swLayers.push.
-//     Under prefers-reduced-motion: reduce, or if setup failed, cb is never
-//     called, so a section that does all its work inside cb adds nothing.
+//     If setup failed, cb is never called, so a section that does all its
+//     work inside cb adds nothing. prefers-reduced-motion is not checked:
+//     the page gets the same headlines either way.
 //     Every other function below needs the terrain, so call them from inside
 //     cb (or later).
 //
@@ -113,7 +114,6 @@
   };
 
   const debug = { slices: [], mound: null };
-  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   let hero = null; // the attached "Layers Hero" instance
   let failed = false;
@@ -133,7 +133,7 @@
   };
 
   function onTerrain(cb) {
-    if (reduced || failed) return;
+    if (failed) return;
     if (hero) run(cb);
     else pending.push(cb);
   }
@@ -543,7 +543,6 @@ gl_FragColor=vec4(c,1.);
 
   window.SWText = { onTerrain, three, onFrame, glyphMask, planeMap, SliceText, setMound, clearMound, debug };
 
-  if (reduced) return;
   const queue = (window.__swLayers = window.__swLayers || []);
   queue.forEach(attach);
   queue.push = function (...items) {

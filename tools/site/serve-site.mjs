@@ -32,8 +32,15 @@ const types = {
 };
 
 http.createServer((req, res) => {
-  const url = new URL(req.url, "http://localhost");
-  let rel = decodeURIComponent(url.pathname);
+  // A malformed path (for example "/%") gets a 400 instead of throwing out
+  // of this callback, which would stop the server.
+  let rel;
+  try {
+    rel = decodeURIComponent(new URL(req.url, "http://localhost").pathname);
+  } catch {
+    res.writeHead(400, { "Content-Type": "text/plain" }).end("bad request");
+    return;
+  }
   if (rel.endsWith("/")) rel += "index.html";
   const file = path.join(root, rel);
   if (path.relative(root, file).startsWith("..") || !fs.existsSync(file) || !fs.statSync(file).isFile()) {

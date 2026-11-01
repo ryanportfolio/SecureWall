@@ -8,11 +8,17 @@
 // (sizes, one line for "by default") comes from moving and scaling each mask's
 // box, so the page's own layout is never changed. The pieces follow the h2's
 // visible state (lowest computed opacity among the h2, its ancestors and its
-// words): they rise while it shows and sink into the terrain as it hides. They
-// are re-placed while the title is at least half shown and the camera moves,
-// so they stay on the title's box and keep their size on screen; while hiding
-// they stay put in the scene. Once drawn, <html> gets sw-block-3d and
-// block.css makes the DOM h2 transparent.
+// words): they rise with it as it shows and sink into the terrain as it hides.
+// They are re-placed while the title comes in, and while it is at least half
+// shown and the camera moves, so they stay on the title's box and keep their
+// size on screen; while hiding they stay put in the scene. As soon as the
+// section is set up, <html> gets sw-block-3d and block.css makes the DOM h2
+// transparent, so the flat heading never shows first.
+//
+// The per-frame work runs only while the site renders WebGL, and the site
+// stops rendering past .js-webgl-scroll-end. A quick scroll can get there
+// before the ink layer (a fixed page canvas, below) has faded, so while it
+// shows, a timer checks that frames still arrive and hides it when they stop.
 //
 // Depth: the scroll camera drops from about 0.17 to 0.10 above the top
 // terrain layer while the title shows, and widens its lens from about 89 to
@@ -107,8 +113,12 @@
   const MASK_PAD = 0.08;
   const MASK_EDGE = 0.05;
 
-  // Rise/sink speed (per second) toward the title's visible state.
+  // Sink speed (per second) toward the title's visible state. On the way up
+  // the letters follow the title's opacity, so they stand while it shows.
   const SPEED = 6;
+  // Frames stopped (ms) before the ink layer is hidden; the timer that
+  // checks runs every STALL / 2 while it shows.
+  const STALL = 200;
   // The letters follow the title's box (and the camera) while the title is at
   // least this visible; below it, while it hides, they stay put in the scene.
   // The words' slide-in is horizontal and the layout is centred, so this
@@ -116,6 +126,17 @@
   const PLACE_FROM = 0.5;
   // Camera matrix change that triggers a re-place while the title shows.
   const CAMERA_EPSILON = 1e-4;
+
+  // Adds the class that makes the DOM heading transparent, at once: the
+  // stylesheet's color transition is for handing the page back to the DOM
+  // heading, not for hiding it.
+  function hideHeading(el, cls) {
+    const old = el.style.transition;
+    el.style.transition = "none";
+    document.documentElement.classList.add(cls);
+    getComputedStyle(el).color; // applies the class before the transition returns
+    el.style.transition = old;
+  }
 
   SW.onTerrain(layer => {
     const owner = {};
@@ -125,8 +146,14 @@
     let chain = null; // elements whose opacity and visibility count
     let words = null; // [{ el, mask, proxy, text, rise }]
     let placed = false;
-    let drawn = false;
+    let hidden = false; // DOM heading hidden (sw-block-3d)
     let rise = 0;
+    let lastShown = 0;
+    let stop = null;
+    // Frame watchdog for the ink layer (see the header).
+    let lastFrame = 0;
+    let watch = 0;
+    let stalled = false;
     let frame = 0;
     let level = TERRAIN_TOP;
     let moundStrength = -1;
@@ -389,37 +416,88 @@
       return min > 0 ? min : 0;
     }
 
-    const stop = SW.onFrame(({ renderer, camera, dt }) => {
+    // Finds the title and hides the DOM heading; the words are built on the
+    // first frame, once the site has split the title into them.
+    function setup() {
+      title ||= document.querySelector("h2.sw-block-title");
+      if (!title) return false;
+      if (!hidden) {
+        hidden = true;
+        hideHeading(title, "sw-block-3d");
+      }
+      return true;
+    }
+
+    function showInk(amount) {
+      inkShown = amount;
+      ink.style.opacity = String(amount);
+    }
+
+    // While the ink layer shows: hides it once frames have stopped for STALL
+    // ms, else checks again. Not running while it is hidden.
+    function watchFrames() {
+      watch = 0;
+      if (!(inkShown > 0)) return;
+      if (performance.now() - lastFrame > STALL) {
+        stalled = true;
+        showInk(0);
+      } else {
+        watch = setTimeout(watchFrames, STALL / 2);
+      }
+    }
+
+    // Puts the page back to the DOM title; SWText logs the error.
+    function fail(err) {
+      stop?.();
+      clearTimeout(watch);
+      document.documentElement.classList.remove("sw-block-3d", "sw-block-flat");
+      ink?.remove();
+      SW.clearMound(owner);
+      for (const w of words ?? []) w.text.dispose();
+      mound.texture.dispose();
+      throw err;
+    }
+
+    stop = SW.onFrame(({ renderer, camera, dt, now }) => {
       try {
-        title ||= document.querySelector("h2.sw-block-title");
-        if (!title) return;
+        lastFrame = now;
+        if (!setup()) return;
         if (!words) build();
         const shown = shownAmount();
+        const rising = shown > lastShown;
+        lastShown = shown;
         const moved = cameraMoved(camera);
         frame++;
-        if (shown >= PLACE_FROM && (moved || !placed || frame % 30 === 0)) {
+        // Placed on every frame the title comes in (its words move), so the
+        // letters stand as it does.
+        if ((shown >= PLACE_FROM || (rising && shown > 0)) && (moved || rising || !placed || frame % 30 === 0)) {
           const result = placeAll(camera, renderer);
           if (result !== null) ok = result;
           if (result) placed = true;
         }
         const target = placed && ok ? shown : 0;
         // The letters cannot stand: the DOM title shows instead.
-        const flat = drawn && shown > 0 && !ok;
+        const flat = shown > 0 && !ok;
         if (flat !== isFlat) {
           isFlat = flat;
           document.documentElement.classList.toggle("sw-block-flat", flat);
         }
-        rise += (target - rise) * Math.min(1, dt * SPEED);
+        // Back from a stall (rendering stopped and resumed): no higher than
+        // the title is now, so nothing shows that it hides.
+        if (stalled) {
+          stalled = false;
+          rise = Math.min(rise, target);
+        }
+        // Up: with the title's opacity. Down: sink at SPEED.
+        rise = target > rise ? target : rise + (target - rise) * Math.min(1, dt * SPEED);
         if (Math.abs(target - rise) < 0.001) rise = target;
         const eased = rise * rise * (3 - 2 * rise);
         for (const w of words) w.text.setAmount(eased);
         if (ink) {
           const t = Math.min(1, Math.max(0, (eased - INK_FROM) / (1 - INK_FROM)));
           const shownInk = target > 0 ? Math.round(t * t * (3 - 2 * t) * 100) / 100 : 0;
-          if (shownInk !== inkShown) {
-            inkShown = shownInk;
-            ink.style.opacity = String(shownInk);
-          }
+          if (shownInk !== inkShown) showInk(shownInk);
+          if (inkShown > 0 && !watch) watch = setTimeout(watchFrames, STALL / 2);
         }
         if (placed && mound.map && (eased !== moundStrength || mound.map !== moundMap || level !== moundLevel)) {
           moundStrength = eased;
@@ -427,20 +505,14 @@
           moundLevel = level;
           SW.setMound(owner, { mask: mound, map: mound.map, strength: eased, level, lod: MOUND_LOD, gain: MOUND_GAIN });
         }
-        if (placed && !drawn) {
-          drawn = true;
-          document.documentElement.classList.add("sw-block-3d");
-        }
       } catch (err) {
-        // Put the page back to the DOM title; SWText logs the error.
-        stop();
-        document.documentElement.classList.remove("sw-block-3d", "sw-block-flat");
-        ink?.remove();
-        SW.clearMound(owner);
-        for (const w of words ?? []) w.text.dispose();
-        mound.texture.dispose();
-        throw err;
+        fail(err);
       }
     });
+    try {
+      setup();
+    } catch (err) {
+      fail(err);
+    }
   });
 })();

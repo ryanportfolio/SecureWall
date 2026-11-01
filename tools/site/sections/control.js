@@ -4,11 +4,18 @@
 //
 // Built with window.SWText (tools/site/lib/swtext.js). The letters and cards
 // follow the Control title's own show/hide: the lowest computed opacity of the
-// h2, its ancestors and its descendants. Once the letters draw, <html> gets
-// sw-control-3d and control.css makes the DOM h2 transparent; it keeps its
-// text and stays in the accessibility tree. The cards are decorative
-// (aria-hidden) and are added only from onTerrain, so under reduced motion
-// the page keeps its original heading and gets nothing.
+// h2, its ancestors and its descendants. They rise with it as it shows and
+// sink behind it as it hides. As soon as the section is set up, <html> gets
+// sw-control-3d and control.css makes the DOM h2 transparent, so the flat
+// heading never shows first; it keeps its text and stays in the
+// accessibility tree. The cards are decorative (aria-hidden) and are added
+// only from onTerrain, so if SWText fails to set up, the page keeps its
+// original heading and gets nothing.
+//
+// The per-frame work runs only while the site renders WebGL, and the site
+// stops rendering past .js-webgl-scroll-end. A quick scroll can get there
+// before the cards have faded, so while they show, a timer checks that frames
+// still arrive and hides them when frames stop.
 (() => {
   "use strict";
 
@@ -48,8 +55,12 @@
   // Slate-grey sides, darkening toward the base, so the depth reads against
   // the white face and the white terrain.
   const SIDES = [0.42, 0.47, 0.56];
-  // Rise/sink speed (per second) toward the title's visible state.
+  // Sink speed (per second) toward the title's visible state. On the way up
+  // the letters follow the title's opacity, so they stand while it shows.
   const SPEED = 3.5;
+  // Frames stopped (ms) before the cards are hidden; the timer that checks
+  // runs every STALL / 2 while the cards show.
+  const STALL = 200;
 
   function buildCards() {
     const box = document.createElement("div");
@@ -95,6 +106,17 @@
     return min;
   }
 
+  // Adds the class that makes the DOM heading transparent, at once: the
+  // stylesheet's color transition is for handing the page back to the DOM
+  // heading, not for hiding it.
+  function hideHeading(el, cls) {
+    const old = el.style.transition;
+    el.style.transition = "none";
+    document.documentElement.classList.add(cls);
+    getComputedStyle(el).color; // applies the class before the transition returns
+    el.style.transition = old;
+  }
+
   SW.onTerrain(layer => {
     let title = null;
     let chain = null;
@@ -104,9 +126,14 @@
     let text = null;
     let cards = null;
     let placed = false;
-    let drawn = false;
     let rise = 0;
+    let lastShown = 0;
     let shownCards = -1;
+    let stop = null;
+    // Frame watchdog for the cards (see the header).
+    let lastFrame = 0;
+    let watch = 0;
+    let stalled = false;
     // Camera state at the last place(), to re-place only when it moves.
     // (The scroll animates both its pose and its field of view.)
     const lastCam = new Float64Array(32);
@@ -135,24 +162,61 @@
       return moved;
     }
 
-    const stop = SW.onFrame(({ renderer, camera, dt }) => {
+    // Builds the letters and cards and hides the DOM heading. false while
+    // the heading is not in the page yet (onFrame tries again).
+    function setup() {
+      const el = document.querySelector("h2.sw-control-title");
+      if (!el) return false;
+      title = el;
+      mask = SW.glyphMask(title, { pad: 0.12, edge: 0.05 });
+      text = new SW.SliceText(layer, {
+        mask,
+        slices: SLICES,
+        baseZ: 1 - DEPTH,
+        topZ: 1,
+        face: [1, 1, 1],
+        sides: SIDES,
+        bevel: BEVEL,
+      });
+      text.mesh.name = "sw-control";
+      cards = buildCards();
+      hideHeading(title, "sw-control-3d");
+      return true;
+    }
+
+    function showCards(step) {
+      shownCards = step;
+      cards.style.setProperty("--sw-show", String(step));
+      cards.classList.toggle("is-shown", step > 0);
+    }
+
+    // While the cards show: hides them once frames have stopped for STALL
+    // ms, else checks again. Not running while they are hidden.
+    function watchFrames() {
+      watch = 0;
+      if (shownCards <= 0) return;
+      if (performance.now() - lastFrame > STALL) {
+        stalled = true;
+        showCards(0);
+      } else {
+        watch = setTimeout(watchFrames, STALL / 2);
+      }
+    }
+
+    // Puts the page back to the DOM heading; SWText logs the error.
+    function fail(err) {
+      stop?.();
+      clearTimeout(watch);
+      document.documentElement.classList.remove("sw-control-3d");
+      cards?.remove();
+      text?.dispose();
+      throw err;
+    }
+
+    stop = SW.onFrame(({ renderer, camera, dt, now }) => {
       try {
-        if (!title) {
-          title = document.querySelector("h2.sw-control-title");
-          if (!title) return;
-          mask = SW.glyphMask(title, { pad: 0.12, edge: 0.05 });
-          text = new SW.SliceText(layer, {
-            mask,
-            slices: SLICES,
-            baseZ: 1 - DEPTH,
-            topZ: 1,
-            face: [1, 1, 1],
-            sides: SIDES,
-            bevel: BEVEL,
-          });
-          text.mesh.name = "sw-control";
-          cards = buildCards();
-        }
+        lastFrame = now;
+        if (!title && !setup()) return;
         // GSAP splits the heading into word wrappers after the first render:
         // rebuild the chain when the heading's subtree changes.
         subtree ||= title.getElementsByTagName("*"); // live collection
@@ -162,9 +226,12 @@
           for (let p = title.parentElement; p && p !== document.documentElement; p = p.parentElement) chain.push(p);
         }
         const shown = visibleState(chain);
-        // Place while the title is fully shown, again whenever the camera or
+        const rising = shown > lastShown;
+        lastShown = shown;
+        // Place while the title is fully shown, and on every frame it comes
+        // in, so the letters stand as it does; again whenever the camera or
         // the heading's box moves.
-        if (shown > 0.99 && mask.update()) {
+        if ((shown > 0.99 || (rising && shown > 0)) && mask.update()) {
           const cam = camMoved(camera);
           const box = boxMoved(mask.box);
           if (cam || box || !placed) {
@@ -188,30 +255,30 @@
           }
         }
         const target = placed ? shown : 0;
-        rise += (target - rise) * Math.min(1, dt * SPEED);
+        // Back from a stall (rendering stopped and resumed): no higher than
+        // the title is now, so nothing shows that it hides.
+        if (stalled) {
+          stalled = false;
+          rise = Math.min(rise, target);
+        }
+        // Up: with the title's opacity. Down: sink at SPEED.
+        rise = target > rise ? target : rise + (target - rise) * Math.min(1, dt * SPEED);
         if (rise < 0.001) rise = 0;
         const eased = rise * rise * (3 - 2 * rise);
         // place() rewrites the stack itself; otherwise only on a change.
         if (eased !== text.amount) text.setAmount(eased);
         // Cards follow the same eased amount, in steps of 1/100.
         const step = Math.round(eased * 100) / 100;
-        if (step !== shownCards) {
-          shownCards = step;
-          cards.style.setProperty("--sw-show", String(step));
-          cards.classList.toggle("is-shown", step > 0);
-        }
-        if (placed && !drawn) {
-          drawn = true;
-          document.documentElement.classList.add("sw-control-3d");
-        }
+        if (step !== shownCards) showCards(step);
+        if (shownCards > 0 && !watch) watch = setTimeout(watchFrames, STALL / 2);
       } catch (err) {
-        // Put the page back to the DOM heading; SWText logs the error.
-        stop();
-        document.documentElement.classList.remove("sw-control-3d");
-        cards?.remove();
-        text?.dispose();
-        throw err;
+        fail(err);
       }
     });
+    try {
+      setup();
+    } catch (err) {
+      fail(err);
+    }
   });
 })();

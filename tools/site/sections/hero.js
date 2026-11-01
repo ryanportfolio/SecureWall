@@ -11,9 +11,10 @@
 // Built with window.SWText (tools/site/lib/swtext.js). The letters follow the
 // hero's computed opacity: they rise while it shows and sink into the terrain
 // as it fades on scroll. They are placed onto the h1's box only while the hero
-// is fully shown, so while moving they travel with the terrain. Once drawn,
-// <html> gets sw-hero-3d and hero.css makes the DOM h1 transparent; it stays
-// in the accessibility tree and selectable.
+// is fully shown, so while moving they travel with the terrain. As soon as the
+// section is set up, <html> gets sw-hero-3d and hero.css makes the DOM h1
+// transparent, so the flat headline never shows first; it stays in the
+// accessibility tree and selectable.
 (() => {
   "use strict";
   const SW = window.SWText;
@@ -82,6 +83,9 @@
   // the mound height in alpha for SWText.setMound over moundRect(), a larger
   // rect, so the slope ends inside it instead of at the box edge. The rect
   // stays inside the viewport: points far above it map badly onto the plane.
+  // So it can change while the mask does not (a resize that keeps the
+  // headline's layout); the mound is redrawn whenever its rect, relative to
+  // mask.box, differs from the one it was drawn for (rectKey).
   const DIST_MAX = 2;
   const FLAT = RINGS * RING_W;
   // The mound fades out over the outer 6% of its rect; keep the slope clear.
@@ -94,6 +98,8 @@
     const x1 = Math.min(innerWidth, box.right + m + e), y1 = Math.min(innerHeight, box.bottom + m + e);
     return new DOMRect(x0, y0, x1 - x0, y1 - y0);
   }
+  const rectKey = (box, rect) =>
+    [rect.left - box.left, rect.top - box.top, rect.width, rect.height].map(Math.round).join();
 
   // Squared distance in grid cells to the nearest cell inside the glyphs
   // (alpha >= 0.5), for a w x h grid with the mask drawn at (dx, dy, dw, dh).
@@ -177,8 +183,9 @@
       target.texture.needsUpdate = true;
     }
 
-    // Rebuilds both fields from the mask's current drawing.
-    function update(mask, fontSize) {
+    // Rebuilds both fields from the mask's current drawing, the mound over
+    // rect (moundRect of the mask's box).
+    function update(mask, fontSize, rect) {
       const box = mask.box;
       let w = FIELD_W;
       let h = Math.max(1, Math.round((w * box.height) / box.width));
@@ -191,7 +198,6 @@
         }
       });
 
-      const rect = moundRect(box, fontSize);
       w = FIELD_W;
       h = Math.max(1, Math.round((w * rect.height) / rect.width));
       const k = w / rect.width;
@@ -343,6 +349,17 @@ gl_FragColor=vec4(c,1.);
     }
   }
 
+  // Adds the class that makes the DOM headline transparent, at once: the
+  // stylesheet's color transition is for handing the page back to the DOM
+  // headline, not for hiding it.
+  function hideHeading(el, cls) {
+    const old = el.style.transition;
+    el.style.transition = "none";
+    document.documentElement.classList.add(cls);
+    getComputedStyle(el).color; // applies the class before the transition returns
+    el.style.transition = old;
+  }
+
   SW.onTerrain(layer => {
     let mask = null;
     let field = null;
@@ -353,8 +370,9 @@ gl_FragColor=vec4(c,1.);
     let moundMap = null;
     let version = -1; // mask texture version the fields were built from
     let source = null;
+    let drawnFor = ""; // rectKey the mound was drawn for
     let placed = false;
-    let drawn = false;
+    let stop = null;
     let rise = 0;
     let hero = null;
     let title = null;
@@ -381,11 +399,30 @@ gl_FragColor=vec4(c,1.);
       built = fontSize;
     }
 
-    const stop = SW.onFrame(({ renderer, camera, dt }) => {
+    // Finds the headline and hides the DOM one; false while it is not in the
+    // page yet (onFrame tries again).
+    function setup() {
+      if (title) return true;
+      hero ||= document.querySelector(".js-hero");
+      title = hero?.querySelector("h1") ?? null;
+      if (!title) return false;
+      hideHeading(title, "sw-hero-3d");
+      return true;
+    }
+
+    // Puts the page back to the DOM headline; SWText logs the error.
+    function fail(err) {
+      stop?.();
+      document.documentElement.classList.remove("sw-hero-3d");
+      if (hero) SW.clearMound(hero);
+      text?.dispose();
+      rings?.dispose();
+      throw err;
+    }
+
+    stop = SW.onFrame(({ renderer, camera, dt }) => {
       try {
-        hero ||= document.querySelector(".js-hero");
-        title ||= hero?.querySelector("h1");
-        if (!title) return;
+        if (!setup()) return;
         if (!mask) {
           mask = SW.glyphMask(title, { pad: 0.2, edge: 0.05 });
           field = fields(SW.three(layer));
@@ -394,15 +431,23 @@ gl_FragColor=vec4(c,1.);
         const shown = css.visibility === "hidden" ? 0 : parseFloat(css.opacity) || 0;
         if (shown > 0.99 && mask.update()) {
           // The mask redraws when the glyphs move or the font changes; only
-          // then rebuild the fields (and the meshes, for a new font size).
+          // then rebuild the fields (and the meshes, for a new font size),
+          // and the mound also when its rect changed.
+          let redraw = false;
           if (mask.texture !== source || mask.texture.version !== version) {
             source = mask.texture;
             version = source.version;
             const fontSize = parseFloat(getComputedStyle(title).fontSize);
-            field.update(mask, fontSize);
             if (fontSize !== built) build(fontSize);
+            redraw = true;
           }
-          const map = text.place(camera, renderer) && SW.planeMap(camera, renderer, moundRect(mask.box, built), topZ);
+          const rect = moundRect(mask.box, built);
+          const key = rectKey(mask.box, rect);
+          if (redraw || key !== drawnFor) {
+            field.update(mask, built, rect);
+            drawnFor = key;
+          }
+          const map = text.place(camera, renderer) && SW.planeMap(camera, renderer, rect, topZ);
           if (map) {
             placed = true;
             moundMap = map;
@@ -416,19 +461,14 @@ gl_FragColor=vec4(c,1.);
         text.setAmount(eased);
         rings.setAmount(eased);
         if (placed) SW.setMound(hero, { mask: field.mound, map: moundMap, strength: eased, level: MOUND_LEVEL, lod: 0, gain: 1 });
-        if (placed && !drawn) {
-          drawn = true;
-          document.documentElement.classList.add("sw-hero-3d");
-        }
       } catch (err) {
-        // Put the page back to the DOM headline; SWText logs the error.
-        stop();
-        document.documentElement.classList.remove("sw-hero-3d");
-        if (hero) SW.clearMound(hero);
-        text?.dispose();
-        rings?.dispose();
-        throw err;
+        fail(err);
       }
     });
+    try {
+      setup();
+    } catch (err) {
+      fail(err);
+    }
   });
 })();
