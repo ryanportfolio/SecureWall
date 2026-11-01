@@ -326,6 +326,20 @@ namespace pylorak.Windows
             return NativeMethods.GetProcessTimes(hProcess, out creationTime, out _, out _, out _);
         }
 
+        // Path and creation time (UTC FILETIME) read through one handle, so both describe the
+        // same process even if the PID is reused meanwhile. False when the process can't be opened.
+        public static bool TryGetProcessIdentity(uint processId, out string path, out long creationTime)
+        {
+            StringBuilder? buffer = null;
+            using var hProcess = NativeMethods.OpenProcess(ProcessAccessFlags.QueryLimitedInformation, false, processId);
+            path = string.Empty;
+            creationTime = 0;
+            if (hProcess.IsInvalid || !GetProcessCreationTime(hProcess, out creationTime))
+                return false;
+            path = GetProcessPath(hProcess, ref buffer);
+            return true;
+        }
+
         private static IEnumerable<PROCESSENTRY32> CreateToolhelp32Snapshot()
         {
             const int ERROR_NO_MORE_FILES = 18;

@@ -145,7 +145,7 @@ namespace pylorak.TinyWall
             {
                 // Try to resolve PIDs heuristically
                 var ProcessPathInfoMap = new Dictionary<string, List<ProcessSnapshotEntry>>();
-                // Processes this app may not open, such as service hosts when it is not elevated.
+                // Processes whose path this app cannot read, such as service hosts when it is not elevated.
                 var unreadable = new Dictionary<uint, string>();
                 foreach (var p in ProcessManager.CreateToolhelp32SnapshotExtended())
                 {
@@ -169,17 +169,21 @@ namespace pylorak.TinyWall
                     ProcessPathInfoMap.TryGetValue(key, out List<ProcessSnapshotEntry>? p);
 
                     // The service names the process for blocks it matched to a Security-log event,
-                    // after checking that process's path and start time itself. Keep that PID only
-                    // while it still belongs to a process with this path that started before the
-                    // block: Unblock and Close process act on it. A process this app may not open
-                    // is checked by file name alone.
+                    // and on every log read checks that the PID still belongs to that process. Keep
+                    // that PID only while it still belongs to a process with this path that started
+                    // before the block: Unblock and Close process act on it. A process whose path
+                    // this app cannot read is checked by file name alone, which the snapshot cuts
+                    // to 130 characters.
                     if (e.ProcessId != 0)
                     {
                         uint pid = e.ProcessId;
                         if (p != null && p.Exists(s => s.ProcessId == pid && s.CreationTime < e.Timestamp.ToFileTime()))
                             continue;
-                        if (unreadable.TryGetValue(pid, out string? exeName) &&
-                            string.Equals(exeName, System.IO.Path.GetFileName(e.AppPath), StringComparison.OrdinalIgnoreCase))
+                        string fileName = System.IO.Path.GetFileName(e.AppPath);
+                        if (unreadable.TryGetValue(pid, out string? exeName) && exeName.Length > 0 &&
+                            (exeName.Length >= 130
+                                ? fileName.StartsWith(exeName, StringComparison.OrdinalIgnoreCase)
+                                : string.Equals(exeName, fileName, StringComparison.OrdinalIgnoreCase)))
                             continue;
                         e.ProcessId = 0;
                     }

@@ -1471,7 +1471,16 @@ namespace pylorak.TinyWall
             var entries = new List<FirewallLogEntry>();
             lock (FirewallLogEntries)
             {
-                ResolveActivityPids(DateTime.Now - ActivityAuditWindow - TimeSpan.FromSeconds(1));
+                var identities = new Dictionary<uint, (bool Open, string Path, long Creation)>();
+                ResolveActivityPids(DateTime.Now - ActivityAuditWindow - TimeSpan.FromSeconds(1), identities);
+                // A PID the matched process no longer holds is dropped for good: the tray app,
+                // which may not open service hosts, relies on this check being current.
+                foreach (FirewallLogEntry entry in FirewallLogEntries)
+                {
+                    if (entry.ProcessId != 0 &&
+                        (!IdentityOf(entry.ProcessId, identities, out string _, out long creation) || creation != entry.ProcessCreation))
+                        entry.ProcessId = 0;
+                }
                 // Copies: the service keeps changing its rows after the lock is released.
                 foreach (FirewallLogEntry entry in FirewallLogEntries)
                     entries.Add(entry with { });
@@ -2713,11 +2722,12 @@ namespace pylorak.TinyWall
 
         // Names the process behind each blocked row once, after its matching window has passed,
         // so audits arriving in either order within it count. Rows and audits that could pair up
-        // are grouped; a group's rows take a PID only when all its audits name one process and it
-        // has no more rows than audits. Two processes (several svchost.exe binding raw sockets,
-        // say) or a lost audit leave the rows without one. Runs when Network Activity reads the
-        // log, never on the event callbacks. Caller holds the FirewallLogEntries lock.
-        private void ResolveActivityPids(DateTime settled)
+        // are grouped; a group's rows take a PID only when all its audits name one process, it has
+        // no more rows than audits, and that process still has the row's path and started at or
+        // before the block. Two processes (several svchost.exe binding raw sockets, say), a lost
+        // audit or an exited process leave the rows without one. Runs when Network Activity reads
+        // the log, never on the event callbacks. Caller holds the FirewallLogEntries lock.
+        private void ResolveActivityPids(DateTime settled, Dictionary<uint, (bool Open, string Path, long Creation)> identities)
         {
             var rows = new List<FirewallLogEntry>();
             bool unresolved = false;
@@ -2763,27 +2773,35 @@ namespace pylorak.TinyWall
                 FirewallLogEntry row = rows[r];
                 if (row.PidResolved || row.Timestamp > settled) continue;
                 int root = Find(r);
-                row.ProcessId = (auditCount[root] >= rowCount[root] && auditCount[root] > 0 && !mixed[root] &&
-                    ProcessMatches(pid[root], row)) ? pid[root] : 0;
                 row.PidResolved = true;
+                // The PID must still belong to a process with the row's path that started at or
+                // before the block (FILETIMEs, so the repeated daylight-saving hour can't reorder them).
+                if (auditCount[root] >= rowCount[root] && auditCount[root] > 0 && !mixed[root] &&
+                    IdentityOf(pid[root], identities, out string path, out long creation) &&
+                    creation <= row.Timestamp.ToFileTime() &&
+                    string.Equals(path, row.AppPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    row.ProcessId = pid[root];
+                    row.ProcessCreation = creation;
+                }
+                else
+                    row.ProcessId = 0;
             }
         }
 
-        // The service can open every process, so it checks once that the PID still belongs to
-        // a process with the row's path that started before the block. The tray app, which may
-        // not open service hosts, relies on this check.
-        private static bool ProcessMatches(uint pid, FirewallLogEntry row)
+        // The service runs as LocalSystem and can open the service hosts the tray app may not.
+        // One limited-rights handle per PID and read (about 5 microseconds), cached in identities.
+        private static bool IdentityOf(uint pid, Dictionary<uint, (bool Open, string Path, long Creation)> identities,
+            out string path, out long creation)
         {
-            try
+            if (!identities.TryGetValue(pid, out var identity))
             {
-                using Process process = Process.GetProcessById(unchecked((int)pid));
-                return process.StartTime <= row.Timestamp &&
-                    string.Equals(ProcessManager.GetProcessPath(pid), row.AppPath, StringComparison.OrdinalIgnoreCase);
+                bool open = ProcessManager.TryGetProcessIdentity(pid, out string readPath, out long readCreation);
+                identities[pid] = identity = (open, readPath, readCreation);
             }
-            catch (Exception)
-            {
-                return false;
-            }
+            path = identity.Path;
+            creation = identity.Creation;
+            return identity.Open;
         }
 
         private static bool AuditMatches(ActivityAudit audit, FirewallLogEntry entry) =>
