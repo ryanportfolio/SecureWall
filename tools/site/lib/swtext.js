@@ -6,23 +6,31 @@
 // Sections use only the API below. three.js is not loaded separately: its
 // classes are taken from objects the site already built.
 //
+// Terrains: the site builds two terrain instances, "Layers Hero" (shown from
+// the hero down to .js-webgl-scroll-end) and "Layers Footer" (shown in the
+// footer, where the site starts WebGL again). Both are attached. Functions
+// that pick a terrain take its name (onTerrain, onFrame) or its layer
+// (planeMap, setMound; SliceText's first argument); left out, they mean
+// "Layers Hero", so code written for the hero alone works unchanged.
+//
 // Space: "mesh-local" is the terrain mesh's local space. The terrain is 20
 // PlaneGeometry(1,1) layers scaled 5 (x, y in -2.5..2.5), each raised to its
 // layer offset in z (0.05..0.95; the 20th wraps to 0). Terrain uv is
-// (x / 5 + 0.5, y / 5 + 0.5). The terrain mesh's world matrix is identity.
-// Colors are linear RGB in 0..1.
+// (x / 5 + 0.5, y / 5 + 0.5). Both terrain meshes' world matrices are
+// identity. Colors are linear RGB in 0..1.
 //
 // API (window.SWText):
 //
-//   onTerrain(cb)
+//   onTerrain(cb, { name = "Layers Hero" } = {})
 //     Calls cb(layer) once for the terrain instance whose options.name is
-//     "Layers Hero", whether it was pushed to __swLayers before or after this
-//     call. layer.mesh is the terrain InstancedMesh; layer is its parent
-//     Object3D. This library is the only code that overrides __swLayers.push.
-//     If setup failed, cb is never called, so a section that does all its
-//     work inside cb adds nothing. prefers-reduced-motion is not checked:
-//     the page gets the same headlines either way.
-//     Every other function below needs the terrain, so call them from inside
+//     name ("Layers Hero" or "Layers Footer"), whether it was pushed to
+//     __swLayers before or after this call. layer.mesh is the terrain
+//     InstancedMesh; layer is its parent Object3D. This library is the only
+//     code that overrides __swLayers.push. If setting up that terrain
+//     failed, cb is never called, so a section that does all its work inside
+//     cb adds nothing. prefers-reduced-motion is not checked: the page gets
+//     the same headlines either way.
+//     Every other function below needs a terrain, so call them from inside
 //     cb (or later).
 //
 //   three(layer) -> { Vector3, Matrix4, Texture, InstancedMesh, PlaneGeometry,
@@ -31,13 +39,20 @@
 //     position's constructor once a frame has rendered (before that, the mesh
 //     position's, the same class).
 //
-//   onFrame(fn) -> unsubscribe()
-//     fn({ renderer, camera, dt, now }) runs once per frame from the terrain
-//     mesh's onBeforeRender (any existing handler still runs first). dt is in
-//     seconds, capped at 0.1; now is performance.now(). The terrain is
-//     transparent, so it draws after opaque meshes: changes made here to an
-//     opaque mesh (SliceText) show from the next frame, while terrain uniforms
-//     (setMound) apply to this frame. A throwing fn is unsubscribed.
+//   onFrame(fn, { name = "Layers Hero" } = {}) -> unsubscribe()
+//     fn({ renderer, camera, dt, now, layer }) runs once per frame from the
+//     onBeforeRender of the terrain mesh named name (any existing handler
+//     still runs first), so only on frames where that terrain renders; layer
+//     is that terrain. The site shows the hero terrain from the hero down to
+//     .js-webgl-scroll-end and the footer terrain in the footer, never both
+//     at rest; frames stop where neither renders. A section's meshes added to
+//     a terrain's layer still render while that terrain mesh is hidden, so a
+//     section hides them itself when its frames stop. dt is in seconds since
+//     that terrain's previous frame, capped at 0.1; now is performance.now().
+//     The terrain is transparent, so it draws after opaque meshes: changes
+//     made here to an opaque mesh (SliceText) show from the next frame, while
+//     terrain uniforms (setMound) apply to this frame. A throwing fn is
+//     unsubscribed.
 //
 //   glyphMask(element, { pad = 0.15, width = 2048, edge = 0.05 })
 //     -> { canvas, texture, update(), box }
@@ -55,16 +70,19 @@
 //     texture is replaced when the canvas size changes (WebGL2 fixes texture
 //     storage on first upload): read mask.texture each time, do not keep it.
 //
-//   planeMap(camera, renderer, rect, z) -> number[9] | null
+//   planeMap(camera, renderer, rect, z, layer = hero) -> number[9] | null
 //     Homography, a column-major mat3, taking terrain uv on the plane at
-//     mesh-local z to the unit square of rect (a client rect): t = (0,0) at
-//     the rect's bottom-left, t.y = 1 at its top, matching the texture's
-//     flipY. In GLSL: vec3 p = map * vec3(uv, 1.); vec2 t = p.xy / p.z; p.z
-//     is positive inside the rect. null when the rect cannot be mapped.
+//     mesh-local z of layer's terrain to the unit square of rect (a client
+//     rect): t = (0,0) at the rect's bottom-left, t.y = 1 at its top,
+//     matching the texture's flipY. In GLSL: vec3 p = map * vec3(uv, 1.);
+//     vec2 t = p.xy / p.z; p.z is positive inside the rect. null when the
+//     rect cannot be mapped.
 //
 //   new SliceText(layer, { mask, slices = 48, baseZ, topZ, face = [1,1,1],
 //                          sides = "rainbow", stripe = 2, bevel = 1 })
-//     Extruded text: an InstancedMesh of `slices` PlaneGeometry(1,1) planes
+//     Extruded text on layer's terrain (either one; mesh-local z and the
+//     placement below are that terrain's): an InstancedMesh of `slices`
+//     PlaneGeometry(1,1) planes
 //     stacked from topZ (instance 0, the face) down to baseZ (mesh-local z),
 //     each covering the terrain-plane footprint of mask.box. Fragments map
 //     through the homography to the mask and are discarded outside the glyphs
@@ -88,21 +106,39 @@
 //     .dispose()                removes and frees it.
 //     Each mesh is in SWText.debug.slices until disposed.
 //
-//   setMound(owner, { mask, map, strength, level, lod, gain })
-//     Raises the terrain under a mask, so the terrain's contour lines wrap
-//     around it. Height rises toward the cut-off of layer offset `level`
-//     (uHeight + uDepthOffset * level, plus 0.01), never lowering it, where
-//     a heavily blurred mip (`lod`, default the mip about 16 texels across) of
-//     mask.texture, looked up through `map` (usually SliceText.map) and
-//     multiplied by `gain` (default 2), is high; strength (0..1) scales it.
-//     The lookup skips the terrain shader's uv wobble. Of all owners, the one
-//     with the highest strength (above 0.002) is drawn. Call every frame the values
-//     change.
+//   setMound(owner, { mask, map, strength, level, lod, gain, floor,
+//                     layer = hero })
+//     Raises layer's terrain under a mask, so the terrain's contour lines
+//     wrap around it. Height rises toward the cut-off of layer offset `level`
+//     (uHeight plus that layer's depth offset, plus 0.01; the depth offset is
+//     uDepthOffset * level on the hero terrain, and the footer shader's
+//     level * |uDepthOffset * ((level + 0.3) * 2 - 1)| * 0.25 on the footer
+//     terrain), never lowering it, where a heavily blurred mip (`lod`,
+//     default the mip about 16 texels across) of mask.texture, looked up
+//     through `map` (usually SliceText.map, of the same layer) and multiplied
+//     by `gain` (default 2), is high; strength (0..1) scales it. The lookup
+//     skips the terrain shader's uv wobble.
+//     floor (a layer offset below level; default none) carves instead, for
+//     terrain that is already high around the mask: with m the clamped
+//     lookup, the height goes to the floor's cut-off where m reaches 0.15
+//     (blended in from m = 0) and climbs from there to level's cut-off at
+//     m = 1, lowering or raising it, so the contour lines step up toward the
+//     mask from a trench around it.
+//     Each terrain draws one mound: of its owners, the one with the highest
+//     strength (above 0.002). Call every frame the values change. An owner
+//     sits on one terrain at a time; setMound with another layer moves it.
+//     The library writes the active mound's uniforms again before every
+//     frame that terrain renders: the site's Theatre sheet adds every
+//     uniform the material has when the sheet is built (these included) and
+//     resets them whenever its animated values change.
 //   clearMound(owner)
 //
-//   debug: { slices: [], mound: null }   mound = the active setMound entry.
+//   debug: { slices: [], mound: null, mounds: {} }
+//     mound = the hero terrain's active setMound entry; mounds = the active
+//     entry per terrain name (null when none).
 //
-// Any setup failure logs one console.warn and leaves the page as it was.
+// Any setup failure logs one console.warn and leaves that terrain (and the
+// headlines on it) as the page had it.
 (() => {
   "use strict";
 
@@ -113,32 +149,41 @@
     console.warn("SWText disabled:", ...args);
   };
 
-  const debug = { slices: [], mound: null };
+  const HERO = "Layers Hero";
+  const NAMES = [HERO, "Layers Footer"];
+  const debug = { slices: [], mound: null, mounds: {} };
 
-  let hero = null; // the attached "Layers Hero" instance
-  let failed = false;
-  const pending = [];
-  const frames = [];
+  // Per terrain name: the attached instance, its queued onTerrain callbacks,
+  // its onFrame subscribers and frame clock, and its mound owners.
+  const terrains = new Map(
+    NAMES.map(name => [name, { name, layer: null, failed: false, pending: [], frames: [], lastStamp: -1, lastNow: 0, mounds: new Map(), empty: null }]),
+  );
+  for (const name of NAMES) debug.mounds[name] = null;
   let lastCamera = null;
-  let lastStamp = -1;
-  let lastNow = 0;
-  const mounds = new Map();
 
-  const run = cb => {
+  const terrainOf = name => {
+    const t = terrains.get(name);
+    if (!t) throw new Error(`SWText: no terrain named "${name}"`);
+    return t;
+  };
+
+  const run = (cb, layer) => {
     try {
-      cb(hero);
+      cb(layer);
     } catch (err) {
       warn(err);
     }
   };
 
-  function onTerrain(cb) {
-    if (failed) return;
-    if (hero) run(cb);
-    else pending.push(cb);
+  function onTerrain(cb, { name = HERO } = {}) {
+    const t = terrainOf(name);
+    if (t.failed) return;
+    if (t.layer) run(cb, t.layer);
+    else t.pending.push(cb);
   }
 
-  function onFrame(fn) {
+  function onFrame(fn, { name = HERO } = {}) {
+    const frames = terrainOf(name).frames;
     frames.push(fn);
     return () => {
       const i = frames.indexOf(fn);
@@ -162,9 +207,18 @@
     };
   }
 
-  const needHero = () => {
-    if (!hero) throw new Error("SWText: terrain not attached yet; call from onTerrain");
-    return hero;
+  // The given terrain layer, else the hero terrain; it must be attached.
+  const needLayer = layer => {
+    const found = layer ?? terrains.get(HERO).layer;
+    if (!found || ![...terrains.values()].some(t => t.layer === found)) {
+      throw new Error("SWText: terrain not attached yet; call from onTerrain");
+    }
+    return found;
+  };
+  // Any attached terrain (for constructors shared by both).
+  const anyLayer = () => {
+    for (const t of terrains.values()) if (t.layer) return t.layer;
+    throw new Error("SWText: terrain not attached yet; call from onTerrain");
   };
 
   // Exact-count string replacement; a miss means the bundle changed.
@@ -190,27 +244,36 @@
       src,
       "float aastep(",
       "uniform sampler2D tSwMound;uniform mat3 uSwMoundMap;uniform float uSwMoundStrength;" +
-        "uniform float uSwMoundLevel;uniform float uSwMoundLod;uniform float uSwMoundGain;vec2 swOffset;" +
+        "uniform float uSwMoundLevel;uniform float uSwMoundLod;uniform float uSwMoundGain;" +
+        "uniform float uSwMoundFloor;vec2 swOffset;" +
         "float swMound(vec2 uv){vec3 p=uSwMoundMap*vec3(uv,1.);if(p.z<=0.)return 0.;vec2 t=p.xy/p.z;" +
         "vec2 e=min(t,1.-t);if(min(e.x,e.y)<=0.)return 0.;" +
         "return clamp(textureLod(tSwMound,t,uSwMoundLod).a*uSwMoundGain,0.,1.)*smoothstep(0.,.06,min(e.x,e.y));}" +
+        // The cut-off of layer offset l, as main() computes it for each
+        // terrain (uIsFooter is declared above aastep).
+        "float swCut(float l){return uHeight+(uIsFooter?l*abs(uDepthOffset*((l+.3)*2.-1.))*.25:uDepthOffset*l)+.01;}" +
         "float swHeight(vec2 uv){float h=texture2D(tHeightNoise,uv).r;if(uSwMoundStrength<=0.)return h;" +
-        "float m=swMound(uv-swOffset);float top=uHeight+uDepthOffset*uSwMoundLevel+.01;" +
-        "return mix(h,max(h,top),uSwMoundStrength*m*m*(3.-2.*m));}" +
+        "float m=swMound(uv-swOffset);float top=swCut(uSwMoundLevel);" +
+        "if(uSwMoundFloor<0.)return mix(h,max(h,top),uSwMoundStrength*m*m*(3.-2.*m));" +
+        // Carved: the height falls to the floor's cut-off where the mound
+        // starts and climbs to the plateau toward its core.
+        "float c=mix(swCut(uSwMoundFloor),top,smoothstep(.15,1.,m));" +
+        "return mix(h,c,uSwMoundStrength*smoothstep(0.,.15,m));}" +
         "float aastep(",
       1,
     );
   }
 
   function attach(layer) {
-    if (layer?.options?.name !== "Layers Hero" || hero || failed) return;
+    const t = terrains.get(layer?.options?.name);
+    if (!t || t.layer || t.failed) return;
     try {
       const mesh = layer.mesh;
       const material = mesh.material;
       const uniforms = material.uniforms;
       const fragmentShader = patchShader(material.fragmentShader);
       const Texture = uniforms.tHeightNoise.value.constructor;
-      const empty = new Texture();
+      const empty = (t.empty = new Texture());
       Object.assign(uniforms, {
         tSwMound: { value: empty },
         uSwMoundMap: { value: [1, 0, 0, 0, 1, 0, 0, 0, 1] },
@@ -218,44 +281,49 @@
         uSwMoundLevel: { value: 0.95 },
         uSwMoundLod: { value: 6 },
         uSwMoundGain: { value: 3 },
+        uSwMoundFloor: { value: -1 },
       });
       material.fragmentShader = fragmentShader;
       material.needsUpdate = true;
 
+      const frames = t.frames;
       const previous = mesh.onBeforeRender;
       mesh.onBeforeRender = function (renderer, scene, camera, ...rest) {
         previous?.call(this, renderer, scene, camera, ...rest);
         // Once per frame even if the scene renders more than once.
         const stamp = document.timeline?.currentTime ?? performance.now();
-        if (stamp === lastStamp) return;
-        lastStamp = stamp;
+        if (stamp === t.lastStamp) return;
+        t.lastStamp = stamp;
         const now = performance.now();
-        const dt = lastNow ? Math.min(0.1, (now - lastNow) / 1000) : 0;
-        lastNow = now;
+        const dt = t.lastNow ? Math.min(0.1, (now - t.lastNow) / 1000) : 0;
+        t.lastNow = now;
         lastCamera = camera;
         for (const fn of [...frames]) {
           try {
-            fn({ renderer, camera, dt, now });
+            fn({ renderer, camera, dt, now, layer });
           } catch (err) {
             warn(err);
             const i = frames.indexOf(fn);
             if (i >= 0) frames.splice(i, 1);
           }
         }
-        // The mask's texture is replaced when its canvas resizes.
-        uniforms.tSwMound.value = debug.mound ? debug.mound.mask.texture : empty;
+        // Written again on every frame: the mask's texture is replaced when
+        // its canvas resizes, and the site's Theatre sheet, which picked up
+        // these uniforms with the material's own, resets them to their first
+        // values whenever its animated values change.
+        writeMound(t);
       };
-      hero = layer;
+      t.layer = layer;
     } catch (err) {
-      failed = true;
+      t.failed = true;
       warn(err);
       return;
     }
-    pending.splice(0).forEach(run);
+    t.pending.splice(0).forEach(cb => run(cb, layer));
   }
 
   function glyphMask(element, { pad = 0.15, width = 2048, edge = 0.05 } = {}) {
-    const { Texture } = three(needHero());
+    const { Texture } = three(anyLayer());
     const canvas = document.createElement("canvas");
     const range = document.createRange();
     let drawnFor = "";
@@ -359,8 +427,8 @@
 
   // Corners of rect on the plane at z, mesh-local, in the order
   // bottom-left, bottom-right, top-right, top-left.
-  function corners(camera, renderer, rect, z) {
-    const mesh = needHero().mesh;
+  function corners(camera, renderer, rect, z, layer) {
+    const mesh = needLayer(layer).mesh;
     const inverse = new mesh.matrixWorld.constructor().copy(mesh.matrixWorld).invert();
     const canvasRect = renderer.domElement.getBoundingClientRect();
     const out = [
@@ -372,8 +440,8 @@
     return out.every(Boolean) ? out : null;
   }
 
-  function planeMap(camera, renderer, rect, z) {
-    const quad = corners(camera, renderer, rect, z);
+  function planeMap(camera, renderer, rect, z, layer) {
+    const quad = corners(camera, renderer, rect, z, layer);
     if (!quad) return null;
     return squareFrom(...quad.map(([x, y]) => [x / 5 + 0.5, y / 5 + 0.5]));
   }
@@ -462,7 +530,7 @@ gl_FragColor=vec4(c,1.);
     place(camera, renderer) {
       const box = this.mask.box;
       if (!box) return false;
-      const quad = corners(camera, renderer, box, this.topZ);
+      const quad = corners(camera, renderer, box, this.topZ, this.layer);
       if (!quad) return false;
       const map = squareFrom(...quad.map(([x, y]) => [x / 5 + 0.5, y / 5 + 0.5]));
       if (!map) return false;
@@ -509,16 +577,25 @@ gl_FragColor=vec4(c,1.);
     }
   }
 
-  function applyMound() {
+  // Draws the strongest of a terrain's mound owners on that terrain.
+  function applyMound(t) {
     let best = null;
-    for (const entry of mounds.values()) {
+    for (const entry of t.mounds.values()) {
       if (entry.strength > 0.002 && entry.map && (!best || entry.strength > best.strength)) best = entry;
     }
-    debug.mound = best;
-    if (!hero) return;
-    const u = hero.mesh.material.uniforms;
+    debug.mounds[t.name] = best;
+    if (t.name === HERO) debug.mound = best;
+    writeMound(t);
+  }
+
+  // Sets t's mound uniforms from its active entry.
+  function writeMound(t) {
+    if (!t.layer) return;
+    const best = debug.mounds[t.name];
+    const u = t.layer.mesh.material.uniforms;
     if (!best) {
       u.uSwMoundStrength.value = 0;
+      u.tSwMound.value = t.empty;
       return;
     }
     const c = best.mask.canvas;
@@ -528,17 +605,23 @@ gl_FragColor=vec4(c,1.);
     u.uSwMoundLevel.value = best.level;
     u.uSwMoundLod.value = best.lod ?? Math.max(0, Math.log2(Math.max(c.width, c.height)) - 4);
     u.uSwMoundGain.value = best.gain ?? 2;
+    u.uSwMoundFloor.value = best.floor ?? -1;
   }
 
-  function setMound(owner, { mask, map, strength = 0, level = 0.95, lod, gain } = {}) {
-    needHero();
-    mounds.set(owner, { owner, mask, map, strength: Math.min(1, Math.max(0, strength)), level, lod, gain });
-    applyMound();
+  function setMound(owner, { mask, map, strength = 0, level = 0.95, lod, gain, floor, layer } = {}) {
+    const target = needLayer(layer);
+    for (const t of terrains.values()) {
+      if (t.layer === target) {
+        t.mounds.set(owner, { owner, mask, map, strength: Math.min(1, Math.max(0, strength)), level, lod, gain, floor });
+        applyMound(t);
+      } else if (t.mounds.delete(owner)) {
+        applyMound(t);
+      }
+    }
   }
 
   function clearMound(owner) {
-    mounds.delete(owner);
-    applyMound();
+    for (const t of terrains.values()) if (t.mounds.delete(owner)) applyMound(t);
   }
 
   window.SWText = { onTerrain, three, onFrame, glyphMask, planeMap, SliceText, setMound, clearMound, debug };
