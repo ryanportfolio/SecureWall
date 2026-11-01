@@ -1,0 +1,6 @@
+/* Block: from setup on, the DOM title never shows its own text (no colour
+   transition, so it cannot fade through); its text stays in the
+   accessibility tree. The charcoal panel with the cut-out words (block.js)
+   sits over the WebGL canvas and under the site header; hidden until shown. */
+.sw-block-3d .sw-block-title,.sw-block-3d .sw-block-title *{color:transparent!important;-webkit-text-stroke-color:transparent!important;text-shadow:none!important}
+.sw-block-panel{position:fixed;left:0;top:0;width:100vw;pointer-events:none;visibility:hidden;z-index:1;will-change:transform}
