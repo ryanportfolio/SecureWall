@@ -1,11 +1,11 @@
 # In-place MSI upgrade and "Check for updates": design plan
 
-Baseline: `de7ac3dc` (v0.4.2). Status: approved by the owner on 2026-11-01 with the recommended answers below. Phase A shipped in v0.5.0 (#38, #42). Phase B steps B1 to B6 are built; prereleases are offered by default (decision 3). The B7 VM harness and B8 VM cases remain.
+Baseline: `de7ac3dc` (v0.4.2). Status: approved by the owner on 2026-11-01 with the recommended answers below. Phase A shipped in v0.5.0 (#38, #42). Phase B steps B2 to B6 are built without signing: the owner replaced option A with an unsigned manifest (decision 2, revised), so B1 and the signing parts of B3 and B4 were dropped; prereleases are offered by default (decision 3). The B7 VM harness and B8 VM cases remain.
 
 Today an upgrade means uninstalling SecureWall in Settings > Apps and installing the new MSI. Between the two the PC has no SecureWall policy at all: `/msi-cleanup` releases the persistent deny baseline, the Windows Firewall compatibility rules and the service. This plan replaces that with two features, built in this order:
 
 1. **In-place upgrade.** Running a newer `SecureWall_<arch>.msi` over an installed SecureWall upgrades it. The persistent deny baseline stays in WFP for the whole swap, so the PC is never unfiltered; external traffic is blocked only for the seconds between the old service stopping and the new one committing its policy.
-2. **Check for updates.** A tray and Manage action finds the newest signed SecureWall release on GitHub, shows its notes, downloads and verifies the MSI, and starts the in-place upgrade behind a UAC prompt.
+2. **Check for updates.** A tray and Manage action finds the newest SecureWall release on GitHub, shows its notes, downloads and verifies the MSI, and starts the in-place upgrade behind a UAC prompt.
 
 The updater depends on the upgrade path, so it is built second.
 
@@ -185,6 +185,8 @@ Decision 2 (approved): A now; C is reconsidered before the first non-prerelease 
 
 What A does not cover, accepted explicitly: the owner signs what CI built. A malicious workflow change, compromised action or anyone able to upload release assets before the owner signs can supply MSIs that carry the expected version, the owner's public keys and a manifest naming the reviewed commit; every check below would pass and the owner would sign them. The signing checks catch mistakes (wrong tag, wrong commit, stale keys, a rerun build), not that attack. Closing it needs builds the owner can verify independently: reproducible builds compared against a local build, or building and signing on the owner's PC instead of in CI. Neither is in this plan; it is listed for the Authenticode decision.
 
+Decision 2, revised (owner, 2026-11-01): no signing. The owner judged the GitHub account and releases page safe and did not want a key and a signing step. The updater reads `SHA256SUMS.txt` unsigned: it checks the header (repository, tag, version, prerelease line) against the release and the MSI hash against the manifest, which catches damaged or swapped downloads and replayed older releases, but anyone who can publish or replace release assets can supply an installer the updater offers. `ReleaseKeys.cs`, `New-SecureWallReleaseKeys.ps1`, `Sign-SecureWallRelease.ps1`, the `.sig` asset and the test key were removed. The design of option A below is kept as the record of what was considered; Authenticode (C) is still reconsidered before the first non-prerelease release.
+
 Design of option A:
 
 - **Keys.** The owner generates a primary key pair in the Windows CNG user key store, non-exportable, with strong key protection (a password prompt on every use), and a backup key pair on offline media kept elsewhere. Both public keys are committed under `tools/release/keys/` and compiled into `SecureWall.exe`. Either verifies. Limits, stated plainly: the backup is necessarily exportable and carries the same authority, so its storage matters as much as the primary's; a compromised key stays trusted by every installed version until that version updates, and because selection takes the highest version, an attacker-signed "v9.9.9" would win and block later legitimate releases. Recovery from a key compromise is a manual reinstall of a release that drops the key. A core test checks that the embedded keys equal the committed files.
@@ -333,7 +335,7 @@ Each step ends with the core tests, full MSBuild Debug and Release, the installe
 Approved by the owner on 2026-11-01 ("Yes, recommended").
 
 1. **v0.4.2 and older:** one last manual uninstall-and-install reaches v0.5.0. No re-caching of old packages.
-2. **Signing:** owner-held ECDSA P-256 key in the Windows CNG store, plus an offline backup key, with a manual signing step per release. No CI-secret key. Authenticode is reconsidered before the first non-prerelease release.
+2. **Signing:** owner-held ECDSA P-256 key in the Windows CNG store, plus an offline backup key, with a manual signing step per release. No CI-secret key. Authenticode is reconsidered before the first non-prerelease release. Revised by the owner on 2026-11-01: no release signing; the manifest is trusted as far as the GitHub release is (see "Integrity scheme").
 3. **Prereleases:** on by default (owner, 2026-11-01). Until Authenticode exists every release is a prerelease, because `release.yml` refuses to attach unsigned MSIs to a full release, so with the setting off the button would never offer anything. Only an explicit choice is stored, so the default can change once full releases exist.
 4. **Network permit:** a transient grant of at most 10 minutes per network phase, for the requesting user only, never saved.
 5. **Automatic checks:** manual button only.

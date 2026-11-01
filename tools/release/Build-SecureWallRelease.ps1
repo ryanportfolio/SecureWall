@@ -21,7 +21,7 @@ param(
     [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+\z')]
     [string]$ValidationVersion,
 
-    # The signed manifest header records whether the release is a prerelease. release.yml
+    # The manifest header records whether the release is a prerelease. release.yml
     # attaches unsigned installers only to prereleases, so that is the default.
     [switch]$FullRelease
 )
@@ -178,8 +178,8 @@ foreach ($platform in $Platforms) {
     Copy-Item -LiteralPath $source -Destination (Join-Path $OutputDirectory $name) -Force
 }
 
-# The header is what Sign-SecureWallRelease.ps1 signs and the updater verifies
-# (TinyWall\Prompting\SignedReleaseManifest.cs). Lines starting with # are skipped by
+# The header is what the updater reads (TinyWall\Prompting\ReleaseManifest.cs): it ties
+# the hashes to one tag and version. Lines starting with # are skipped by
 # sha256sum -c, so the file still checks the installers on its own.
 $builtVersion = if ($ValidationVersion) { $ValidationVersion } else {
     $versionMatch = [regex]::Match([System.IO.File]::ReadAllText($applicationProject), '<Version>([0-9]+\.[0-9]+\.[0-9]+)</Version>')

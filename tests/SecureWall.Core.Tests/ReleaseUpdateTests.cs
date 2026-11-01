@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using pylorak.TinyWall;
@@ -7,24 +6,23 @@ using pylorak.Windows.WFP;
 
 namespace SecureWall.Core.Tests;
 
-// Check for updates: the signed manifest, release selection, transport policy, the service's
+// Check for updates: the release manifest, release selection, transport policy, the service's
 // transient permit leases and the elevated helper's decisions.
 internal static class ReleaseUpdateTests
 {
     internal static IEnumerable<(string Name, Action Test)> Cases => new (string, Action)[]
     {
-        ("release manifest parses the signed header and hash lines", ManifestParses),
+        ("release manifest parses the header and hash lines", ManifestParses),
         ("release manifest rejects every other layout", ManifestRejectsOtherLayouts),
-        ("release signature verifies only P1363 signatures over the exact bytes", SignatureVerifiesExactBytes),
         ("release versions are three canonical fields", ReleaseVersionsAreCanonical),
-        ("release candidate verdict uses the signed tag, version, platform and prerelease line", CandidateVerdictUsesSignedFields),
+        ("release candidate verdict uses the manifest's tag, version, platform and prerelease line", CandidateVerdictUsesManifestFields),
         ("release list parsing keeps only exact release download URLs", ReleaseListKeepsExactAssetUrls),
         ("release candidates drop drafts, older, skipped and incomplete releases and sort by version", CandidatesFilterAndSort),
-        ("release check falls back past a newer prerelease and a newer bad signature", CheckFallsBackPastIneligible),
-        ("release check offers a signed prerelease when prereleases are included", CheckOffersPrereleaseWhenIncluded),
+        ("release check falls back past a newer prerelease and a newer mismatched manifest", CheckFallsBackPastIneligible),
+        ("release check offers a prerelease when prereleases are included", CheckOffersPrereleaseWhenIncluded),
         ("release check reads at most three pages and stops at a short page", CheckPageLimits),
-        ("release check verifies at most five candidates", CheckCandidateLimit),
-        ("release check reports rate limits, skipped versions and missing keys", CheckReportsSpecialCases),
+        ("release check reads at most five candidates' manifests", CheckCandidateLimit),
+        ("release check reports rate limits, skipped versions and releases not ready", CheckReportsSpecialCases),
         ("release redirects stay on GitHub HTTPS hosts and are bounded", RedirectPolicy),
         ("release notes are capped plain text without format characters", NotesArePlainText),
         ("update permit decision follows the firewall mode and display block", GrantDecisionFollowsMode),
@@ -35,7 +33,6 @@ internal static class ReleaseUpdateTests
         ("apply-update arguments and source paths are strict", ApplyArgumentsAndPaths),
         ("apply-update package checks UpgradeCode, platform, version and test builds", ApplyPackageChecks),
         ("apply-update staging is protected, aged and launched with the suppress property", ApplyStagingAndLaunch),
-        ("embedded release keys equal tools/release/keys", EmbeddedKeysMatchFiles),
         ("protocol self-test round trips update permit messages", ProtocolSelfTestCoversUpdateMessages),
     };
 
@@ -65,27 +62,11 @@ internal static class ReleaseUpdateTests
 
     private static byte[] Ascii(string text) => Encoding.ASCII.GetBytes(text);
 
-    private sealed class Key : IDisposable
-    {
-        internal readonly ECDsa Ecdsa = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-        internal string Public
-        {
-            get
-            {
-                ECPoint q = Ecdsa.ExportParameters(false).Q;
-                return Convert.ToBase64String(q.X!.Concat(q.Y!).ToArray());
-            }
-        }
-        internal byte[] Sign(byte[] data) =>
-            Ascii(Convert.ToBase64String(Ecdsa.SignData(data, HashAlgorithmName.SHA256)) + "\n");
-        public void Dispose() => Ecdsa.Dispose();
-    }
-
     private static void ManifestParses()
     {
         foreach (string newline in new[] { "\r\n", "\n" })
         {
-            AssertEx.True(SignedReleaseManifest.TryParse(Ascii(ManifestText(prerelease: true, newline: newline)), out var manifest, out string error), error);
+            AssertEx.True(ReleaseManifest.TryParse(Ascii(ManifestText(prerelease: true, newline: newline)), out var manifest, out string error), error);
             AssertEx.Equal("v0.6.0", manifest!.Tag);
             AssertEx.Equal(new Version(0, 6, 0), manifest.Version);
             AssertEx.True(manifest.Prerelease);
@@ -95,10 +76,10 @@ internal static class ReleaseUpdateTests
             AssertEx.Equal(HashX86, manifest.HashFor("x86"));
         }
         // Lines for other files are ignored.
-        AssertEx.True(SignedReleaseManifest.TryParse(Ascii(ManifestText().Replace("SecureWall_x64.msi", "SecureWall_x64.zip")), out var other, out _));
+        AssertEx.True(ReleaseManifest.TryParse(Ascii(ManifestText().Replace("SecureWall_x64.msi", "SecureWall_x64.zip")), out var other, out _));
         AssertEx.True(other!.HashFor("x64") == null && other.HashFor("x86") == HashX86);
         // Without a trailing newline, and with one platform only.
-        AssertEx.True(SignedReleaseManifest.TryParse(Ascii(ManifestText(platforms: "x64").TrimEnd()), out var single, out _));
+        AssertEx.True(ReleaseManifest.TryParse(Ascii(ManifestText(platforms: "x64").TrimEnd()), out var single, out _));
         AssertEx.True(single!.HashFor("arm64") == null);
     }
 
@@ -124,37 +105,9 @@ internal static class ReleaseUpdateTests
             ManifestText(platforms: new string[0]).Split("\r\n").Take(6).Aggregate((a, b) => a + "\r\n" + b),
         };
         foreach (string text in bad)
-            AssertEx.False(SignedReleaseManifest.TryParse(Encoding.UTF8.GetBytes(text), out _, out _), text);
-        AssertEx.False(SignedReleaseManifest.TryParse(new byte[SignedReleaseManifest.MaxManifestBytes + 1], out _, out _));
-        AssertEx.False(SignedReleaseManifest.TryParse(Array.Empty<byte>(), out _, out _));
-    }
-
-    private static void SignatureVerifiesExactBytes()
-    {
-        using var key = new Key();
-        using var other = new Key();
-        byte[] manifest = Ascii(ManifestText());
-        byte[] signature = key.Sign(manifest);
-        AssertEx.True(SignedReleaseManifest.VerifySignature(manifest, signature, new[] { key.Public }));
-        AssertEx.True(SignedReleaseManifest.VerifySignature(manifest, signature, new[] { other.Public, key.Public }), "either trusted key verifies");
-        AssertEx.False(SignedReleaseManifest.VerifySignature(manifest, signature, new[] { other.Public }), "wrong key");
-        AssertEx.False(SignedReleaseManifest.VerifySignature(manifest, signature, Array.Empty<string>()), "no keys");
-
-        byte[] edited = (byte[])manifest.Clone();
-        edited[^5] ^= 1;
-        AssertEx.False(SignedReleaseManifest.VerifySignature(edited, signature, new[] { key.Public }), "edited manifest");
-
-        byte[] der = Ascii(Convert.ToBase64String(key.Ecdsa.SignData(manifest, HashAlgorithmName.SHA256, DSASignatureFormat.Rfc3279DerSequence)));
-        AssertEx.False(SignedReleaseManifest.VerifySignature(manifest, der, new[] { key.Public }), "DER signature");
-
-        string base64 = Encoding.ASCII.GetString(signature).Trim();
-        byte[] raw = Convert.FromBase64String(base64);
-        AssertEx.False(SignedReleaseManifest.VerifySignature(manifest, Ascii(Convert.ToBase64String(raw.Take(63).ToArray())), new[] { key.Public }), "truncated");
-        AssertEx.False(SignedReleaseManifest.VerifySignature(manifest, Ascii(base64.Substring(0, base64.Length - 4)), new[] { key.Public }), "cut base64");
-        AssertEx.False(SignedReleaseManifest.VerifySignature(manifest, Ascii(base64 + " junk"), new[] { key.Public }), "trailing text");
-        AssertEx.False(SignedReleaseManifest.VerifySignature(manifest, new byte[SignedReleaseManifest.MaxSignatureBytes + 1], new[] { key.Public }), "oversized");
-        AssertEx.False(SignedReleaseManifest.VerifySignature(manifest, signature, new[] { "not base64", Convert.ToBase64String(new byte[64]) }), "invalid keys");
-        AssertEx.True(SignedReleaseManifest.VerifySignature(manifest, Ascii("  " + base64 + "\r\n"), new[] { key.Public }), "surrounding whitespace");
+            AssertEx.False(ReleaseManifest.TryParse(Encoding.UTF8.GetBytes(text), out _, out _), text);
+        AssertEx.False(ReleaseManifest.TryParse(new byte[ReleaseManifest.MaxManifestBytes + 1], out _, out _));
+        AssertEx.False(ReleaseManifest.TryParse(Array.Empty<byte>(), out _, out _));
     }
 
     private static void ReleaseVersionsAreCanonical()
@@ -172,36 +125,28 @@ internal static class ReleaseUpdateTests
         if (ReleaseVersion.TryParseTag(tag, out Version? version))
             release.Version = version;
         foreach (string name in complete
-            ? new[] { "SecureWall_x64.msi", "SecureWall_x86.msi", "SecureWall_arm64.msi", ReleaseCheck.ManifestAsset, ReleaseCheck.SignatureAsset }
-            : new[] { "SecureWall_x64.msi", ReleaseCheck.ManifestAsset })
+            ? new[] { "SecureWall_x64.msi", "SecureWall_x86.msi", "SecureWall_arm64.msi", ReleaseCheck.ManifestAsset }
+            : new[] { "SecureWall_x64.msi" })
             release.Assets[name] = new Uri(ReleaseCheck.DownloadPrefix + tag + "/" + name);
         return release;
     }
 
-    private static void CandidateVerdictUsesSignedFields()
+    private static void CandidateVerdictUsesManifestFields()
     {
-        using var key = new Key();
-        string[] keys = { key.Public };
-        ReleaseCandidateVerdict Verdict(GitHubRelease release, string manifest, bool includePrereleases, string platform = "x64")
-        {
-            byte[] bytes = Ascii(manifest);
-            return ReleaseCheck.Evaluate(release, bytes, key.Sign(bytes), keys, platform, includePrereleases, out _);
-        }
+        ReleaseCandidateVerdict Verdict(GitHubRelease release, string manifest, bool includePrereleases, string platform = "x64") =>
+            ReleaseCheck.Evaluate(release, Ascii(manifest), platform, includePrereleases, out _);
 
         GitHubRelease v6 = Release("v0.6.0");
         AssertEx.Equal(ReleaseCandidateVerdict.Accepted, Verdict(v6, ManifestText(), false));
         AssertEx.Equal(ReleaseCandidateVerdict.ManifestMismatch, Verdict(v6, ManifestText(tag: "v0.6.1", version: "0.6.1"), true), "replayed tag");
-        AssertEx.Equal(ReleaseCandidateVerdict.ManifestMismatch, Verdict(Release("v0.7.0"), ManifestText(), true), "older signed release under a newer tag");
+        AssertEx.Equal(ReleaseCandidateVerdict.ManifestMismatch, Verdict(Release("v0.7.0"), ManifestText(), true), "older manifest under a newer tag");
         AssertEx.Equal(ReleaseCandidateVerdict.ManifestMismatch, Verdict(v6, ManifestText(platforms: "x86"), true), "no line for this platform");
         AssertEx.Equal(ReleaseCandidateVerdict.ManifestMismatch, Verdict(v6, ManifestText(repository: "other/SecureWall"), true), "repository");
-        // GitHub's flag is unsigned: the signed line decides, in both directions.
+        // The manifest's line decides, in both directions; GitHub's flag does not.
         AssertEx.Equal(ReleaseCandidateVerdict.PrereleaseNotWanted, Verdict(Release("v0.6.0", prerelease: false), ManifestText(prerelease: true), false));
         AssertEx.Equal(ReleaseCandidateVerdict.Accepted, Verdict(Release("v0.6.0", prerelease: true), ManifestText(prerelease: false), false));
         AssertEx.Equal(ReleaseCandidateVerdict.Accepted, Verdict(v6, ManifestText(prerelease: true), true));
-
-        byte[] manifest = Ascii(ManifestText());
-        using var stranger = new Key();
-        AssertEx.Equal(ReleaseCandidateVerdict.SignatureInvalid, ReleaseCheck.Evaluate(v6, manifest, stranger.Sign(manifest), keys, "x64", true, out _));
+        AssertEx.Equal(ReleaseCandidateVerdict.ManifestMismatch, Verdict(v6, "not a manifest", true), "unreadable manifest");
     }
 
     private static byte[] ReleaseListJson(IEnumerable<GitHubRelease> releases, Func<GitHubRelease, string, string>? url = null)
@@ -249,7 +194,7 @@ internal static class ReleaseUpdateTests
         GitHubRelease release = parsed.Single();
         AssertEx.Equal(new Version(0, 6, 0), release.Version);
         AssertEx.Equal(new DateTimeOffset(2026, 11, 5, 10, 0, 0, TimeSpan.Zero), release.PublishedAt);
-        AssertEx.SequenceEqual(new[] { ReleaseCheck.ManifestAsset, ReleaseCheck.SignatureAsset }, release.Assets.Keys.OrderBy(k => k, StringComparer.Ordinal).ToArray());
+        AssertEx.SequenceEqual(new[] { ReleaseCheck.ManifestAsset }, release.Assets.Keys.ToArray());
         AssertEx.False(ReleaseCheck.IsAllowedAssetUrl(ReleaseCheck.DownloadPrefix + "v0.6.0/../x.msi", "v0.6.0", "../x.msi"));
         AssertEx.False(ReleaseCheck.IsAllowedAssetUrl(ReleaseCheck.DownloadPrefix + "main/x.msi", "main", "x.msi"));
         AssertEx.Throws<JsonException>(() => ReleaseCheck.ParseReleasesPage(Encoding.UTF8.GetBytes("{\"message\":\"x\"}"), out _));
@@ -264,7 +209,7 @@ internal static class ReleaseUpdateTests
             Release("v0.5.0"),                    // installed version
             Release("v0.4.2"),
             Release("v0.6.0"),
-            Release("v0.6.5", complete: false),   // not signed yet
+            Release("v0.6.5", complete: false),   // files not attached yet
             Release("v0.8.0"),                    // skipped
             Release("main"),
         };
@@ -291,63 +236,55 @@ internal static class ReleaseUpdateTests
         internal void Page(int page, IEnumerable<GitHubRelease> releases) =>
             Responses[ReleaseCheck.ReleasesPage(page).AbsoluteUri] = ReleaseFetch.Ok(ReleaseListJson(releases));
 
-        internal void Signed(GitHubRelease release, Key key, string manifest, Key? signer = null)
-        {
-            byte[] bytes = Ascii(manifest);
-            Responses[release.Assets[ReleaseCheck.ManifestAsset].AbsoluteUri] = ReleaseFetch.Ok(bytes);
-            Responses[release.Assets[ReleaseCheck.SignatureAsset].AbsoluteUri] = ReleaseFetch.Ok((signer ?? key).Sign(bytes));
-        }
+        internal void Manifest(GitHubRelease release, string manifest) =>
+            Responses[release.Assets[ReleaseCheck.ManifestAsset].AbsoluteUri] = ReleaseFetch.Ok(Ascii(manifest));
     }
 
-    private static ReleaseCheckResult Check(FakeSource source, Key key, bool includePrereleases, Version? skipped = null, string platform = "x64") =>
-        ReleaseCheck.FindAsync(source, new Version(0, 5, 0, 0), platform, includePrereleases, skipped, new[] { key.Public }, CancellationToken.None)
+    private static ReleaseCheckResult Check(FakeSource source, bool includePrereleases, Version? skipped = null, string platform = "x64") =>
+        ReleaseCheck.FindAsync(source, new Version(0, 5, 0, 0), platform, includePrereleases, skipped, CancellationToken.None)
             .GetAwaiter().GetResult();
 
     private static void CheckFallsBackPastIneligible()
     {
-        using var key = new Key();
-        using var stranger = new Key();
         var full = Release("v0.6.0");
-        var pre = Release("v0.8.0", prerelease: false);   // GitHub says full; the signature says prerelease
-        var forged = Release("v0.9.0");
+        var pre = Release("v0.8.0", prerelease: false);   // GitHub says full; the manifest says prerelease
+        var replayed = Release("v0.9.0");                 // carries the v0.6.0 manifest
         var source = new FakeSource();
-        source.Page(1, new[] { pre, full, forged });
-        source.Signed(full, key, ManifestText());
-        source.Signed(pre, key, ManifestText("v0.8.0", "0.8.0", prerelease: true));
-        source.Signed(forged, key, ManifestText("v0.9.0", "0.9.0"), signer: stranger);
+        source.Page(1, new[] { pre, full, replayed });
+        source.Manifest(full, ManifestText());
+        source.Manifest(pre, ManifestText("v0.8.0", "0.8.0", prerelease: true));
+        source.Manifest(replayed, ManifestText());
 
-        ReleaseCheckResult result = Check(source, key, includePrereleases: false);
+        ReleaseCheckResult result = Check(source, includePrereleases: false);
         AssertEx.Equal(ReleaseCheckOutcome.UpdateAvailable, result.Outcome, result.Message);
         AssertEx.Equal("v0.6.0", result.Release!.Tag);
         AssertEx.Equal(HashX64, result.Manifest!.HashFor("x64"));
-        AssertEx.True(result.ManifestBytes.Length > 0 && result.SignatureBytes.Length > 0);
+        AssertEx.True(result.ManifestBytes.Length > 0);
 
         // Nothing eligible: the reasons are named.
         var onlyBad = new FakeSource();
-        onlyBad.Page(1, new[] { pre, forged });
-        onlyBad.Signed(pre, key, ManifestText("v0.8.0", "0.8.0", prerelease: true));
-        onlyBad.Signed(forged, key, ManifestText("v0.9.0", "0.9.0"), signer: stranger);
-        ReleaseCheckResult none = Check(onlyBad, key, includePrereleases: false);
+        onlyBad.Page(1, new[] { pre, replayed });
+        onlyBad.Manifest(pre, ManifestText("v0.8.0", "0.8.0", prerelease: true));
+        onlyBad.Manifest(replayed, ManifestText());
+        ReleaseCheckResult none = Check(onlyBad, includePrereleases: false);
         AssertEx.Equal(ReleaseCheckOutcome.NothingEligible, none.Outcome);
-        AssertEx.True(none.Message.Contains(ReleaseCheck.PrereleaseMessage) && none.Message.Contains(ReleaseCheck.SignatureMessage), none.Message);
+        AssertEx.True(none.Message.Contains(ReleaseCheck.PrereleaseMessage) && none.Message.Contains(ReleaseCheck.MismatchMessage), none.Message);
     }
 
     private static void CheckOffersPrereleaseWhenIncluded()
     {
-        using var key = new Key();
         var full = Release("v0.6.0");
         var pre = Release("v0.7.0", prerelease: true);
         var source = new FakeSource();
         source.Page(1, new[] { full, pre });
-        source.Signed(full, key, ManifestText());
-        source.Signed(pre, key, ManifestText("v0.7.0", "0.7.0", prerelease: true));
-        AssertEx.Equal("v0.7.0", Check(source, key, includePrereleases: true).Release!.Tag);
-        AssertEx.Equal("v0.6.0", Check(source, key, includePrereleases: false).Release!.Tag);
+        source.Manifest(full, ManifestText());
+        source.Manifest(pre, ManifestText("v0.7.0", "0.7.0", prerelease: true));
+        AssertEx.Equal("v0.7.0", Check(source, includePrereleases: true).Release!.Tag);
+        AssertEx.Equal("v0.6.0", Check(source, includePrereleases: false).Release!.Tag);
     }
 
     private static void CheckPageLimits()
     {
-        using var key = new Key();
         IEnumerable<GitHubRelease> Old(int count, int start) =>
             Enumerable.Range(start, count).Select(i => Release("v0.4." + i));
 
@@ -356,8 +293,8 @@ internal static class ReleaseUpdateTests
         var source = new FakeSource();
         source.Page(1, Old(ReleaseCheck.PerPage, 0));
         source.Page(2, Old(5, 100).Append(wanted));
-        source.Signed(wanted, key, ManifestText());
-        AssertEx.Equal("v0.6.0", Check(source, key, false).Release!.Tag);
+        source.Manifest(wanted, ManifestText());
+        AssertEx.Equal("v0.6.0", Check(source, false).Release!.Tag);
         AssertEx.False(source.Requested.Contains(ReleaseCheck.ReleasesPage(3).AbsoluteUri), "a short page ends the listing");
 
         // Never more than three pages.
@@ -365,56 +302,48 @@ internal static class ReleaseUpdateTests
         var many = new FakeSource();
         for (int page = 1; page <= 4; ++page)
             many.Page(page, page == 4 ? new[] { deep } : Old(ReleaseCheck.PerPage, page * 100));
-        many.Signed(deep, key, ManifestText());
-        AssertEx.Equal(ReleaseCheckOutcome.UpToDate, Check(many, key, false).Outcome);
+        many.Manifest(deep, ManifestText());
+        AssertEx.Equal(ReleaseCheckOutcome.UpToDate, Check(many, false).Outcome);
         AssertEx.False(many.Requested.Contains(ReleaseCheck.ReleasesPage(4).AbsoluteUri));
     }
 
     private static void CheckCandidateLimit()
     {
-        using var key = new Key();
-        using var stranger = new Key();
         var releases = Enumerable.Range(1, 7).Select(i => Release("v0." + (5 + i) + ".0")).ToList();
         var source = new FakeSource();
         source.Page(1, releases);
+        // Every release carries the v0.6.0 manifest, so only v0.6.0 matches, and it is the
+        // seventh candidate.
         foreach (GitHubRelease release in releases)
-        {
-            string version = ReleaseVersion.Format(release.Version!);
-            // Only the lowest one is properly signed, and it is the seventh candidate.
-            source.Signed(release, key, ManifestText(release.Tag, version), signer: release.Tag == "v0.6.0" ? key : stranger);
-        }
-        ReleaseCheckResult result = Check(source, key, false);
+            source.Manifest(release, ManifestText());
+        ReleaseCheckResult result = Check(source, false);
         AssertEx.Equal(ReleaseCheckOutcome.NothingEligible, result.Outcome);
         AssertEx.Equal(ReleaseCheck.MaxCandidates, source.Requested.Count(uri => uri.EndsWith("/" + ReleaseCheck.ManifestAsset, StringComparison.Ordinal)));
     }
 
     private static void CheckReportsSpecialCases()
     {
-        using var key = new Key();
         var limited = new FakeSource();
         limited.Responses[ReleaseCheck.ReleasesPage(1).AbsoluteUri] = ReleaseFetch.Fail("limit", 403, rateLimited: true);
-        AssertEx.Equal(ReleaseCheck.RateLimitMessage, Check(limited, key, false).Message);
+        AssertEx.Equal(ReleaseCheck.RateLimitMessage, Check(limited, false).Message);
 
         var skippedSource = new FakeSource();
         var only = Release("v0.6.0");
         skippedSource.Page(1, new[] { only });
-        skippedSource.Signed(only, key, ManifestText());
-        ReleaseCheckResult skipped = Check(skippedSource, key, false, skipped: new Version(0, 6, 0));
+        skippedSource.Manifest(only, ManifestText());
+        ReleaseCheckResult skipped = Check(skippedSource, false, skipped: new Version(0, 6, 0));
         AssertEx.Equal(ReleaseCheckOutcome.UpToDate, skipped.Outcome);
         AssertEx.True(skipped.Message.Contains("skip"), skipped.Message);
 
-        // A newer release that is published but not signed yet is named, never "up to date".
-        var unsigned = new FakeSource();
-        unsigned.Page(1, new[] { Release("v0.6.0", complete: false) });
-        ReleaseCheckResult notReady = Check(unsigned, key, false);
+        // A newer release whose files are not attached yet is named, never "up to date".
+        var incomplete = new FakeSource();
+        incomplete.Page(1, new[] { Release("v0.6.0", complete: false) });
+        ReleaseCheckResult notReady = Check(incomplete, false);
         AssertEx.Equal(ReleaseCheckOutcome.NothingEligible, notReady.Outcome);
         AssertEx.True(notReady.Message.Contains("0.6.0") && notReady.Message.Contains("not ready"), notReady.Message);
 
-        ReleaseCheckResult noKeys = ReleaseCheck.FindAsync(skippedSource, new Version(0, 5, 0), "x64", false, null,
-            Array.Empty<string>(), CancellationToken.None).GetAwaiter().GetResult();
-        AssertEx.Equal(ReleaseCheckOutcome.Failed, noKeys.Outcome);
-        AssertEx.Equal(ReleaseCheckOutcome.Failed, Check(skippedSource, key, false, platform: string.Empty).Outcome);
-        AssertEx.Equal(ReleaseCheckOutcome.Failed, Check(new FakeSource(), key, false).Outcome);
+        AssertEx.Equal(ReleaseCheckOutcome.Failed, Check(skippedSource, false, platform: string.Empty).Outcome);
+        AssertEx.Equal(ReleaseCheckOutcome.Failed, Check(new FakeSource(), false).Outcome);
     }
 
     private static void RedirectPolicy()
@@ -591,11 +520,12 @@ internal static class ReleaseUpdateTests
 
     private static void ApplyArgumentsAndPaths()
     {
-        AssertEx.True(UpdateApplyPolicy.TryParseArguments(new[] { "/apply-update", Root + @"\v0.6.0\a.msi", "m", "s", User }, out var args));
+        AssertEx.True(UpdateApplyPolicy.TryParseArguments(new[] { "/apply-update", Root + @"\v0.6.0\a.msi", "m", User }, out var args));
         AssertEx.Equal(User, args!.UserSid);
-        AssertEx.False(UpdateApplyPolicy.TryParseArguments(new[] { "/apply-update", "a", "m", "s" }, out _));
-        AssertEx.False(UpdateApplyPolicy.TryParseArguments(new[] { "/apply-update", "a", "m", "s", "S-1-5-18" }, out _));
-        AssertEx.False(UpdateApplyPolicy.TryParseArguments(new[] { "/service", "a", "m", "s", User }, out _));
+        AssertEx.False(UpdateApplyPolicy.TryParseArguments(new[] { "/apply-update", "a", "m" }, out _));
+        AssertEx.False(UpdateApplyPolicy.TryParseArguments(new[] { "/apply-update", "a", "m", "s", User }, out _));
+        AssertEx.False(UpdateApplyPolicy.TryParseArguments(new[] { "/apply-update", "a", "m", "S-1-5-18" }, out _));
+        AssertEx.False(UpdateApplyPolicy.TryParseArguments(new[] { "/service", "a", "m", User }, out _));
         AssertEx.Equal(Root, UpdateApplyPolicy.UserUpdatesRoot(@"C:\Users\alice\AppData\Local"));
 
         AssertEx.True(UpdateApplyPolicy.IsAcceptableSourcePath(Root + @"\v0.6.0\SecureWall_x64.msi", Root, out string error), error);
@@ -657,12 +587,12 @@ internal static class ReleaseUpdateTests
             UpdateApplyPolicy.MsiexecArguments(@"C:\p\SecureWall.msi", @"C:\p\install.log", true));
 
         string applier = PromptTransactionIntegrationTests.Source("TinyWall/Installer/UpdateApplier.cs");
-        int verify = applier.IndexOf("SignedReleaseManifest manifest = Verify(manifestBytes, signatureBytes);", StringComparison.Ordinal);
+        int verify = applier.IndexOf("ReleaseManifest manifest = Verify(manifestBytes);", StringComparison.Ordinal);
         int stage = applier.IndexOf("string parent = PrepareStagingParent();", StringComparison.Ordinal);
-        int reverify = applier.IndexOf("SignedReleaseManifest staged = Verify(File.ReadAllBytes(stagedManifest)", StringComparison.Ordinal);
+        int reverify = applier.IndexOf("ReleaseManifest staged = Verify(File.ReadAllBytes(stagedManifest)", StringComparison.Ordinal);
         int package = applier.IndexOf("CheckPackage(stagedPackage, staged.Version, platform);", StringComparison.Ordinal);
         int launch = applier.IndexOf("Path.Combine(Environment.SystemDirectory, \"msiexec.exe\")", StringComparison.Ordinal);
-        AssertEx.True(verify > 0 && verify < stage && stage < reverify && reverify < package && package < launch, "verify, stage, verify again, check the package, then launch");
+        AssertEx.True(verify > 0 && verify < stage && stage < reverify && reverify < package && package < launch, "check, stage, check the copies, check the package, then launch");
         AssertEx.True(applier.Contains("identity.IsSystem") && applier.Contains("WindowsBuiltInRole.Administrator"), "never as SYSTEM, only elevated");
         // The requesting user is the session's user; the suppression compares against it.
         AssertEx.True(applier.Contains("if (!string.Equals(sessionSid, request.UserSid, StringComparison.OrdinalIgnoreCase))"), "session user check");
@@ -670,27 +600,6 @@ internal static class ReleaseUpdateTests
 
         string product = PromptTransactionIntegrationTests.Source("MsiSetup/Product.wxs");
         AssertEx.True(product.Contains("<Property Id=\"SECUREWALL_SUPPRESS_USER_ACTIONS\" Secure=\"yes\" />"));
-    }
-
-    private static void EmbeddedKeysMatchFiles()
-    {
-        string KeyFile(string name)
-        {
-            string path = PromptTransactionIntegrationTests.SourcePath("tools/release/keys/" + name + ".pub");
-            AssertEx.True(File.Exists(path), "tools/release/keys/" + name + ".pub is missing; run tools/release/New-SecureWallReleaseKeys.ps1");
-            return SignedReleaseManifest.ReadPublicKeyFile(File.ReadAllText(path)) ?? throw new InvalidOperationException(name + ".pub has no single key line.");
-        }
-        AssertEx.Equal(KeyFile("primary"), ReleaseKeys.Primary);
-        AssertEx.Equal(KeyFile("backup"), ReleaseKeys.Backup);
-        AssertEx.SequenceEqual(new[] { ReleaseKeys.Primary, ReleaseKeys.Backup }, ReleaseKeys.Trusted.ToArray());
-        foreach (string key in ReleaseKeys.Trusted)
-            AssertEx.True(SignedReleaseManifest.TryDecodePublicKey(key, out ECParameters parameters) && ECDsa.Create(parameters).KeySize == 256, "valid P-256 point");
-        string testPath = PromptTransactionIntegrationTests.SourcePath("tools/release/keys/test.pub");
-        if (File.Exists(testPath))
-        {
-            string test = SignedReleaseManifest.ReadPublicKeyFile(File.ReadAllText(testPath))!;
-            AssertEx.False(PromptTransactionIntegrationTests.Source("TinyWall/Prompting/ReleaseKeys.cs").Contains(test), "the updater test key is never trusted by product builds");
-        }
     }
 
     private static void ProtocolSelfTestCoversUpdateMessages()

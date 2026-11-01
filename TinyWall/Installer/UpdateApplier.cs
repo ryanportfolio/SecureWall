@@ -13,13 +13,13 @@ using pylorak.TinyWall.Prompting;
 
 namespace pylorak.TinyWall.Installer
 {
-    // SecureWall.exe /apply-update "<msi>" "<manifest>" "<signature>" <requesting user SID>
+    // SecureWall.exe /apply-update "<msi>" "<manifest>" <requesting user SID>
     //
-    // Started elevated by the controller's Install button. The controller is not a security
-    // boundary: any process of the user could have written the downloaded files. So this step
-    // verifies the signature itself, copies the files into a folder only SYSTEM and
-    // Administrators can change, verifies the copies again, checks the package's identity, and
-    // only then starts msiexec with the full setup UI. It exits right after.
+    // Started elevated by the controller's Install button. The downloaded files sit in the
+    // user's own folder, so this step copies them into a folder only SYSTEM and Administrators
+    // can change, checks the copied installer against the copied manifest, checks the
+    // package's identity, and only then starts msiexec with the full setup UI. It exits right
+    // after.
     internal static class UpdateApplier
     {
         private const string Title = "SecureWall update";
@@ -72,16 +72,15 @@ namespace pylorak.TinyWall.Installer
             // 1. Source paths: plain local paths below the requesting user's updates folder.
             string profile = ProfileOf(request.UserSid);
             string updatesRoot = UpdateApplyPolicy.UserUpdatesRoot(Path.Combine(profile, "AppData", "Local"));
-            foreach (string path in new[] { request.Package, request.Manifest, request.Signature })
+            foreach (string path in new[] { request.Package, request.Manifest })
                 RequireSourcePath(path, updatesRoot, profile);
 
-            // 2. Verify first, from bytes read once into memory.
-            byte[] manifestBytes = ReadCapped(request.Manifest, SignedReleaseManifest.MaxManifestBytes);
-            byte[] signatureBytes = ReadCapped(request.Signature, SignedReleaseManifest.MaxSignatureBytes);
-            SignedReleaseManifest manifest = Verify(manifestBytes, signatureBytes);
+            // 2. Check the manifest first, from bytes read once into memory.
+            byte[] manifestBytes = ReadCapped(request.Manifest, ReleaseManifest.MaxManifestBytes);
+            ReleaseManifest manifest = Verify(manifestBytes);
             string platform = InstalledPlatform();
             string expectedHash = manifest.HashFor(platform)
-                ?? throw new UpdateRefusedException("The signed release has no installer for this computer's SecureWall package (" + platform + ").");
+                ?? throw new UpdateRefusedException("The release has no installer for this computer's SecureWall package (" + platform + ").");
 
             // 3 and 4. The protected staging folder, old staging removed, a fresh folder created.
             string parent = PrepareStagingParent();
@@ -94,7 +93,7 @@ namespace pylorak.TinyWall.Installer
             try
             {
                 MachineDataGuard.Check(staging, false);
-                StageAndLaunch(staging, request, manifestBytes, signatureBytes, manifest, platform, expectedHash,
+                StageAndLaunch(staging, request, manifestBytes, manifest, platform, expectedHash,
                     suppressUserActions: !string.Equals(helperSid, sessionSid, StringComparison.OrdinalIgnoreCase));
                 launched = true;
             }
@@ -109,24 +108,22 @@ namespace pylorak.TinyWall.Installer
             }
         }
 
-        private static void StageAndLaunch(string staging, UpdateApplyPolicy.Arguments request, byte[] manifestBytes, byte[] signatureBytes,
-            SignedReleaseManifest manifest, string platform, string expectedHash, bool suppressUserActions)
+        private static void StageAndLaunch(string staging, UpdateApplyPolicy.Arguments request, byte[] manifestBytes,
+            ReleaseManifest manifest, string platform, string expectedHash, bool suppressUserActions)
         {
             string stagedPackage = Path.Combine(staging, UpdateApplyPolicy.StagedPackage);
             string stagedManifest = Path.Combine(staging, UpdateApplyPolicy.StagedManifest);
-            string stagedSignature = Path.Combine(staging, UpdateApplyPolicy.StagedSignature);
             WriteNew(stagedManifest, manifestBytes);
-            WriteNew(stagedSignature, signatureBytes);
             CopyCapped(request.Package, stagedPackage, UpdateApplyPolicy.MaxPackageBytes);
 
-            // 5. Verify the protected copies again: a swap in the user's folder gains nothing.
-            SignedReleaseManifest staged = Verify(File.ReadAllBytes(stagedManifest), File.ReadAllBytes(stagedSignature));
+            // 5. Check the protected copies again: a swap in the user's folder after step 2 is caught.
+            ReleaseManifest staged = Verify(File.ReadAllBytes(stagedManifest));
             if (staged.Tag != manifest.Tag || staged.HashFor(platform) != expectedHash)
                 throw new UpdateRefusedException("The update files changed while they were being copied. Nothing was installed.");
-            if (SignedReleaseManifest.Sha256Hex(File.ReadAllBytes(stagedPackage)) != expectedHash)
-                throw new UpdateRefusedException("The downloaded installer does not match the signed release. Nothing was installed.");
+            if (ReleaseManifest.Sha256Hex(File.ReadAllBytes(stagedPackage)) != expectedHash)
+                throw new UpdateRefusedException("The downloaded installer does not match the release manifest. Nothing was installed.");
 
-            // 6. The package itself: SecureWall, this platform, the signed version.
+            // 6. The package itself: SecureWall, this platform, the manifest's version.
             CheckPackage(stagedPackage, staged.Version, platform);
 
             // 7. Windows Installer, full UI. Another user's credentials (over-the-shoulder UAC)
@@ -142,16 +139,14 @@ namespace pylorak.TinyWall.Installer
             Utils.Log("Started the SecureWall " + staged.Tag + " installer from " + staging + ".", Utils.LOG_ID_INSTALLER);
         }
 
-        private static SignedReleaseManifest Verify(byte[] manifestBytes, byte[] signatureBytes)
+        private static ReleaseManifest Verify(byte[] manifestBytes)
         {
-            if (!SignedReleaseManifest.VerifySignature(manifestBytes, signatureBytes, ReleaseKeys.Trusted))
-                throw new UpdateRefusedException("The update's signature does not verify. Nothing was installed.");
-            if (!SignedReleaseManifest.TryParse(manifestBytes, out SignedReleaseManifest? manifest, out string error) || manifest == null)
-                throw new UpdateRefusedException("The signed release manifest could not be read: " + error);
+            if (!ReleaseManifest.TryParse(manifestBytes, out ReleaseManifest? manifest, out string error) || manifest == null)
+                throw new UpdateRefusedException("The release manifest could not be read: " + error);
             if (!UpdateApplyPolicy.IsReleaseTag(manifest.Tag))
-                throw new UpdateRefusedException("The signed release has an unexpected tag.");
+                throw new UpdateRefusedException("The release has an unexpected tag.");
             if (manifest.Version <= ReleaseVersion.Normalize(Utils.TinyWallVersion))
-                throw new UpdateRefusedException("The signed release (" + manifest.Tag + ") is not newer than the installed SecureWall.");
+                throw new UpdateRefusedException("The release (" + manifest.Tag + ") is not newer than the installed SecureWall.");
             return manifest;
         }
 
@@ -216,7 +211,7 @@ namespace pylorak.TinyWall.Installer
             {
                 using RegistryKey hklm = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view);
                 using RegistryKey? key = hklm.OpenSubKey(ProductRegistryPolicy.KeyPath);
-                if (key?.GetValue("Platform") is string platform && Array.IndexOf(SignedReleaseManifest.Platforms, platform) >= 0)
+                if (key?.GetValue("Platform") is string platform && Array.IndexOf(ReleaseManifest.Platforms, platform) >= 0)
                     return platform;
             }
             throw new UpdateRefusedException("SecureWall's installed package type is not recorded. Install the update by hand.");

@@ -14,9 +14,9 @@ namespace pylorak.TinyWall
 {
     // Check for updates (tray menu and Manage > Maintenance). Manual only. The flow:
     // unlock if a password is set, ask the service for a transient TCP 443 permit, read
-    // SecureWall's GitHub releases and verify the newest eligible one's signed manifest
+    // SecureWall's GitHub releases and read the newest eligible one's SHA256SUMS.txt manifest
     // (ReleaseCheck), show it, and on Install download the MSI with a fresh permit and start
-    // the elevated `/apply-update` step, which verifies everything again before msiexec runs.
+    // the elevated `/apply-update` step, which checks everything again before msiexec runs.
     internal sealed partial class TinyWallController
     {
         private readonly ToolStripMenuItem mnuCheckForUpdates = new() { Text = "Check for &updates..." };
@@ -75,7 +75,7 @@ namespace pylorak.TinyWall
                 cancel.Cancel();
                 UpdateWindow = null;
             };
-            dialog.ShowBusy("Checking for updates", "Reading SecureWall's releases on GitHub and checking their signatures.");
+            dialog.ShowBusy("Checking for updates", "Reading SecureWall's releases on GitHub.");
             dialog.Show();
             dialog.Activate();
 
@@ -86,7 +86,7 @@ namespace pylorak.TinyWall
                 result = await Task.Run(() => WithUpdateNetwork(async () =>
                 {
                     using var client = new ReleaseCheckClient();
-                    return await ReleaseCheck.FindAsync(client, installed, platform, prereleases, skipped, ReleaseKeys.Trusted, token).ConfigureAwait(false);
+                    return await ReleaseCheck.FindAsync(client, installed, platform, prereleases, skipped, token).ConfigureAwait(false);
                 }, ReleaseCheckResult.Fail));
             }
             catch (Exception exception)
@@ -151,9 +151,9 @@ namespace pylorak.TinyWall
             if (!EnsureUnlockedServer())
                 return;
 
-            SignedReleaseManifest manifest = result.Manifest!;
+            ReleaseManifest manifest = result.Manifest!;
             GitHubRelease release = result.Release!;
-            dialog.ShowBusy("Downloading SecureWall " + ReleaseVersion.Format(manifest.Version), "The installer is checked against the signed release before anything is installed.");
+            dialog.ShowBusy("Downloading SecureWall " + ReleaseVersion.Format(manifest.Version), "The installer is checked against the release's SHA256SUMS.txt before anything is installed.");
             var progress = new Progress<(long Received, long Total)>(p => { if (!dialog.IsDisposed) dialog.ShowDownloadProgress(p.Received, p.Total); });
 
             string folder;
@@ -164,7 +164,7 @@ namespace pylorak.TinyWall
                 string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
                 string root = UpdateApplyPolicy.UserUpdatesRoot(localAppData);
                 folder = Path.Combine(root, manifest.Tag);
-                package = Path.Combine(folder, SignedReleaseManifest.AssetName(platform));
+                package = Path.Combine(folder, ReleaseManifest.AssetName(platform));
                 error = await Task.Run(() => WithUpdateNetwork<string?>(async () =>
                 {
                     // Earlier downloads, of this or any other release, are not kept.
@@ -176,18 +176,17 @@ namespace pylorak.TinyWall
                     catch (IOException) { }
                     catch (UnauthorizedAccessException) { }
                     Directory.CreateDirectory(folder);
-                    foreach (string name in new[] { SignedReleaseManifest.AssetName(platform), ReleaseCheck.ManifestAsset, ReleaseCheck.SignatureAsset })
+                    foreach (string name in new[] { ReleaseManifest.AssetName(platform), ReleaseCheck.ManifestAsset })
                         File.Delete(Path.Combine(folder, name));
                     File.WriteAllBytes(Path.Combine(folder, ReleaseCheck.ManifestAsset), result.ManifestBytes);
-                    File.WriteAllBytes(Path.Combine(folder, ReleaseCheck.SignatureAsset), result.SignatureBytes);
                     using var client = new ReleaseCheckClient();
-                    string? failure = await client.FetchToFileAsync(release.Assets[SignedReleaseManifest.AssetName(platform)], package,
+                    string? failure = await client.FetchToFileAsync(release.Assets[ReleaseManifest.AssetName(platform)], package,
                         ReleaseCheck.MaxPackageBytes, UpdateNetworkGrantPolicy.MaxLifetime, progress, cancellation).ConfigureAwait(false);
                     if (failure != null)
                         return "The installer could not be downloaded: " + failure + ".";
                     // Early feedback only: the elevated step checks the hash again on its own copy.
-                    if (SignedReleaseManifest.Sha256Hex(File.ReadAllBytes(package)) != manifest.HashFor(platform))
-                        return "The downloaded installer does not match the signed release. Nothing was installed.";
+                    if (ReleaseManifest.Sha256Hex(File.ReadAllBytes(package)) != manifest.HashFor(platform))
+                        return "The downloaded installer does not match the release manifest. Nothing was installed.";
                     return null;
                 }, message => message));
             }
@@ -209,7 +208,7 @@ namespace pylorak.TinyWall
             using (var identity = WindowsIdentity.GetCurrent())
                 user = identity.User!.Value;
             string arguments = UpdateApplyPolicy.Switch + " \"" + package + "\" \"" +
-                Path.Combine(folder, ReleaseCheck.ManifestAsset) + "\" \"" + Path.Combine(folder, ReleaseCheck.SignatureAsset) + "\" " + user;
+                Path.Combine(folder, ReleaseCheck.ManifestAsset) + "\" " + user;
             try
             {
                 SaveUpdateSetting(settings => settings.UpdateStartedFromVersion = version);
@@ -265,7 +264,7 @@ namespace pylorak.TinyWall
                 {
                     using RegistryKey hklm = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view);
                     using RegistryKey? key = hklm.OpenSubKey(ProductRegistryPolicy.KeyPath);
-                    if (key?.GetValue("Platform") is string platform && Array.IndexOf(SignedReleaseManifest.Platforms, platform) >= 0)
+                    if (key?.GetValue("Platform") is string platform && Array.IndexOf(ReleaseManifest.Platforms, platform) >= 0)
                         return platform;
                 }
                 catch (Exception exception) when (exception is System.Security.SecurityException || exception is IOException ||

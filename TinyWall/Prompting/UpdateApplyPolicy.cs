@@ -4,17 +4,16 @@ using System.IO;
 
 namespace pylorak.TinyWall.Prompting
 {
-    // Decisions for the elevated `/apply-update` helper. It trusts nothing the controller
-    // passes: the files come from the user's own folder, so it verifies the signature itself,
-    // copies everything into a folder only SYSTEM and Administrators can change, verifies the
-    // copies again, checks the package's identity and only then starts msiexec.
+    // Decisions for the elevated `/apply-update` helper. The files come from the user's own
+    // folder, so it copies them into a folder only SYSTEM and Administrators can change,
+    // checks the copied installer against the copied manifest, checks the package's identity
+    // and only then starts msiexec.
     internal static class UpdateApplyPolicy
     {
         internal const string Switch = "/apply-update";
         internal const string StagingFolderName = "SecureWall Updates";
         internal const string StagedPackage = "SecureWall.msi";
         internal const string StagedManifest = "SHA256SUMS.txt";
-        internal const string StagedSignature = "SHA256SUMS.txt.sig";
         internal const string InstallLog = "install.log";
         internal const string UpgradeCode = "{D257A00C-9D9B-4948-910F-5524F20819D0}";
         internal const string SuppressUserActionsProperty = "SECUREWALL_SUPPRESS_USER_ACTIONS";
@@ -26,34 +25,32 @@ namespace pylorak.TinyWall.Prompting
 
         internal sealed class Arguments
         {
-            internal Arguments(string package, string manifest, string signature, string userSid)
+            internal Arguments(string package, string manifest, string userSid)
             {
                 Package = package;
                 Manifest = manifest;
-                Signature = signature;
                 UserSid = userSid;
             }
 
             internal string Package { get; }
             internal string Manifest { get; }
-            internal string Signature { get; }
             internal string UserSid { get; }
         }
 
-        // SecureWall.exe /apply-update "<msi>" "<manifest>" "<signature>" <requesting user SID>
+        // SecureWall.exe /apply-update "<msi>" "<manifest>" <requesting user SID>
         internal static bool TryParseArguments(string[] args, out Arguments? parsed)
         {
             parsed = null;
-            if (args == null || args.Length != 5 || !string.Equals(args[0], Switch, StringComparison.OrdinalIgnoreCase))
+            if (args == null || args.Length != 4 || !string.Equals(args[0], Switch, StringComparison.OrdinalIgnoreCase))
                 return false;
-            for (int i = 1; i < 5; ++i)
+            for (int i = 1; i < 4; ++i)
             {
                 if (string.IsNullOrWhiteSpace(args[i]))
                     return false;
             }
-            if (!UpdateNetworkGrantPolicy.IsAllowedUser(args[4]))
+            if (!UpdateNetworkGrantPolicy.IsAllowedUser(args[3]))
                 return false;
-            parsed = new Arguments(args[1], args[2], args[3], args[4]);
+            parsed = new Arguments(args[1], args[2], args[3]);
             return true;
         }
 
@@ -89,7 +86,7 @@ namespace pylorak.TinyWall.Prompting
 
         private static bool IsDriveLetter(char c) => (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
 
-        // The tag the helper takes from the verified manifest names the staging folder's
+        // The tag the helper takes from the manifest names the staging folder's
         // contents only through fixed file names; it is still held to the release form.
         internal static bool IsReleaseTag(string? tag) => ReleaseVersion.TryParseTag(tag, out _);
 
@@ -122,7 +119,7 @@ namespace pylorak.TinyWall.Prompting
             else if (TemplatePlatform(template) != installedPlatform)
                 error = "The downloaded package is for another processor architecture.";
             else if (productVersion != ReleaseVersion.Format(manifestVersion) + ".0")
-                error = "The downloaded package's version does not match the signed release.";
+                error = "The downloaded package's version does not match the release manifest.";
             else if (faultTestProperty)
                 error = "The downloaded package is a test build.";
             else

@@ -392,7 +392,7 @@ Assert-True ($builder -notmatch '(?im)^\s*(Start-Process\s+msiexec|&\s*msiexec|m
 Assert-True ($builder -notmatch 'UpgradeFaultTest') 'release builder never references the fault-test configuration'
 Assert-True ($builder -match "-match 'fault-test'" -and $builder.Contains("Contains('SecureWallFaultTest')") -and $builder -match 'refusing to package it') 'release builder refuses an executable with either fault-test stamp'
 
-# Signed release manifest (docs/plans/2026-11-01-in-place-upgrade-and-updater.md, Part 2).
+# Release manifest (docs/plans/2026-11-01-in-place-upgrade-and-updater.md, Part 2).
 foreach ($line in @(
     "'# SecureWall-Release-Manifest: 1'",
     "'# Repository: ryanportfolio/SecureWall'",
@@ -403,19 +403,6 @@ foreach ($line in @(
     Assert-True ($builder.Contains($line)) "release builder writes manifest header line $line"
 }
 Assert-True ($builder.Contains('git -C $repoRoot rev-parse HEAD') -and $builder -match '\[switch\]\$FullRelease') 'manifest header records the built commit and defaults to prerelease'
-$signer = Read-RepoFile 'tools\release\Sign-SecureWallRelease.ps1'
-Assert-True ($signer.Contains("TinyWall\Prompting\SignedReleaseManifest.cs") -and $signer.Contains('already has SHA256SUMS.txt.sig') -and $signer.Contains('embeds the updater test key')) 'release signer uses the updater''s parser, never overwrites a signature and refuses the test key'
-Assert-True ((Read-RepoFile 'tools\release\New-SecureWallReleaseKeys.ps1').Contains('CngExportPolicies]::None')) 'primary release key is created non-exportable'
-$testKeyFile = Join-Path $repoRoot 'tools\release\keys\test.pub'
-$testKey = if (Test-Path -LiteralPath $testKeyFile -PathType Leaf) {
-    @(([System.IO.File]::ReadAllLines($testKeyFile)) | Where-Object { $_.Trim() -and -not $_.StartsWith('#') })[0].Trim()
-} else { $null }
-function Test-EmbedsText([string]$Path, [string]$Text) {
-    $bytes = [System.IO.File]::ReadAllBytes($Path)
-    $even = [System.Text.Encoding]::Unicode.GetString($bytes)
-    $odd = [System.Text.Encoding]::Unicode.GetString($bytes, 1, $bytes.Length - 1)
-    return $even.Contains($Text) -or $odd.Contains($Text)
-}
 
 $releaseWorkflow = Read-RepoFile '.github\workflows\release.yml'
 Assert-True ($releaseWorkflow -match 'contents:\s*write') 'release workflow grants upload job write access'
@@ -434,9 +421,6 @@ $stagedExecutable = Join-Path $repoRoot 'MsiSetup\Sources\ProgramFiles\SecureWal
 if (Test-Path -LiteralPath $stagedExecutable -PathType Leaf) {
     $stagedText = [System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes($stagedExecutable))
     Assert-True ((Get-Item -LiteralPath $stagedExecutable).VersionInfo.ProductVersion -notmatch 'fault-test' -and -not $stagedText.Contains('SecureWallFaultTest')) 'staged installer payload is not a fault-test build'
-    if ($testKey) {
-        Assert-True (-not (Test-EmbedsText $stagedExecutable $testKey)) 'staged installer payload does not trust the updater test key'
-    }
 }
 
 if ($ArtifactsDirectory) {
@@ -458,7 +442,7 @@ if ($ArtifactsDirectory) {
         (($expectedMsi | Where-Object { -not (Test-Path -LiteralPath (Join-Path $artifactRoot $_) -PathType Leaf) }).Count -eq 0)) {
         $manifestText = [System.IO.File]::ReadAllText($hashManifest)
         $manifestVersion = [regex]::Match($project, '<Version>([0-9]+\.[0-9]+\.[0-9]+)</Version>').Groups[1].Value
-        Assert-True ($manifestText -match "(?s)\A# SecureWall-Release-Manifest: 1\r?\n# Repository: ryanportfolio/SecureWall\r?\n# Tag: v$([regex]::Escape($manifestVersion))\r?\n# Version: $([regex]::Escape($manifestVersion))\r?\n# Prerelease: (true|false)\r?\n# Commit: [0-9a-f]{40}\r?\n") 'hash manifest starts with the signed release header'
+        Assert-True ($manifestText -match "(?s)\A# SecureWall-Release-Manifest: 1\r?\n# Repository: ryanportfolio/SecureWall\r?\n# Tag: v$([regex]::Escape($manifestVersion))\r?\n# Version: $([regex]::Escape($manifestVersion))\r?\n# Prerelease: (true|false)\r?\n# Commit: [0-9a-f]{40}\r?\n") 'hash manifest starts with the release header'
         foreach ($name in $expectedMsi) {
             $hash = (Get-FileHash -LiteralPath (Join-Path $artifactRoot $name) -Algorithm SHA256).Hash.ToLowerInvariant()
             Assert-True ($manifestText -match ([regex]::Escape("$hash  $name"))) "hash manifest matches $name"

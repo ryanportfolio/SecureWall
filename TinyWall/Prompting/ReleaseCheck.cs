@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 namespace pylorak.TinyWall.Prompting
 {
     // One GitHub release as the releases API lists it. Only fields the check uses.
-    // Nothing here is trusted: the signed manifest decides what installs.
+    // The release's manifest decides what installs; the release list only finds it.
     internal sealed class GitHubRelease
     {
         internal string Tag { get; set; } = string.Empty;
@@ -55,12 +55,11 @@ namespace pylorak.TinyWall.Prompting
         internal ReleaseCheckOutcome Outcome { get; private set; }
         internal string Message { get; private set; } = string.Empty;
         internal GitHubRelease? Release { get; private set; }
-        internal SignedReleaseManifest? Manifest { get; private set; }
+        internal ReleaseManifest? Manifest { get; private set; }
         internal byte[] ManifestBytes { get; private set; } = Array.Empty<byte>();
-        internal byte[] SignatureBytes { get; private set; } = Array.Empty<byte>();
 
-        internal static ReleaseCheckResult Available(GitHubRelease release, SignedReleaseManifest manifest, byte[] manifestBytes, byte[] signatureBytes) =>
-            new() { Outcome = ReleaseCheckOutcome.UpdateAvailable, Release = release, Manifest = manifest, ManifestBytes = manifestBytes, SignatureBytes = signatureBytes };
+        internal static ReleaseCheckResult Available(GitHubRelease release, ReleaseManifest manifest, byte[] manifestBytes) =>
+            new() { Outcome = ReleaseCheckOutcome.UpdateAvailable, Release = release, Manifest = manifest, ManifestBytes = manifestBytes };
         internal static ReleaseCheckResult Current(string message) => new() { Outcome = ReleaseCheckOutcome.UpToDate, Message = message };
         internal static ReleaseCheckResult Skipped(string message) => new() { Outcome = ReleaseCheckOutcome.NothingEligible, Message = message };
         internal static ReleaseCheckResult Fail(string message) => new() { Outcome = ReleaseCheckOutcome.Failed, Message = message };
@@ -69,7 +68,6 @@ namespace pylorak.TinyWall.Prompting
     internal enum ReleaseCandidateVerdict
     {
         Accepted,
-        SignatureInvalid,
         ManifestMismatch,
         PrereleaseNotWanted,
         Unavailable,
@@ -84,7 +82,6 @@ namespace pylorak.TinyWall.Prompting
         internal const string ReleasesApi = "https://api.github.com/repos/ryanportfolio/SecureWall/releases";
         internal const string DownloadPrefix = "https://github.com/ryanportfolio/SecureWall/releases/download/";
         internal const string ManifestAsset = "SHA256SUMS.txt";
-        internal const string SignatureAsset = "SHA256SUMS.txt.sig";
 
         // Hosts a request or redirect may reach. Asset downloads redirect from github.com to
         // GitHub's object storage.
@@ -107,7 +104,6 @@ namespace pylorak.TinyWall.Prompting
 
         internal const string RateLimitMessage =
             "GitHub's limit for update checks from this network was reached (60 an hour). Try again later.";
-        internal const string SignatureMessage = "signature does not verify";
         internal const string MismatchMessage = "manifest does not match this release";
         internal const string PrereleaseMessage = "only prereleases are newer";
 
@@ -144,7 +140,7 @@ namespace pylorak.TinyWall.Prompting
             return true;
         }
 
-        // Asset URLs come from unsigned JSON, so they must be exactly the release download path.
+        // Asset URLs must be exactly the release download path.
         internal static bool IsAllowedAssetUrl(string? url, string tag, string name) =>
             url != null && ReleaseVersion.TryParseTag(tag, out _) && IsSafeAssetName(name) &&
             string.Equals(url, DownloadPrefix + tag + "/" + name, StringComparison.Ordinal);
@@ -196,8 +192,9 @@ namespace pylorak.TinyWall.Prompting
             return releases;
         }
 
-        // Releases worth verifying, highest version first. GitHub orders the list by creation
-        // date, and its prerelease flag is unsigned, so neither decides anything here.
+        // Releases worth checking, highest version first. GitHub orders the list by creation
+        // date, so that order decides nothing here; the manifest's Prerelease line decides
+        // whether a prerelease is offered.
         internal static List<GitHubRelease> Candidates(IEnumerable<GitHubRelease> releases, Version installed,
             string platform, Version? skipped)
         {
@@ -205,22 +202,19 @@ namespace pylorak.TinyWall.Prompting
             var seen = new HashSet<Version>();
             return releases
                 .Where(r => !r.Draft && r.Version != null && r.Version > current && r.Version != skipped &&
-                    r.Assets.ContainsKey(SignedReleaseManifest.AssetName(platform)) &&
-                    r.Assets.ContainsKey(ManifestAsset) && r.Assets.ContainsKey(SignatureAsset))
+                    r.Assets.ContainsKey(ReleaseManifest.AssetName(platform)) &&
+                    r.Assets.ContainsKey(ManifestAsset))
                 .OrderByDescending(r => r.Version)
                 .Where(r => seen.Add(r.Version!))
                 .ToList();
         }
 
-        // Decides one candidate from its downloaded manifest and signature. Only the signed
-        // Prerelease line decides whether a prerelease is offered.
-        internal static ReleaseCandidateVerdict Evaluate(GitHubRelease release, byte[] manifestBytes, byte[] signatureBytes,
-            IEnumerable<string> trustedKeys, string platform, bool includePrereleases, out SignedReleaseManifest? manifest)
+        // Decides one candidate from its downloaded manifest.
+        internal static ReleaseCandidateVerdict Evaluate(GitHubRelease release, byte[] manifestBytes,
+            string platform, bool includePrereleases, out ReleaseManifest? manifest)
         {
             manifest = null;
-            if (!SignedReleaseManifest.VerifySignature(manifestBytes, signatureBytes, trustedKeys))
-                return ReleaseCandidateVerdict.SignatureInvalid;
-            if (!SignedReleaseManifest.TryParse(manifestBytes, out SignedReleaseManifest? parsed, out _) || parsed == null ||
+            if (!ReleaseManifest.TryParse(manifestBytes, out ReleaseManifest? parsed, out _) || parsed == null ||
                 parsed.Tag != release.Tag || parsed.Version != release.Version || parsed.HashFor(platform) == null)
                 return ReleaseCandidateVerdict.ManifestMismatch;
             if (parsed.Prerelease && !includePrereleases)
@@ -230,12 +224,10 @@ namespace pylorak.TinyWall.Prompting
         }
 
         internal static async Task<ReleaseCheckResult> FindAsync(IReleaseSource source, Version installed, string platform,
-            bool includePrereleases, Version? skipped, IReadOnlyList<string> trustedKeys, CancellationToken cancellationToken)
+            bool includePrereleases, Version? skipped, CancellationToken cancellationToken)
         {
-            if (Array.IndexOf(SignedReleaseManifest.Platforms, platform) < 0)
+            if (Array.IndexOf(ReleaseManifest.Platforms, platform) < 0)
                 return ReleaseCheckResult.Fail("SecureWall's installed package type is not recorded, so no update can be matched to it. Install the next version by hand from the website.");
-            if (trustedKeys.Count == 0)
-                return ReleaseCheckResult.Fail("This build of SecureWall has no release signing key, so it cannot verify updates.");
 
             var releases = new List<GitHubRelease>();
             for (int page = 1; page <= MaxPages; ++page)
@@ -254,8 +246,8 @@ namespace pylorak.TinyWall.Prompting
             if (candidates.Count == 0)
             {
                 string current = ReleaseVersion.Format(ReleaseVersion.Normalize(installed));
-                // A newer release whose signature or installer is not attached yet: published
-                // releases are signed after their installers are built.
+                // A newer release whose files are not attached yet: release.yml attaches them
+                // a few minutes after the release is published.
                 Version? newest = releases
                     .Where(r => !r.Draft && r.Version != null && r.Version > ReleaseVersion.Normalize(installed) && r.Version != skipped)
                     .Select(r => r.Version)
@@ -263,7 +255,7 @@ namespace pylorak.TinyWall.Prompting
                     .FirstOrDefault();
                 if (newest != null)
                     return ReleaseCheckResult.Skipped("SecureWall " + ReleaseVersion.Format(newest) + " is published but not ready to install yet: " +
-                        "its signed manifest or the installer for this computer is not attached. Try again later.");
+                        "its manifest or the installer for this computer is not attached. Try again later.");
                 return ReleaseCheckResult.Current(skipped != null && Candidates(releases, installed, platform, null).Count > 0
                     ? "SecureWall " + current + " is installed. Version " + ReleaseVersion.Format(skipped) + " is newer, but you chose to skip it."
                     : "SecureWall " + current + " is the newest version.");
@@ -272,7 +264,7 @@ namespace pylorak.TinyWall.Prompting
             var verdicts = new List<ReleaseCandidateVerdict>();
             foreach (GitHubRelease candidate in candidates.Take(MaxCandidates))
             {
-                ReleaseFetch manifest = await source.FetchAsync(candidate.Assets[ManifestAsset], SignedReleaseManifest.MaxManifestBytes, cancellationToken).ConfigureAwait(false);
+                ReleaseFetch manifest = await source.FetchAsync(candidate.Assets[ManifestAsset], ReleaseManifest.MaxManifestBytes, cancellationToken).ConfigureAwait(false);
                 if (!manifest.Succeeded)
                 {
                     if (manifest.RateLimited)
@@ -280,18 +272,10 @@ namespace pylorak.TinyWall.Prompting
                     verdicts.Add(ReleaseCandidateVerdict.Unavailable);
                     continue;
                 }
-                ReleaseFetch signature = await source.FetchAsync(candidate.Assets[SignatureAsset], SignedReleaseManifest.MaxSignatureBytes, cancellationToken).ConfigureAwait(false);
-                if (!signature.Succeeded)
-                {
-                    if (signature.RateLimited)
-                        return ReleaseCheckResult.Fail(RateLimitMessage);
-                    verdicts.Add(ReleaseCandidateVerdict.Unavailable);
-                    continue;
-                }
-                ReleaseCandidateVerdict verdict = Evaluate(candidate, manifest.Body!, signature.Body!, trustedKeys, platform,
-                    includePrereleases, out SignedReleaseManifest? accepted);
+                ReleaseCandidateVerdict verdict = Evaluate(candidate, manifest.Body!, platform,
+                    includePrereleases, out ReleaseManifest? accepted);
                 if (verdict == ReleaseCandidateVerdict.Accepted)
-                    return ReleaseCheckResult.Available(candidate, accepted!, manifest.Body!, signature.Body!);
+                    return ReleaseCheckResult.Available(candidate, accepted!, manifest.Body!);
                 verdicts.Add(verdict);
             }
             return ReleaseCheckResult.Skipped(DescribeSkipped(verdicts));
@@ -302,8 +286,6 @@ namespace pylorak.TinyWall.Prompting
             var reasons = new List<string>();
             if (verdicts.Contains(ReleaseCandidateVerdict.PrereleaseNotWanted))
                 reasons.Add(PrereleaseMessage + " (turn on \"Include prereleases\" in Manage > Maintenance to see them)");
-            if (verdicts.Contains(ReleaseCandidateVerdict.SignatureInvalid))
-                reasons.Add(SignatureMessage);
             if (verdicts.Contains(ReleaseCandidateVerdict.ManifestMismatch))
                 reasons.Add(MismatchMessage);
             if (verdicts.Contains(ReleaseCandidateVerdict.Unavailable))

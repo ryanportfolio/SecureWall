@@ -6,7 +6,8 @@ using System.Text;
 
 namespace pylorak.TinyWall.Prompting
 {
-    // SHA256SUMS.txt with the signed header that Build-SecureWallRelease.ps1 writes:
+    // SHA256SUMS.txt with the header that Build-SecureWallRelease.ps1 writes and release.yml
+    // attaches to each GitHub release:
     //
     //   # SecureWall-Release-Manifest: 1
     //   # Repository: ryanportfolio/SecureWall
@@ -16,16 +17,13 @@ namespace pylorak.TinyWall.Prompting
     //   # Commit: <40 lowercase hex>
     //   <64 lowercase hex>  SecureWall_x64.msi
     //
-    // SHA256SUMS.txt.sig holds base64 of an IEEE P1363 ECDSA P-256 / SHA-256 signature
-    // (r||s, 64 bytes) over the exact manifest bytes. The parser accepts this layout only;
-    // anything else is "manifest does not match". Sign-SecureWallRelease.ps1 compiles this
-    // file too, so the signer and the updater read manifests the same way.
-    internal sealed class SignedReleaseManifest
+    // The manifest is not signed: it is trusted as far as the GitHub release it comes from.
+    // It binds the installer hashes to one tag and version. The parser accepts this layout
+    // only; anything else is "manifest does not match".
+    internal sealed class ReleaseManifest
     {
         internal const string Repository = "ryanportfolio/SecureWall";
         internal const int MaxManifestBytes = 64 * 1024;
-        internal const int MaxSignatureBytes = 1024;
-        internal const int SignatureLength = 64;
 
         private const string FormatLine = "# SecureWall-Release-Manifest: 1";
         private const string RepositoryPrefix = "# Repository: ";
@@ -43,7 +41,7 @@ namespace pylorak.TinyWall.Prompting
         // Asset file name to lowercase hex SHA-256.
         internal IReadOnlyDictionary<string, string> Hashes { get; }
 
-        private SignedReleaseManifest(string tag, Version version, bool prerelease, string commit, Dictionary<string, string> hashes)
+        private ReleaseManifest(string tag, Version version, bool prerelease, string commit, Dictionary<string, string> hashes)
         {
             Tag = tag;
             Version = version;
@@ -57,7 +55,7 @@ namespace pylorak.TinyWall.Prompting
         internal string? HashFor(string platform) =>
             Array.IndexOf(Platforms, platform) >= 0 && Hashes.TryGetValue(AssetName(platform), out string? hash) ? hash : null;
 
-        internal static bool TryParse(byte[] bytes, out SignedReleaseManifest? manifest, out string error)
+        internal static bool TryParse(byte[] bytes, out ReleaseManifest? manifest, out string error)
         {
             manifest = null;
             if (bytes == null || bytes.Length == 0 || bytes.Length > MaxManifestBytes)
@@ -145,92 +143,9 @@ namespace pylorak.TinyWall.Prompting
                 hashes.Add(name, line.Substring(0, 64));
             }
 
-            manifest = new SignedReleaseManifest(tag, version!, prerelease, commit, hashes);
+            manifest = new ReleaseManifest(tag, version!, prerelease, commit, hashes);
             error = string.Empty;
             return true;
-        }
-
-        // True when any trusted key verifies the signature over the exact manifest bytes.
-        // A DER-encoded, truncated or padded signature fails the length check.
-        internal static bool VerifySignature(byte[] manifestBytes, byte[] signatureFile, IEnumerable<string> trustedPublicKeys)
-        {
-            if (manifestBytes == null || signatureFile == null || trustedPublicKeys == null ||
-                manifestBytes.Length == 0 || manifestBytes.Length > MaxManifestBytes ||
-                signatureFile.Length == 0 || signatureFile.Length > MaxSignatureBytes)
-                return false;
-
-            byte[] signature;
-            try
-            {
-                string text = Encoding.ASCII.GetString(signatureFile).Trim(' ', '\t', '\r', '\n');
-                foreach (char c in text)
-                {
-                    if (!(c >= 'A' && c <= 'Z') && !(c >= 'a' && c <= 'z') && !(c >= '0' && c <= '9') && c != '+' && c != '/' && c != '=')
-                        return false;
-                }
-                signature = Convert.FromBase64String(text);
-            }
-            catch (FormatException)
-            {
-                return false;
-            }
-            if (signature.Length != SignatureLength)
-                return false;
-
-            foreach (string key in trustedPublicKeys)
-            {
-                if (!TryDecodePublicKey(key, out ECParameters parameters))
-                    continue;
-                try
-                {
-                    using ECDsa ecdsa = ECDsa.Create(parameters);
-                    if (ecdsa.VerifyData(manifestBytes, signature, HashAlgorithmName.SHA256))
-                        return true;
-                }
-                catch (Exception exception) when (exception is CryptographicException || exception is PlatformNotSupportedException)
-                {
-                    // Not a point on the curve (Windows CNG reports it either way): this key verifies nothing.
-                }
-            }
-            return false;
-        }
-
-        // Public keys are base64 of the 64-byte uncompressed point, X then Y
-        // (tools/release/keys/*.pub without their comment lines).
-        internal static bool TryDecodePublicKey(string key, out ECParameters parameters)
-        {
-            parameters = default;
-            byte[] point;
-            try { point = Convert.FromBase64String(key ?? string.Empty); }
-            catch (FormatException) { return false; }
-            if (point.Length != 64)
-                return false;
-            var x = new byte[32];
-            var y = new byte[32];
-            Array.Copy(point, 0, x, 0, 32);
-            Array.Copy(point, 32, y, 0, 32);
-            parameters = new ECParameters
-            {
-                Curve = ECCurve.NamedCurves.nistP256,
-                Q = new ECPoint { X = x, Y = y },
-            };
-            return true;
-        }
-
-        // The base64 key line of a .pub file: the only line that is not blank or a comment.
-        internal static string? ReadPublicKeyFile(string text)
-        {
-            string? key = null;
-            foreach (string rawLine in (text ?? string.Empty).Split('\n'))
-            {
-                string line = rawLine.Trim();
-                if (line.Length == 0 || line.StartsWith("#", StringComparison.Ordinal))
-                    continue;
-                if (key != null)
-                    return null;
-                key = line;
-            }
-            return key;
         }
 
         internal static string Sha256Hex(byte[] data)

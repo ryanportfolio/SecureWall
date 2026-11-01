@@ -48,7 +48,7 @@ namespace pylorak.TinyWall
                 Dock = DockStyle.Top,
                 AutoSize = false,
                 Height = 22,
-                Text = "Release notes from GitHub. They are not covered by the update's signature:",
+                Text = "Release notes from GitHub:",
                 Visible = false,
             };
             Notes = new TextBox
@@ -122,13 +122,13 @@ namespace pylorak.TinyWall
             Progress.Value = (int)Math.Max(0, Math.Min(1000, received * 1000 / total));
         }
 
-        internal void ShowAvailable(GitHubRelease release, SignedReleaseManifest manifest, Version installed)
+        internal void ShowAvailable(GitHubRelease release, ReleaseManifest manifest, Version installed)
         {
             Heading.Text = "SecureWall " + ReleaseVersion.Format(manifest.Version) + " is available";
             string published = release.PublishedAt?.ToLocalTime().ToString("d", CultureInfo.CurrentCulture) ?? "an unknown date";
             Details.Text = "Published " + published + (manifest.Prerelease ? " as a prerelease" : string.Empty) +
                 ". You have " + ReleaseVersion.Format(ReleaseVersion.Normalize(installed)) +
-                ". The release's signed manifest was verified with SecureWall's release key; the installer is checked against it after download.";
+                ". The installer is checked against the release's SHA256SUMS.txt after download.";
             Notes.Text = ReleaseCheck.PlainNotes(release.Notes);
             NotesLabel.Visible = Notes.Visible = Notice.Visible = true;
             Progress.Visible = false;
