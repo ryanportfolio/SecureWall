@@ -27,16 +27,17 @@ namespace pylorak.TinyWall.Installer
             }
             catch
             {
-                // Unreadable means unknown: the marker only defers starts, never permits them.
+                // Unreadable reads as no marker: nothing is deferred and the
+                // service keeps its restart actions.
                 return null;
             }
         }
 
-        internal static void Write(string transaction)
+        internal static void Write(string transaction, UpgradePhase phase)
         {
             using var machine = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
             using var key = machine.CreateSubKey(ProductRegistryPolicy.KeyPath, true);
-            key.SetValue(UpgradeLifecyclePolicy.MarkerValue, transaction, RegistryValueKind.String);
+            key.SetValue(UpgradeLifecyclePolicy.MarkerValue, UpgradeLifecyclePolicy.FormatMarker(transaction, phase), RegistryValueKind.String);
             key.Flush();
         }
 
@@ -65,6 +66,12 @@ namespace pylorak.TinyWall.Installer
         internal static bool BlocksAutomaticStart()
         {
             try { return UpgradeLifecyclePolicy.BlocksStart(Read(), InstallerRunning()); }
+            catch { return false; }
+        }
+
+        internal static bool UpgradeOwnsRecoverySettings()
+        {
+            try { return UpgradeLifecyclePolicy.UpgradeOwnsRecoverySettings(Read(), InstallerRunning()); }
             catch { return false; }
         }
     }

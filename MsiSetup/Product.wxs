@@ -5,6 +5,14 @@
 
   <!-- String constants -->
   <?define ProductName="SecureWall" ?>
+  <!-- The name Windows shows in Settings > Apps. Directory and shortcut names keep
+       ProductName, so a fault-test package installs where a release does; only
+       registry paths built from [ProductName] change. -->
+  <?ifdef UpgradeFaultTest ?>
+    <?define PackageName="SecureWall (fault test)" ?>
+  <?else ?>
+    <?define PackageName="$(var.ProductName)" ?>
+  <?endif ?>
   <?define Manufacturer="Károly Pados and SecureWall contributors" ?>
   <?define Description="A default-deny Windows firewall with explicit outbound prompts." ?>
   <?define ProductVersion="!(bind.fileVersion.SecureWallEXE)" ?>
@@ -42,7 +50,7 @@
     <?define System32Dir = "SystemFolder" ?>
   <?endif ?>
 
-  <Product Id="*" Codepage="1250" Name="$(var.ProductName)" Language="1033" Version="$(var.ProductVersion)" Manufacturer="$(var.Manufacturer)" UpgradeCode="{D257A00C-9D9B-4948-910F-5524F20819D0}">
+  <Product Id="*" Codepage="1250" Name="$(var.PackageName)" Language="1033" Version="$(var.ProductVersion)" Manufacturer="$(var.Manufacturer)" UpgradeCode="{D257A00C-9D9B-4948-910F-5524F20819D0}">
     <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" SummaryCodepage="1250" Description="$(var.Description)" Manufacturer="$(var.Manufacturer)" />
 
     <!-- Automatic media generation and assignment -->
@@ -78,9 +86,10 @@
     <CustomAction Id="SetARPINSTALLLOCATION" Property="ARPINSTALLLOCATION" Value="[INSTALLDIR]" />
 
     <?ifdef UpgradeFaultTest ?>
-      <!-- UpgradeFaultTest configuration only. The installer contract test refuses
-           any release package that carries this property. -->
-      <Property Id="SECUREWALLUPGRADEFAULTTEST" Value="1" />
+      <!-- UpgradeFaultTest configuration only, with the " (fault test)" ProductName
+           suffix. The installer contract test refuses any release package that
+           carries either stamp. -->
+      <Property Id="SECUREWALL_FAULT_TEST" Value="1" />
     <?endif ?>
 
     <!-- Always write a verbose Windows Installer log to %TEMP% (MSI*.LOG). Its path is
@@ -210,6 +219,16 @@
     <CustomAction Id='UpgradeStart' FileKey='SecureWallEXE' ExeCommand='/msi-upgrade-start [ProductCode]' Return='check' Execute='deferred' Impersonate='no' />
     <CustomAction Id='UpgradeStartRollback' FileKey='SecureWallEXE' ExeCommand='/msi-upgrade-abort [ProductCode]' Return='check' Execute='rollback' Impersonate='no' />
     <CustomAction Id='UpgradeCommit' FileKey='SecureWallEXE' ExeCommand='/msi-upgrade-commit [ProductCode]' Return='ignore' Execute='commit' Impersonate='no' />
+    <!-- Explicit removal: delete HKLM\SOFTWARE\SecureWall once the transaction has
+         committed. A deferred delete would escape MSI rollback, and a rolled-back
+         uninstall would lose InstallDir and Platform for good. A committed removal
+         means /msi-cleanup succeeded, which requires both recovery journals to be
+         restored and cleared, so no restorable record is left to lose. The key lives
+         in the 64-bit view (the journals, the marker and the 64-bit packages' values);
+         SecureWall.exe is gone by commit time, so reg.exe from [SystemFolder] does it
+         (SysWOW64 on 64-bit Windows, which /reg:64 still points at the 64-bit view). -->
+    <CustomAction Id='RemoveProductKey64' Directory='TARGETDIR' ExeCommand='"[SystemFolder]reg.exe" delete "HKLM\SOFTWARE\SecureWall" /f /reg:64' Return='ignore' Execute='commit' Impersonate='no' />
+    <CustomAction Id='RemoveProductKey' Directory='TARGETDIR' ExeCommand='"[SystemFolder]reg.exe" delete "HKLM\SOFTWARE\SecureWall" /f' Return='ignore' Execute='commit' Impersonate='no' />
 
     <!-- Sequencing -->
     <InstallExecuteSequence>
@@ -224,6 +243,8 @@
            transaction and one rollback script. -->
       <RemoveExistingProducts After='InstallInitialize' />
       <!-- Old package, explicit removal or removal by a newer package's upgrade -->
+      <Custom Action='RemoveProductKey' Before='RemoveProductKey64'>Installed AND REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE AND NOT VersionNT64</Custom>
+      <Custom Action='RemoveProductKey64' Before='UpgradeStopRollback'>Installed AND REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE AND VersionNT64</Custom>
       <Custom Action='UpgradeStopRollback' Before='UpgradeStop'>Installed AND REMOVE="ALL" AND UPGRADINGPRODUCTCODE</Custom>
       <Custom Action='UpgradeStop' Before='UninstallCustomRollback'>Installed AND REMOVE="ALL" AND UPGRADINGPRODUCTCODE</Custom>
       <Custom Action='UninstallCustomRollback' Before='UninstallCustom'>Installed AND REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE</Custom>

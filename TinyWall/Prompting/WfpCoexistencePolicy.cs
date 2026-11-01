@@ -103,24 +103,22 @@ namespace pylorak.TinyWall.Prompting
         // Conflicts that block removing SecureWall's own sublayers. TinyWall objects
         // outside SecureWall-owned sublayers never block SecureWall's removal.
         internal static WfpCoexistenceReport FindRemovalConflicts(Guid ownProvider,
-            IEnumerable<WfpSublayerRecord> sublayers, IEnumerable<WfpFilterRecord> filters,
-            IEnumerable<Guid> ownSublayerKeys, IEnumerable<Guid> legacySublayerKeys)
+            IEnumerable<WfpSublayerRecord> sublayers, IEnumerable<WfpFilterRecord> filters)
         {
-            var removable = new HashSet<Guid>(SublayersToRemove(ownProvider, sublayers, ownSublayerKeys, legacySublayerKeys));
+            var removable = new HashSet<Guid>(SublayersToRemove(ownProvider, sublayers));
             var report = new WfpCoexistenceReport();
             AddForeignFilters(report, ownProvider, filters, removable);
             return report;
         }
 
-        // Current and legacy sublayer keys that SecureWall's provider owns. A legacy key
-        // owned by any other provider belongs to TinyWall and is never touched.
-        internal static IReadOnlyList<Guid> SublayersToRemove(Guid ownProvider,
-            IEnumerable<WfpSublayerRecord> sublayers, IEnumerable<Guid> ownSublayerKeys, IEnumerable<Guid> legacySublayerKeys)
+        // Every sublayer SecureWall's provider owns, whatever its key: current keys, the
+        // TinyWall keys builds up to v0.3.0 used, and keys a newer version added (an older
+        // binary removes those after a rolled-back in-place upgrade). A sublayer owned by
+        // any other provider, TinyWall's included, is never touched.
+        internal static IReadOnlyList<Guid> SublayersToRemove(Guid ownProvider, IEnumerable<WfpSublayerRecord> sublayers)
         {
-            var candidates = new HashSet<Guid>(ownSublayerKeys);
-            candidates.UnionWith(legacySublayerKeys);
             return sublayers
-                .Where(s => s.ProviderKey == ownProvider && candidates.Contains(s.Key))
+                .Where(s => s.ProviderKey == ownProvider)
                 .Select(s => s.Key)
                 .Distinct()
                 .ToList();

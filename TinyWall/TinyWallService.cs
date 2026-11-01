@@ -2326,26 +2326,31 @@ namespace pylorak.TinyWall
                 // undeletable. Name it before changing anything; the caller's transaction aborts.
                 sublayers = ReadSublayers(wfp);
                 WfpCoexistenceReport blockers = WfpCoexistencePolicy.FindRemovalConflicts(SECUREWALL_PROVIDER_KEY,
-                    sublayers, ReadFilters(wfp), OwnSublayerKeys(), WfpSublayerKeys.Legacy);
+                    sublayers, ReadFilters(wfp));
                 if (!blockers.Clear)
                     throw new InvalidOperationException(blockers.Describe("Removing SecureWall's WFP sublayers"));
             }
 
-            // Remove SecureWall's filters in every sublayer, current or legacy
-            foreach (var layer in (LayerKeyEnum[])Enum.GetValues(typeof(LayerKeyEnum)))
+            // Remove SecureWall's filters in every sublayer, current or legacy. Full removal
+            // (baseline replacement, uninstall) searches every layer on the system: after a
+            // rolled-back in-place upgrade this older binary must also remove filters a newer
+            // version registered in layers it was not compiled to know.
+            IEnumerable<Guid> layers = removeLayersAndProvider
+                ? wfp.GetLayerKeys()
+                : ((LayerKeyEnum[])Enum.GetValues(typeof(LayerKeyEnum))).Select(GetLayerKey);
+            foreach (Guid layer in layers)
             {
-                foreach (var filterKey in wfp.EnumerateFilterKeys(SECUREWALL_PROVIDER_KEY, GetLayerKey(layer)))
+                foreach (var filterKey in wfp.EnumerateFilterKeys(SECUREWALL_PROVIDER_KEY, layer))
                     wfp.UnregisterFilter(filterKey);
             }
 
             if (!removeLayersAndProvider)
                 return;
 
-            // Remove current sublayers, and the TinyWall-keyed sublayers that SecureWall builds
-            // up to v0.3.0 registered, only when SecureWall's provider owns them.
+            // Remove every sublayer SecureWall's provider owns, whatever its key: current ones,
+            // TinyWall-keyed ones from builds up to v0.3.0, and any a newer version added.
             // A failure propagates so the enclosing transaction rolls back.
-            foreach (Guid sublayerKey in WfpCoexistencePolicy.SublayersToRemove(SECUREWALL_PROVIDER_KEY,
-                sublayers, OwnSublayerKeys(), WfpSublayerKeys.Legacy))
+            foreach (Guid sublayerKey in WfpCoexistencePolicy.SublayersToRemove(SECUREWALL_PROVIDER_KEY, sublayers))
                 wfp.UnregisterSublayer(sublayerKey);
 
             try { wfp.UnregisterProvider(SECUREWALL_PROVIDER_KEY); }

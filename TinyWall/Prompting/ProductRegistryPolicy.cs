@@ -9,7 +9,8 @@ namespace pylorak.TinyWall.Prompting
     // it and must survive an in-place upgrade. Explicit removal (/msi-cleanup,
     // /uninstall, failed first-install rollback) deletes everything SecureWall's
     // executable wrote there as its last step, and only once both journals hold
-    // no restorable record. No registry access lives here.
+    // no restorable record; after an MSI removal commits, the package's
+    // commit-phase action deletes the key itself. No registry access lives here.
     internal static class ProductRegistryPolicy
     {
         internal const string KeyPath = @"SOFTWARE\SecureWall";
