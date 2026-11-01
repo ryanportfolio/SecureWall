@@ -33,10 +33,10 @@
       <p>Only outbound TCP/UDP drops caused by SecureWall's normal-mode default block. Explicit user blocks, blocklists, inbound drops, raw-socket protections, Block All mode, and other firewall modes never create an allow prompt.</p>
 
       <h3>Can I install remotely?</h3>
-      <p>No. Installation activates default-deny filtering and can immediately disconnect remote administration. Use an expendable Windows VM with a snapshot and a working local or virtual console. Do not install TinyWall and SecureWall together.</p>
+      <p>No. Installation activates default-deny filtering and can immediately disconnect remote administration. Install at the computer's own keyboard and screen, where you can recover if networking stops. Do not install TinyWall and SecureWall together.</p>
 
       <h3>Does SecureWall check for updates?</h3>
-      <p>No. The inherited TinyWall update feed and update client were removed because they cannot safely update this fork. Install reviewed SecureWall builds manually.</p>
+      <p>No. The inherited TinyWall update feed and update client were removed because they cannot safely update this fork. Install new versions with the MSI from the SecureWall releases page.</p>
 
       <h3>Where are settings and logs?</h3>
       <p>Machine data is stored under <code>C:\ProgramData\SecureWall</code>. SecureWall also uses a LocalSystem Windows service and a separate tray controller.</p>

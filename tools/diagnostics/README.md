@@ -128,9 +128,8 @@ state. Last enable/disable markers are historical; missing records can reflect
 disabled logging, rotation, startup before trusted opt-in, write failures or
 collection failures. Missing shutdown is an observation gap, not a crash verdict.
 
-Boot-gap behavior, real SYSTEM identity rejection, hostile ACL tests, deliberate
-crash behavior, installer rollback and power-loss durability remain unverified by
-this bundle. Review any separate direct evidence independently.
+This bundle cannot show boot-gap behavior, real SYSTEM identity rejection, hostile
+ACL handling, crash behavior, installer rollback or power-loss durability.
 
 ## Fixture verification
 

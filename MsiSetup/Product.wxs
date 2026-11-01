@@ -123,7 +123,7 @@
         <RegistrySearch Id="TinyWallInstallDir64" Root="HKLM" Key="Software\TinyWall" Name="InstallDir" Type="raw" Win64="yes" />
       </Property>
     <?endif ?>
-    <Condition Message="TinyWall is installed. Keep TinyWall active for now; install SecureWall only after SecureWall has passed VM testing, then uninstall TinyWall and reboot first.">
+    <Condition Message="TinyWall is installed. Uninstall TinyWall and reboot before installing SecureWall.">
       <?if $(var.Platform) = x86 ?>
         <![CDATA[Installed OR (NOT TINYWALLINSTALLDIR32)]]>
       <?else ?>

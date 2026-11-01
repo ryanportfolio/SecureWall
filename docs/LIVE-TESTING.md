@@ -2,11 +2,11 @@
 
 Diagnostic logging helps investigate everyday SecureWall behavior on a physical PC. It records service and policy outcomes while you use your applications. It does not run destructive tests, change the firewall's security rules, or send a report anywhere.
 
-This is an exploratory trial. The owner may choose it while boot/crash packet leakage remains unverified. That choice does not establish the broader production assurance described in `HARDENING-VALIDATION.md`.
+A normal-use trial does not show what happens to packets during boot or after a crash; those cases are in [HARDENING-VALIDATION.md](HARDENING-VALIDATION.md).
 
 ## Before switching
 
-Use the local keyboard and screen, with administrator access available. Save the exact SecureWall MSI and its SHA-256 hash, the previous firewall's installer, and recovery instructions locally so they remain accessible without a network connection. Keep a record of the applications you need to allow. Verify the test build and the collector come from the same reviewed source.
+Use the local keyboard and screen, with administrator access available. Save the exact SecureWall MSI and its SHA-256 hash, the previous firewall's installer, and recovery instructions locally so they remain accessible without a network connection. Keep a record of the applications you need to allow. Use the collector from the same release as the installed MSI.
 
 Before removing TinyWall, export its settings to a `.tws` file (TinyWall Settings, Maintenance tab, **Export Settings**) and copy the whole `%ProgramData%\TinyWall` directory to a location outside ProgramData, such as a USB drive. A fresh TinyWall install deletes the contents of `%ProgramData%\TinyWall`, so a later rollback restores your rules only from these copies.
 
@@ -32,7 +32,7 @@ Record the approximate time and expected outcome of each action:
 4. When convenient, exercise your normal sleep/resume, network reconnect and VPN flows. Preserve a bundle before and after an ordinary reboot to compare service runs.
 5. Turn diagnostic logging off, save, and confirm the checkbox remains off when Settings is reopened. Old logs remaining on disk are expected.
 
-Do not deliberately corrupt policy, change protected ACLs, terminate BFE, kill the firewall service, or interrupt installation on your everyday machine to obtain diagnostic events. Unexercised failure paths remain untested.
+Do not deliberately corrupt policy, change protected ACLs, terminate BFE, kill the firewall service, or interrupt installation on your everyday machine to obtain diagnostic events. A normal-use trial does not exercise these failure paths.
 
 ## Collect evidence
 

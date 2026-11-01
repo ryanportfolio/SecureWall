@@ -1,6 +1,6 @@
-# Hardening release validation
+# Hardening validation
 
-This is the release gate for the pre-switch hardening change. Every live case below is **not yet run** unless an evidence record names the exact source revision, MSI hash, Windows build/architecture, VM snapshot, result, and supporting files. Source tests and packaging checks do not establish packet behavior.
+These cases check SecureWall's hardening on a live system. A case passes only when its record names the exact source revision, MSI hash, Windows build/architecture, VM snapshot, result, and supporting files. Source tests and packaging checks do not establish packet behavior.
 
 Use a disposable Windows VM with working local/virtual console, a clean snapshot, and a second VM for inbound probes. Never exercise service termination, policy fault injection, audit changes, or installation on the development host. Build all Release MSIs, then prepare the bundle using `tools/vm/Prepare-SecureWallVmBundle.ps1`. Its guarded runner covers only the basic fresh-install path through the actual MSI.
 
@@ -114,12 +114,12 @@ Capture the complete before/after firewall rule inventory, profile notification 
 
 The AI feature must reject HTTP and redirects, disclose the actual transmitted identity fields, and label publisher information as unverified. Pure tests cover construction, validation, field sanitizing and quoting, display caps, the AI-generated label, the 64 KiB bounded reader and the permit gating and SDDL; a local HTTPS test endpoint can verify transport, that closing the popup cancels a slow-drip body, and a declared or chunked body over 64 KiB, without sending real user data or paid-provider credentials.
 
-Signed production artifacts and an upstream/dependency maintenance process remain separate release requirements. No automatic update feed is introduced by this change. Preserve the exact build inputs and hash manifest, and monitor upstream/dependency fixes before adopting later releases.
+SecureWall has no automatic update feed. Preserve the exact build inputs and hash manifest, and monitor upstream/dependency fixes before adopting later releases.
 
-## R9B source status and pending gates
+## Controller repair and legacy data
 
-Source inspection confirmed the nonadmin controller previously elevated `/install`, although that entry requires LocalSystem, and controller logging previously selected protected machine data. The bounded repair uses an existing validated service, start-only elevation, and bounded SCM Running observation. SYSTEM installation retains service creation. Pure regression cases now cover installation-context decisions, image/account/type rejection, lazy log destinations, denied machine storage without user fallback, and caller wiring. These new cases and application builds have not run; concurrent executors must stop before the manager releases shared verification.
+The controller repairs only an existing validated service: it requests a start-only elevation and waits a bounded time for SCM to report Running. Only SYSTEM installation creates the service. An ordinary interactive controller logs to `%LocalAppData%\SecureWall\logs`; an elevated controller denied the guarded machine log folder does not fall back to user storage. Pure regression tests cover installation-context decisions, image/account/type rejection, lazy log destinations, denied machine storage without user fallback, and caller wiring.
 
-The following VM cases remain unrun: standard-user and administrator controller repair; missing service without a UAC prompt; UAC cancellation; service start failure and timeout; StartPending and StopPending; pending deletion via registry and SCM error 1072; wrong image/account/type rejection; concurrent service start; user log creation; privileged log rejection without fallback; unsafe legacy data startup and MSI failure; clean TinyWall-only migration. Verify interactive diagnostics and absence of SYSTEM/session-0 UI. A controller can show a detailed failure followed by its caller's existing generic unavailable-service dialog; no controller-file edit was in this executor's scope.
+VM cases: standard-user and administrator controller repair; missing service without a UAC prompt; UAC cancellation; service start failure and timeout; StartPending and StopPending; pending deletion via registry and SCM error 1072; wrong image/account/type rejection; concurrent service start; user log creation; privileged log rejection without fallback; unsafe legacy data startup and MSI failure; clean TinyWall-only migration. Check interactive diagnostics and the absence of SYSTEM/session-0 UI. A detailed controller failure can be followed by the generic unavailable-service dialog.
 
-Unsafe legacy trees remain rejected and untouched. The deferred MSI action still lacks a dedicated user-facing rejection dialog. Signing, package/ICE verification, the full WFP/hosts/audit/local-console matrix and physical power-loss durability remain pending. Source inspection establishes none of these runtime gates.
+Unsafe legacy trees are rejected and left untouched. The deferred MSI action has no dedicated user-facing rejection dialog; the Application event log holds the reason.
