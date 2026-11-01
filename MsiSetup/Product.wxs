@@ -14,8 +14,8 @@
   <?define OldestUpgradeableVersion="0.5.0" ?>
   <!-- MsiSetup.wixproj sets PreUpgradeVersion only while TinyWall.csproj's <Version> is
        below 0.5.0 (development builds before the v0.5.0 bump). The floor then equals the
-       product version: no older version is upgradeable, every older one is refused,
-       and the Upgrade table stays valid for ICE61. -->
+       product version and the upgradeable row is left out, because ICE61 rejects an
+       empty range: no older version is upgradeable and every older one is refused. -->
   <?ifdef PreUpgradeVersion ?>
     <?undef OldestUpgradeableVersion ?>
     <?define OldestUpgradeableVersion="$(var.PreUpgradeVersion)" ?>
@@ -151,9 +151,11 @@
     <Upgrade Id='{D257A00C-9D9B-4948-910F-5524F20819D0}'>
       <UpgradeVersion OnlyDetect='yes' Property='OLDER_INCOMPATIBLE_FOUND'
         Maximum="$(var.OldestUpgradeableVersion)" IncludeMaximum='no' />
+      <?ifndef PreUpgradeVersion ?>
       <UpgradeVersion OnlyDetect='no' MigrateFeatures='yes' Property='OLDER_UPGRADEABLE_FOUND'
         Minimum="$(var.OldestUpgradeableVersion)" IncludeMinimum='yes'
         Maximum="$(var.ProductVersion)" IncludeMaximum='no' />
+      <?endif ?>
       <UpgradeVersion OnlyDetect='yes' Property='SELF_FOUND'
         Minimum="$(var.ProductVersion)" IncludeMinimum='yes'
         Maximum="$(var.ProductVersion)" IncludeMaximum='yes' />
