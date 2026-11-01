@@ -107,7 +107,7 @@ internal static class ControllerActivityTests
 
         string coordinator = PromptTransactionIntegrationTests.Source("TinyWall/Prompting/PromptDisplayCoordinator.cs");
         int timeout = coordinator.IndexOf("private async void PromptTimedOut(", StringComparison.Ordinal);
-        int ignore = coordinator.IndexOf("private async void IgnoreCurrent()", timeout, StringComparison.Ordinal);
+        int ignore = coordinator.IndexOf("private async void IgnoreCurrent(", timeout, StringComparison.Ordinal);
         string timeoutBody = coordinator.Substring(timeout, ignore - timeout);
         AssertEx.True(timeoutBody.Contains("_actions.DismissAfterTimeout(token)", StringComparison.Ordinal));
         AssertEx.False(timeoutBody.Contains("_actions.Dismiss(token)", StringComparison.Ordinal));

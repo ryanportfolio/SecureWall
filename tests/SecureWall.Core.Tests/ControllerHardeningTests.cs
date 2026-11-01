@@ -551,7 +551,7 @@ internal static class ControllerHardeningTests
     private static void Check(bool value) { if (!value) throw new InvalidOperationException("Hardening assertion failed."); }
     private sealed class Actions : IPromptActionClient
     {
-        internal int AllowCount, AllowAlwaysCount, DismissCount, TimeoutCount, UnlockCount, RelockCount;
+        internal int AllowCount, AllowAlwaysCount, DismissCount, IgnoreCount, TimeoutCount, UnlockCount, RelockCount;
         internal readonly List<Guid> AllowTokens = new();
         public PromptActionStatus AllowAlways(Guid token)
         {
@@ -570,6 +570,7 @@ internal static class ControllerHardeningTests
             return AllowResults.Count > 0 ? AllowResults.Dequeue() : PromptActionStatus.Allowed;
         }
         public PromptActionStatus Dismiss(Guid token) { DismissCount++; return DismissResult; }
+        public PromptActionStatus Ignore(Guid token) { IgnoreCount++; return DismissResult; }
         public PromptActionStatus DismissAfterTimeout(Guid token) { TimeoutCount++; return DismissResult; }
         public PromptUnlockResult Unlock() { UnlockCount++; DuringUnlock?.Invoke(); return UnlockResult; }
         public void Relock() => RelockCount++;

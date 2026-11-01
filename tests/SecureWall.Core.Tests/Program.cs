@@ -782,7 +782,9 @@ internal static class Program
 
         firstView.RaiseIgnore();
 
-        AssertEx.SequenceEqual(new[] { first.Token }, actions.Dismissed);
+        // The Ignore button asks the service to remember the app; closing only dismisses.
+        AssertEx.SequenceEqual(new[] { first.Token }, actions.Ignored);
+        AssertEx.Equal(0, actions.Dismissed.Count);
         AssertEx.Equal(second.Token, coordinator.CurrentToken);
         AssertEx.Equal(0, coordinator.PendingCount);
     }
@@ -965,6 +967,14 @@ internal static class Program
         public PromptActionStatus Dismiss(Guid token)
         {
             Dismissed.Add(token);
+            return DismissResult;
+        }
+
+        internal List<Guid> Ignored { get; } = new();
+
+        public PromptActionStatus Ignore(Guid token)
+        {
+            Ignored.Add(token);
             return DismissResult;
         }
 

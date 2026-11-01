@@ -80,6 +80,10 @@ namespace pylorak.TinyWall
         internal PromptActionStatus DismissPrompt(Guid token) =>
             SendDismiss(TwMessagePromptAction.CreateDismissRequest(token));
 
+        // The popup's Ignore button: dismisses and, while unlocked, adds the app to the Ignored list.
+        internal PromptActionStatus IgnorePrompt(Guid token) =>
+            SendDismiss(TwMessagePromptAction.CreateIgnoreRequest(token));
+
         // Automatic popup timeout: the service must not count it as user activity.
         internal PromptActionStatus DismissPromptAfterTimeout(Guid token) =>
             SendDismiss(TwMessagePromptAction.CreateTimeoutDismissRequest(token));
