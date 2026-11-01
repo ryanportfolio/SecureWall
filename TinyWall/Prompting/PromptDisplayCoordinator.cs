@@ -379,6 +379,27 @@ namespace pylorak.TinyWall.Prompting
             IPromptView view = _currentView;
             if (!_actionsInFlight.Add(token)) return;
             PromptActionStatus status = await PerformAction(() => remember ? _actions.Ignore(token) : _actions.Dismiss(token));
+            if (remember && status == PromptActionStatus.Locked)
+            {
+                // Saving to the Ignored list needs the password, so Ignore unlocks, retries and
+                // relocks the way Allow does. A cancelled or failed unlock falls back to a plain
+                // dismissal: the app stays blocked and is asked about again after five minutes.
+                bool relock = false;
+                if (IsCurrent(token, view) && _current!.ExpiresUtc > _utcNow())
+                {
+                    PromptUnlockResult unlock = TryUnlock();
+                    relock = unlock != PromptUnlockResult.AlreadyUnlocked;
+                    if (unlock != PromptUnlockResult.NotUnlocked && IsCurrent(token, view) &&
+                        _current!.ExpiresUtc > _utcNow())
+                    {
+                        status = await PerformAction(() => _actions.Ignore(token));
+                    }
+                }
+                if (status == PromptActionStatus.Locked && IsCurrent(token, view) && _current!.ExpiresUtc > _utcNow())
+                    status = await PerformAction(() => _actions.Dismiss(token));
+                if (relock)
+                    TryRelock();
+            }
             _actionsInFlight.Remove(token);
             if (_disposed || _current?.Token != token || !ReferenceEquals(view, _currentView)) return;
             if (status == PromptActionStatus.Dismissed ||

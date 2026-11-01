@@ -136,7 +136,7 @@ namespace pylorak.TinyWall.Prompting
                 prompt.SubjectKind == PromptIdentityKind.AmbiguousService
                     ? "Keep blocking. SecureWall cannot tell which service this is, so it asks again after five minutes."
                     : "Keep blocking and stop asking about this app. It is listed under Manage, Ignored; remove it there to be asked again. " +
-                        "While SecureWall is locked, Ignore only stops asking for five minutes.");
+                        "While SecureWall is locked, Ignore asks for the password first; cancel it and Ignore only stops asking for five minutes.");
             FitNoticeLabel();
 
             PositionBottomRight();
