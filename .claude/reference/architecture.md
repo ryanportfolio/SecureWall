@@ -5,10 +5,31 @@
 - `TinyWall/FirewallLogWatcher.cs`: subscribes only to Security event 5157, parses it by field name for prompt attribution, and leases failure auditing with the exact prior flags restored. `AuditPolicyLease.cs` journals the original flags to `HKLM\SOFTWARE\SecureWall\AuditRecovery` (`RegistryAuditPolicyJournal.cs`) before the first change; service start, `/uninstall`, and `/msi-cleanup` restore stale entries.
 - `TinyWall/Prompting/`: pure identity, correlation, bounded queue, token DTO, display coordinator, and WinForms popup. `ExecutableRiskAssessment.cs` is the pure warning classifier; `TinyWall/ExecutableRiskProbe.cs` gathers signature (WinVerifyTrust plus catalog), directory DACL, and last-write facts in the controller at display time.
 - `TinyWall/ConnectionsForm.cs`: one-second live Network Activity view combining bounded WFP allow/drop observations with Windows TCP/UDP endpoint tables. `Allowed` and `Blocked` are observed decisions; `Listening (local endpoint)` is not a reachability claim.
-- `TinyWall/TinyWallController.cs`: unprivileged tray client and asynchronous 750 ms prompt polling.
+- `TinyWall/TinyWallController.cs`: unprivileged tray client and asynchronous 750 ms prompt polling. Network Activity and Manage are modeless and may be open together; Manage saves against the settings changeset it opened with, so the service's stale-changeset check refuses a save that would drop a rule added meanwhile. On a refusal Manage applies nothing else (controller options, password change), and on OK it copies only the controller fields it edits:
+
+```mermaid
+flowchart LR
+    Tray -->|Show, modeless| NA[Network Activity]
+    Tray -->|Show, modeless| M[Manage]
+    NA -->|Unblock: PUT_SETTINGS, current changeset| S[Service]
+    M -->|OK: PUT_SETTINGS, changeset at open| S
+    S -->|changeset moved since open| W[Retry warning; nothing from Manage applied]
+```
 - `TinyWall/Message.cs`: source-generated JSON protocol over the authenticated named pipe.
 
 Modes are Normal, BlockAll, AllowOutgoing and Disabled (`Prompting/FirewallModePolicy.cs`). Learning mode was removed; its enum value stays reserved so old messages and configs parse, a switch to it is refused, and a stored or imported startup mode of Learning becomes Normal.
+
+Always allow rules (`TinyWall/AlwaysAllowRule.cs`, profile `AlwaysAllowRules`) are file name plus Authenticode signer subject, never WFP filters. `TinyWallService.TryQueueAlwaysAllow` runs on the prompt timer thread outside the queue lock, verifies the signature (`SignedFileIdentity`), and queues the service-only `AUTO_ALLOW_SIGNED` request with a non-blocking `TryAdd`; the worker then commits exact-path outbound exceptions in one policy change.
+
+```mermaid
+flowchart LR
+    D[Promptable drop] --> N{Name matches a rule?}
+    N -->|no| P[Prompt]
+    N -->|yes| V{Valid embedded signature from the rule's signer?}
+    V -->|no| P
+    V -->|yes| Q[AUTO_ALLOW_SIGNED on the request queue]
+    Q --> W[Worker: exact-path outbound exception, ApplyConfiguration]
+```
 
 Normal mode is default deny. Only committed runtime IDs for outbound ALE default-block filters are promptable. The service maps an opaque token to an immutable subject; the controller never supplies an executable path, package SID, or service name as authority.
 

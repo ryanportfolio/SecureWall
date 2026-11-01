@@ -30,7 +30,7 @@ namespace pylorak.TinyWall
             {
                 ShowBalloonTip(
                     $"SecureWall blocked {MissedPromptName(e.Added[0])} and the prompt was not answered. Click here to allow it, or find it later under \"{MissedPromptsMenuTitle}\" in the tray menu.",
-                    ToolTipIcon.Warning, 10000, (_, args) => AllowMissedPrompt((PromptWireDto)args.Arg!), e.Added[0]);
+                    ToolTipIcon.Warning, 10000, (_, args) => AllowMissedPrompt((PromptWireDto)args.Arg!, alwaysAllow: false), e.Added[0]);
             }
             else if (e.Added.Count > 1)
             {
@@ -65,7 +65,15 @@ namespace pylorak.TinyWall
                         : PromptNoticeText.Blocked(prompt.AllowBlocker, prompt.ServiceName),
                     Tag = prompt,
                 };
-                item.Click += (sender, _) => AllowMissedPrompt((PromptWireDto)((ToolStripItem)sender).Tag);
+                var allow = new ToolStripMenuItem("Allow");
+                allow.Click += (_, _) => AllowMissedPrompt(prompt, alwaysAllow: false);
+                item.DropDownItems.Add(allow);
+                if (prompt.SubjectKind == PromptIdentityKind.Executable && prompt.CanAllow)
+                {
+                    var always = new ToolStripMenuItem("Always allow (any folder, same publisher)");
+                    always.Click += (_, _) => AllowMissedPrompt(prompt, alwaysAllow: true);
+                    item.DropDownItems.Add(always);
+                }
                 mnuMissedPrompts.DropDownItems.Add(item);
             }
             if (missed.Count > 0)
@@ -90,7 +98,9 @@ namespace pylorak.TinyWall
             };
         }
 
-        private void AllowMissedPrompt(PromptWireDto prompt)
+        // alwaysAllow also saves an Always allow rule for the file name and the publisher read
+        // here from the file's verified signature, in the same password-gated save.
+        private void AllowMissedPrompt(PromptWireDto prompt, bool alwaysAllow)
         {
             string name = MissedPromptName(prompt);
             if (!prompt.CanAllow)
@@ -118,9 +128,24 @@ namespace pylorak.TinyWall
             }
 
             string where = prompt.ExecutablePath ?? prompt.PackageSid ?? string.Empty;
-            if (Utils.ShowMessageBox(
-                    $"Allow {name} to make outgoing connections?\n{where}\n\nThis creates a permanent rule for outgoing TCP and UDP connections to all destinations and ports, the same rule as Allow in the prompt. It was blocked while connecting to {prompt.RemoteAddress}:{prompt.RemotePort}.",
-                    Resources.Messages.TinyWall, TaskDialogCommonButtons.Yes | TaskDialogCommonButtons.No, TaskDialogIcon.Warning) != DialogResult.Yes)
+            AlwaysAllowRule? rule = null;
+            if (alwaysAllow)
+            {
+                SignedFileIdentity? signer = subject is ExecutableSubject ? SignedFileIdentity.TryRead(prompt.ExecutablePath) : null;
+                if (signer == null)
+                {
+                    Utils.ShowMessageBox(
+                        $"{name} has no valid embedded signature, so SecureWall could not recognize it in another folder.\nUse Allow for this copy instead.",
+                        Resources.Messages.TinyWall, TaskDialogCommonButtons.Ok, TaskDialogIcon.Information);
+                    return;
+                }
+                rule = new AlwaysAllowRule(name, signer.Subject, signer.Name);
+            }
+            string question = rule == null
+                ? $"Allow {name} to make outgoing connections?\n{where}\n\nThis creates a permanent rule for outgoing TCP and UDP connections to all destinations and ports, the same rule as Allow in the prompt. It was blocked while connecting to {prompt.RemoteAddress}:{prompt.RemotePort}."
+                : $"Always allow {name} signed by {rule.SignerName}?\n{where}\n\nThis allows this copy now, and any later file named {name} with a valid signature from {rule.SignerName}, in any folder. Each gets the same outgoing-only TCP and UDP rule as Allow in the prompt. Remove the rule under Manage, Always allow.";
+            if (Utils.ShowMessageBox(question, Resources.Messages.TinyWall,
+                    TaskDialogCommonButtons.Yes | TaskDialogCommonButtons.No, TaskDialogIcon.Warning) != DialogResult.Yes)
                 return;
 
             var policy = new TcpUdpPolicy
@@ -128,9 +153,16 @@ namespace pylorak.TinyWall
                 AllowedRemoteTcpConnectPorts = "*",
                 AllowedRemoteUdpConnectPorts = "*",
             };
+            // Like Allow in the popup, lock SecureWall again whenever this Allow asked for the
+            // password, including after a cancel or a failed unlock.
+            int passwordPrompts = PasswordPromptsShown;
             // AddExceptions reports failures itself. Keep the entry unless the service
             // confirmed the save: a cancelled editor or password dialog leaves the app blocked.
-            if (AddExceptions(new List<FirewallExceptionV3> { new FirewallExceptionV3(subject, policy) }))
+            bool saved = AddExceptions(new List<FirewallExceptionV3> { new FirewallExceptionV3(subject, policy) },
+                alsoChange: rule == null ? null : config => AlwaysAllowRule.AddTo(config.ActiveProfile.AlwaysAllowRules, rule));
+            if (PasswordPromptsShown != passwordPrompts)
+                RelockAfterPrompt();
+            if (saved)
                 PromptCoordinator?.RemoveMissed(prompt);
         }
     }

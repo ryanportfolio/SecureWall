@@ -1,20 +1,22 @@
 // Hero section: "Choose what connects" as extruded 3D letters rising out of
-// the terrain (concept 01): white faces over rainbow-striped walls, ringed by
-// terraced contour lines that follow the letter outlines, on a mound that
-// raises the terrain to meet the rings so its own contour lines bend around
-// the block.
+// the terrain (concept 01): white faces over tall rainbow-striped walls, ringed
+// by terraced contour lines that follow the letter outlines and fade into the
+// site's own terrain, which is left as it is.
 //
 // Meshes: sw-hero (the letters, a SWText.SliceText) and sw-hero-rings (the
-// terraces, built here). Both are drawn from a distance field of the glyph
-// mask, which also shapes the mound.
+// terraces, built here), the rings drawn from a distance field of the glyph
+// mask.
 //
-// Built with window.SWText (tools/site/lib/swtext.js). The letters follow the
-// hero's computed opacity: they rise while it shows and sink into the terrain
-// as it fades on scroll. They are placed onto the h1's box only while the hero
-// is fully shown, so while moving they travel with the terrain. As soon as the
-// section is set up, <html> gets sw-hero-3d and hero.css makes the DOM h1
-// transparent, so the flat headline never shows first; it stays in the
-// accessibility tree and selectable.
+// Built with window.SWText (tools/site/lib/swtext.js). Letters and rings
+// rise out of the ground on load and fade with the hero's computed opacity,
+// gone at SHOWN_FROM; gone, they sink, and they rise again when it comes
+// back. While they stand they are placed onto the
+// h1's box whenever it or the camera moves, so they stay on the DOM layout
+// (clear of the tagline). As soon as the section is set up, <html> gets
+// sw-hero-3d and hero.css makes the DOM h1 transparent, so the flat headline
+// never shows first; it stays in the accessibility tree and selectable. The letters are
+// first drawn once the headline font has loaded, so their strokes don't
+// change weight when it arrives.
 (() => {
   "use strict";
   const SW = window.SWText;
@@ -25,37 +27,89 @@
   // rings' base is scaled by the font size over FONT_REF, which keeps the
   // walls in proportion to the letters on a phone.
   const FONT_REF = 190;
-  const MOUND_LEVEL = 0.95;
   // Contour rings around the letters: RINGS terraces, each RING_W font sizes
   // wide and RING_DZ high, the outermost just above the top terrain layer.
-  const RINGS = 7;
-  const RING_W = 0.08;
+  const RINGS = 8;
+  const RING_W = 0.07;
   const RING_DZ = 0.002;
   const RING_SLICES = 3;
   const RING_BASE = 0.9515;
-  const RING_FACE = [0.6, 0.6, 0.6];
-  // Each terrace darkens to RING_EDGE toward its outer edge (the contour
-  // line); its wall mixes RING_TINT of the letters' stripe colors.
+  // The innermost terrace is mid-grey (RING_NEAR, linear), so the white faces
+  // stand out from the ground, as in concept 01; the terraces lighten
+  // outward to RING_FAR, close to the terrain's own top. Each darkens to
+  // RING_EDGE toward its outer edge (the contour line), less so farther out.
+  // Past RING_FADE of the way out they fade to RING_ALPHA opacity, so the
+  // block has no outline of its own over the terrain.
+  const RING_NEAR = 0.3;
+  const RING_FAR = 0.6;
   const RING_EDGE = 0.7;
-  const RING_TINT = 0.6;
+  const RING_FADE = 0.4;
+  const RING_ALPHA = 0.15;
   // Letters: the face stands WALL above the innermost ring; the stack goes
-  // down below the rings' base so no gap shows under the lowest ring.
-  const WALL = 0.024;
-  const SLICES = 30;
+  // down below the rings' base so no gap shows under the lowest ring. SLICES
+  // keeps the step between slices near one pixel at 1440 px, so the wall
+  // reads as one striped side; SHADE darkens wall parts facing away from the
+  // light.
+  const WALL = 0.045;
+  const SLICES = 64;
+  const SHADE = 1;
   // Small letters lose their white faces to the post-processing's colour
   // fringes and grain, so the face colour rises above 1 (the scene renders
   // to a float target) by up to FACE_GAIN as the font shrinks from FONT_REF.
   const FACE_GAIN = 0.8;
-  // Beyond the rings the terrain falls back over MOUND_R font sizes.
-  const MOUND_R = 1;
-  // The mound is shaped around the glyphs closed with this radius (font
-  // sizes), so its outline has no tight inside corners. In such a corner the
-  // terrace just below the mound's top showed through as a sliver, and the
-  // mound's own shadow made it a dark triangle or notch.
-  const CLOSE = 1.5;
-  const FIELD_W = 512;
-  // Rise/sink speed (per second) toward the hero's opacity.
-  const SPEED = 3.5;
+  // The site's chromatic aberration splits the outer letters into coloured
+  // copies (it grows toward the screen's edges); SWText.lens scales it by
+  // 1 - LENS on the glyphs, back to full LENS_REACH font sizes away.
+  const LENS = 0.95;
+  const LENS_REACH = 0.5;
+  const FIELD_W = 384;
+  // The glyph mask's edge blur (font sizes), which also softens the faces'
+  // bevel. At 0.05 the blurs of two close glyphs summed past the mask's
+  // cut-off in narrow gaps and drew a speck of letter between them.
+  const MASK_EDGE = 0.03;
+  // The site's headline face is a light weight; concept 01's letters are
+  // heavy, so the mask widens every stroke by BOLD font sizes on each side
+  // (hero.css spaces the letters out to keep them apart).
+  const BOLD = 0.035;
+  // Rise and sink rates per second (the first rise, on load, at
+  // FIRST_SPEED). Only the top few percent of the travel shows above the
+  // ground (on load the terrain is still flat at its top layer), so the
+  // height (lift) covers the first 1 - BAND of it in the first DASH of the
+  // time and eases out (cubic) over the rest.
+  const FIRST_SPEED = 1;
+  const RISE_SPEED = 4;
+  const SINK_SPEED = 3;
+  const BAND = 0.08;
+  const DASH = 0.3;
+  // Letters and rings fade with the hero as the DOM heading did: opaque
+  // while its opacity is above FULL_FROM, gone at SHOWN_FROM, in proportion
+  // between, so their opacity follows the scroll position. Gone, they sink
+  // unseen. They also fade in at FADE_SPEED per second once the rise
+  // passes FADE_FROM, the slow end where they come up through the ground,
+  // so they never appear in one frame (coming back, the rise is quick, so
+  // they follow the hero without a gap); leaving, they fade out at the same
+  // rate and then sink unseen. On load the rings also wait for the terrain
+  // to form: its uHeight rises from about 0.27 to 0.43, and they fade in
+  // over TERRAIN_FROM..TERRAIN_TO, so they never sit on the blank intro
+  // ground.
+  const FADE_FROM = 0.35;
+  const FADE_SPEED = 4;
+  const SHOWN_FROM = 0.08;
+  const FULL_FROM = 0.9;
+  const TERRAIN_FROM = 0.3;
+  const TERRAIN_TO = 0.38;
+  const clamp01 = x => Math.min(1, Math.max(0, x));
+  const lift = x => {
+    x = Math.min(1, Math.max(0, x));
+    if (x < DASH) return (1 - BAND) * (x / DASH);
+    return 1 - BAND * (1 - (x - DASH) / (1 - DASH)) ** 3;
+  };
+  const FONT_WAIT = 3000;
+  const CAMERA_STILL = 0.01;
+  // The site slides the h1's lines in on load, redrawing the mask on every
+  // frame for about a second; the ring field (about 20-60 ms to build) is
+  // rebuilt once the mask has held still for FIELD_SETTLE ms.
+  const FIELD_SETTLE = 150;
 
   // Exact squared Euclidean distance transform (Felzenszwalb), one line.
   function edt1(f, n, d, v, z) {
@@ -78,42 +132,32 @@
     }
   }
 
-  // Distance from the glyphs, in font sizes. `dist` covers mask.box and
-  // holds it in its red channel (0..DIST_MAX) for the rings. `mound` holds
-  // the mound height in alpha for SWText.setMound over moundRect(), a larger
-  // rect, so the slope ends inside it instead of at the box edge. The rect
-  // stays inside the viewport: points far above it map badly onto the plane.
-  // So it can change while the mask does not (a resize that keeps the
-  // headline's layout); the mound is redrawn whenever its rect, relative to
-  // mask.box, differs from the one it was drawn for (rectKey).
-  const DIST_MAX = 2;
-  const FLAT = RINGS * RING_W;
-  // The mound fades out over the outer 6% of its rect; keep the slope clear.
-  const moundMargin = fontSize => (FLAT + MOUND_R) * fontSize;
-  function moundRect(box, fontSize) {
-    const m = moundMargin(fontSize);
-    const w = box.width + 2 * m, h = box.height + 2 * m;
-    const e = 0.08 * Math.max(w, h);
-    const x0 = Math.max(0, box.left - m - e), y0 = Math.max(0, box.top - m - e);
-    const x1 = Math.min(innerWidth, box.right + m + e), y1 = Math.min(innerHeight, box.bottom + m + e);
-    return new DOMRect(x0, y0, x1 - x0, y1 - y0);
-  }
-  const rectKey = (box, rect) =>
-    [rect.left - box.left, rect.top - box.top, rect.width, rect.height].map(Math.round).join();
+  // Distance from the glyphs, in font sizes, over mask.box, in the red
+  // channel (0..DIST_MAX) of `dist`, for the rings. It is taken from the
+  // glyphs closed with radius CLOSE (font sizes), so no terrace sits in the
+  // narrow gaps between letters, and outside them it is box-blurred twice
+  // over BLUR font sizes, which rounds the sharp notches where the contours
+  // of neighbouring letters meet. DIST_MAX covers the rings (RINGS x RING_W)
+  // and the lens reach; kept small, its 8-bit steps stay under a pixel.
+  const DIST_MAX = 0.8;
+  const BLUR = 0.12;
+  const CLOSE = 0.1;
 
-  // Squared distance in grid cells to the nearest cell inside the glyphs
-  // (alpha >= 0.5), for a w x h grid with the mask drawn at (dx, dy, dw, dh).
-  function distanceGrid(maskCanvas, w, h, dx, dy, dw, dh, scratch) {
-    scratch.width = w;
-    scratch.height = h;
-    const ctx = scratch.getContext("2d", { willReadFrequently: true });
-    ctx.clearRect(0, 0, w, h);
-    ctx.drawImage(maskCanvas, dx, dy, dw, dh);
-    const alpha = ctx.getImageData(0, 0, w, h).data;
-    const n = w * h;
-    const grid = new Float64Array(n);
-    for (let i = 0; i < n; i++) grid[i] = alpha[i * 4 + 3] >= 128 ? 0 : 1e12;
-    return edt2(grid, w, h);
+  // In place, along rows (step 1) or columns (step w): mean over 2r + 1 cells.
+  function boxBlur(a, w, h, r, along) {
+    const n = along === "x" ? w : h, lines = along === "x" ? h : w;
+    const step = along === "x" ? 1 : w, next = along === "x" ? w : 1;
+    const line = new Float64Array(n);
+    for (let l = 0; l < lines; l++) {
+      const o = l * next;
+      for (let i = 0; i < n; i++) line[i] = a[o + i * step];
+      let sum = 0;
+      for (let i = -r; i <= r; i++) sum += line[Math.min(n - 1, Math.max(0, i))];
+      for (let i = 0; i < n; i++) {
+        a[o + i * step] = sum / (2 * r + 1);
+        sum += line[Math.min(n - 1, i + r + 1)] - line[Math.max(0, i - r)];
+      }
+    }
   }
 
   // In place: each cell of grid (0 for seed cells, 1e12 elsewhere) becomes
@@ -161,61 +205,111 @@
     return out;
   }
 
-  function fields(T) {
-    const make = () => ({ canvas: document.createElement("canvas"), texture: null });
-    const dist = make();
-    const mound = make();
-    const scratch = document.createElement("canvas");
+  // The field as RGBA pixels (distance in red) from the mask's RGBA pixels
+  // (w x h): squared distances to the glyphs (alpha >= 0.5) and to their
+  // closing, the latter blurred; scale converts cells to font sizes. Pure,
+  // so it also runs in the worker below.
+  function fieldPixels(mask, w, h, scale, { close: radius, blur, max }) {
+    const n = w * h;
+    const raw = new Float64Array(n);
+    for (let i = 0; i < n; i++) raw[i] = mask[i * 4 + 3] >= 128 ? 0 : 1e12;
+    edt2(raw, w, h);
+    const grid = close(raw, w, h, radius / scale);
+    const d = new Float64Array(n);
+    for (let i = 0; i < n; i++) d[i] = Math.sqrt(grid[i]) * scale;
+    const r = Math.max(1, Math.round(blur / scale));
+    for (let k = 0; k < 2; k++) {
+      boxBlur(d, w, h, r, "x");
+      boxBlur(d, w, h, r, "y");
+    }
+    const out = new Uint8ClampedArray(n * 4);
+    for (let i = 0; i < n; i++) {
+      out[i * 4] = raw[i] ? Math.max(1, Math.round(Math.min(1, d[i] / max) * 255)) : 0;
+      out[i * 4 + 3] = 255;
+    }
+    return out;
+  }
 
-    function write(target, w, h, fill) {
-      const { canvas } = target;
+  // Builds fields off the main thread when the browser can (reading the
+  // mask back and the transforms took about 60 ms, a dropped frame or
+  // three): the mask is scaled down to the grid by createImageBitmap and
+  // read and processed in a worker made from the functions above.
+  const WORKER = [edt1, edt2, close, boxBlur, fieldPixels].map(String).join("\n") +
+    `
+onmessage = ({ data: { image, w, h, scale, opts } }) => {
+  const ctx = new OffscreenCanvas(w, h).getContext("2d");
+  ctx.drawImage(image, 0, 0, w, h);
+  image.close();
+  const px = fieldPixels(ctx.getImageData(0, 0, w, h).data, w, h, scale, opts);
+  postMessage(px, [px.buffer]);
+};`;
+  let worker;
+  function fieldWorker() {
+    if (worker === undefined) {
+      worker = null;
+      try {
+        if (typeof OffscreenCanvas === "function") {
+          const url = URL.createObjectURL(new Blob([WORKER], { type: "text/javascript" }));
+          worker = new Worker(url);
+          URL.revokeObjectURL(url);
+        }
+      } catch {
+        worker = null;
+      }
+    }
+    return worker;
+  }
+
+  function fields(T) {
+    const dist = { canvas: document.createElement("canvas"), texture: null };
+    const scratch = document.createElement("canvas");
+    const opts = { close: CLOSE, blur: BLUR, max: DIST_MAX };
+
+    // Rebuilds the field from the mask's current drawing; resolves once
+    // done (one build at a time).
+    async function update(mask, fontSize) {
+      const box = mask.box;
+      const w = FIELD_W;
+      const h = Math.max(1, Math.round((w * box.height) / box.width));
+      const scale = box.width / w / fontSize; // cells -> font sizes
+      const small = () => createImageBitmap(mask.canvas, { resizeWidth: w, resizeHeight: h, resizeQuality: "medium" });
+      let px = null;
+      const wk = fieldWorker();
+      if (wk) {
+        const image = await small();
+        // A worker that fails is dropped for good, and this build runs here.
+        px = await new Promise(resolve => {
+          wk.onmessage = e => resolve(e.data);
+          wk.onerror = e => {
+            e.preventDefault();
+            wk.terminate();
+            worker = null;
+            resolve(null);
+          };
+          wk.postMessage({ image, w, h, scale, opts }, [image]);
+        });
+      }
+      if (!px) {
+        const image = await small();
+        scratch.width = w;
+        scratch.height = h;
+        const ctx = scratch.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(image, 0, 0, w, h);
+        image.close();
+        px = fieldPixels(ctx.getImageData(0, 0, w, h).data, w, h, scale, opts);
+      }
+      const { canvas } = dist;
       if (canvas.width !== w || canvas.height !== h) {
         canvas.width = w;
         canvas.height = h;
-        target.texture?.dispose();
-        target.texture = null;
+        dist.texture?.dispose();
+        dist.texture = null;
       }
-      const ctx = canvas.getContext("2d");
-      const img = ctx.createImageData(w, h);
-      fill(img.data);
-      ctx.putImageData(img, 0, 0);
-      target.texture ||= new T.Texture(canvas);
-      target.texture.needsUpdate = true;
+      canvas.getContext("2d").putImageData(new ImageData(px, w, h), 0, 0);
+      dist.texture ||= new T.Texture(canvas);
+      dist.texture.needsUpdate = true;
     }
-
-    // Rebuilds both fields from the mask's current drawing, the mound over
-    // rect (moundRect of the mask's box).
-    function update(mask, fontSize, rect) {
-      const box = mask.box;
-      let w = FIELD_W;
-      let h = Math.max(1, Math.round((w * box.height) / box.width));
-      let grid = distanceGrid(mask.canvas, w, h, 0, 0, w, h, scratch);
-      let scale = box.width / w / fontSize; // cells -> font sizes
-      write(dist, w, h, data => {
-        for (let i = 0; i < w * h; i++) {
-          data[i * 4] = Math.round(Math.min(1, (Math.sqrt(grid[i]) * scale) / DIST_MAX) * 255);
-          data[i * 4 + 3] = 255;
-        }
-      });
-
-      w = FIELD_W;
-      h = Math.max(1, Math.round((w * rect.height) / rect.width));
-      const k = w / rect.width;
-      grid = distanceGrid(mask.canvas, w, h, (box.left - rect.left) * k, (box.top - rect.top) * k, box.width * k, box.height * k, scratch);
-      grid = close(grid, w, h, CLOSE * fontSize * k);
-      scale = 1 / k / fontSize;
-      write(mound, w, h, data => {
-        for (let i = 0; i < w * h; i++) {
-          const t = 1 - Math.min(1, Math.max(0, Math.sqrt(grid[i]) * scale - FLAT) / MOUND_R);
-          // The terrain eases the mound with smoothstep; invert it so the
-          // height falls linearly with distance.
-          const a = 0.5 - Math.sin(Math.asin(1 - 2 * t) / 3);
-          data[i * 4] = data[i * 4 + 1] = data[i * 4 + 2] = 255;
-          data[i * 4 + 3] = Math.round(a * 255);
-        }
-      });
-    }
-    return { dist, mound, update };
+    return { dist, update };
   }
 
   const RING_VERTEX = `varying vec3 vLocal;varying float vSlice;
@@ -225,25 +319,28 @@ p=instanceMatrix*p;
 #endif
 vLocal=p.xyz;vSlice=float(gl_InstanceID);gl_Position=projectionMatrix*modelViewMatrix*p;}`;
 
-  // Instance i is slice (i % per) of ring floor(i / per), ring 0 innermost.
+  // Instance i is slice (i % per) of ring RINGS - 1 - floor(i / per), ring 0
+  // innermost, so the outer rings draw first and each inner ring's
+  // antialiased edge blends over the ring below it.
+  // Inside the glyphs nothing is drawn, so sinking letters leave the plain
+  // terrain behind instead of letter-shaped grey pits.
   // Slice 0 of each ring is its flat top, shaded darker toward its outer
-  // edge like the terrain's own steps; the rest are its striped wall.
-  const RING_FRAGMENT = `uniform sampler2D tDist;uniform mat3 uMap;uniform float uWidth;uniform float uPer;
-uniform float uDistMax;uniform vec3 uFace;uniform float uEdge;uniform float uTint;
+  // edge like the terrain's own steps; the rest are its wall, darkening
+  // downward.
+  const RING_FRAGMENT = `uniform sampler2D tDist;uniform mat3 uMap;uniform float uWidth;uniform float uPer;uniform float uRings;
+uniform float uDistMax;uniform vec3 uFace;uniform vec3 uFar;uniform float uEdge;uniform float uFadeFrom;uniform float uAlpha;uniform float uOpacity;
 varying vec3 vLocal;varying float vSlice;
-vec3 band(float i){float k=mod(i,6.);
-if(k<.5)return vec3(1.,.42,.08);if(k<1.5)return vec3(1.,.82,.18);if(k<2.5)return vec3(.95,.95,.93);
-if(k<3.5)return vec3(.18,.82,1.);if(k<4.5)return vec3(.52,.32,1.);return vec3(1.,.32,.66);}
 void main(){vec3 p=uMap*vec3(vLocal.xy/5.+.5,1.);if(p.z<=0.)discard;vec2 t=p.xy/p.z;
 if(t.x<0.||t.x>1.||t.y<0.||t.y>1.)discard;
 float d=texture2D(tDist,t).r*uDistMax;
-float ring=floor(vSlice/uPer+.001);float sub=vSlice-ring*uPer;
+float k=floor(vSlice/uPer+.001);float ring=uRings-1.-k;float sub=vSlice-k*uPer;
 float edge=(ring+1.)*uWidth;
-if(d>edge)discard;
+float aa=fwidth(d);if(d>edge+aa||d<=0.)discard;
+float o=ring/max(uRings-1.,1.);vec3 face=mix(uFace,uFar,o);
 vec3 c;
-if(sub<.5){float k=clamp((edge-d)/uWidth,0.,1.);c=uFace*mix(uEdge,1.,smoothstep(0.,.55,k));}
-else c=mix(uFace,band(sub-1.+ring*2.),uTint)*mix(.95,.7,(sub-1.)/max(uPer-1.,1.));
-gl_FragColor=vec4(c,1.);
+if(sub<.5)c=face*mix(mix(uEdge,1.,o),1.,smoothstep(0.,.55,clamp((edge-d)/uWidth,0.,1.)));
+else c=face*mix(.95,.7,(sub-1.)/max(uPer-1.,1.));
+gl_FragColor=vec4(c,mix(1.,uAlpha,smoothstep(uFadeFrom,1.,o))*uOpacity*(1.-smoothstep(edge-aa,edge+aa,d)));
 #include <colorspace_fragment>
 }`;
 
@@ -272,21 +369,28 @@ gl_FragColor=vec4(c,1.);
         uWidth: { value: RING_W },
         uPer: { value: this.per },
         uDistMax: { value: DIST_MAX },
-        uFace: { value: RING_FACE },
+        uFace: { value: [RING_NEAR, RING_NEAR, RING_NEAR] },
+        uFar: { value: [RING_FAR, RING_FAR, RING_FAR] },
+        uRings: { value: RINGS },
         uEdge: { value: RING_EDGE },
-        uTint: { value: RING_TINT },
+        uFadeFrom: { value: RING_FADE },
+        uAlpha: { value: RING_ALPHA },
+        uOpacity: { value: 1 },
       };
       const material = new T.ShaderMaterial({
         vertexShader: RING_VERTEX,
         fragmentShader: RING_FRAGMENT,
         uniforms: this.uniforms,
-        transparent: false,
+        transparent: true,
         depthTest: true,
         depthWrite: true,
       });
       const mesh = (this.mesh = new T.InstancedMesh(new T.PlaneGeometry(1, 1), material, this.count));
       mesh.name = "sw-hero-rings";
       mesh.frustumCulled = false;
+      // The terrain is drawn with the transparent objects too; the rings
+      // blend over it, so they go after it.
+      mesh.renderOrder = 1;
       mesh.visible = false;
       mesh.position.copy(layer.mesh.position);
       mesh.quaternion.copy(layer.mesh.quaternion);
@@ -315,6 +419,10 @@ gl_FragColor=vec4(c,1.);
       this._write();
     }
 
+    setOpacity(o) {
+      this.uniforms.uOpacity.value = o;
+    }
+
     setAmount(a) {
       if (a === this.amount) return;
       this.amount = a;
@@ -328,10 +436,11 @@ gl_FragColor=vec4(c,1.);
       const [cx, cy, sx, sy] = this.footprint;
       const dz = this.dz;
       const top = RING_BASE + (RINGS - 1) * dz;
+      // Sinks until the top ring is below the lowest terrain layer (z 0).
       const drop = (1 - this.amount) * (top + 0.05);
       const step = dz / this.per;
       for (let i = 0; i < this.count; i++) {
-        const ring = Math.floor(i / this.per);
+        const ring = RINGS - 1 - Math.floor(i / this.per);
         const sub = i % this.per;
         const z = RING_BASE + (RINGS - 1 - ring) * dz - sub * step - drop;
         this._m.makeScale(sx, sy, 1).setPosition(cx, cy, z);
@@ -367,14 +476,23 @@ gl_FragColor=vec4(c,1.);
     let rings = null;
     let built = 0; // font size the meshes were built for
     let topZ = 0;
-    let moundMap = null;
-    let version = -1; // mask texture version the fields were built from
+    let version = -1; // mask texture version the field was built from
     let source = null;
-    let drawnFor = ""; // rectKey the mound was drawn for
+    let fieldStale = false; // the mask changed since the field was built
+    let fieldBusy = false; // a build is under way
+    let maskChanged = 0; // when it last changed (ms)
     let placed = false;
+    let placedFor = null; // camera matrices and h1 box of the last placement
     let stop = null;
     let stopFooter = null;
     let rise = 0;
+    let settled = false; // the load intro is over
+    let risen = false; // the first rise is done
+    let appear = 0; // eases the letters in and out as they rise and leave
+    let lensIn = 0; // eases the lens in once the field is first built
+    const lensOptions = { texture: null, rect: null, strength: 0, reach: LENS_REACH / DIST_MAX };
+    let formed = 0; // how far the terrain has formed on load (1: for good)
+    let lastCamera = null;
     let hero = null;
     let title = null;
 
@@ -394,6 +512,8 @@ gl_FragColor=vec4(c,1.);
         sides: "rainbow",
         stripe: 2,
         bevel: 1.8,
+        shade: SHADE,
+        blend: true,
       });
       text.mesh.name = "sw-hero";
       rings = new Rings(layer, field.dist, dz);
@@ -416,53 +536,96 @@ gl_FragColor=vec4(c,1.);
       stop?.();
       stopFooter?.();
       document.documentElement.classList.remove("sw-hero-3d");
-      if (hero) SW.clearMound(hero);
+      SW.lens();
       text?.dispose();
       rings?.dispose();
       throw err;
     }
 
-    stop = SW.onFrame(({ renderer, camera, dt }) => {
+    stop = SW.onFrame(({ renderer, camera, dt, now }) => {
       try {
         if (!setup()) return;
         if (!mask) {
-          mask = SW.glyphMask(title, { pad: 0.2, edge: 0.05 });
+          // Waits for the headline font, for at most FONT_WAIT ms after the
+          // page started (a font that never loads leaves the fallback face).
+          const cs = getComputedStyle(title);
+          if (document.fonts && !document.fonts.check(`${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`) && performance.now() < FONT_WAIT) return;
+          mask = SW.glyphMask(title, { pad: 0.2, edge: MASK_EDGE, bold: BOLD });
           field = fields(SW.three(layer));
         }
         const css = getComputedStyle(hero);
         const shown = css.visibility === "hidden" ? 0 : parseFloat(css.opacity) || 0;
-        if (shown > 0.99 && mask.update()) {
+        if ((shown > SHOWN_FROM || rise > 0) && mask.update()) {
           // The mask redraws when the glyphs move or the font changes; only
-          // then rebuild the fields (and the meshes, for a new font size),
-          // and the mound also when its rect changed.
-          let redraw = false;
+          // then rebuild the field (and the meshes, for a new font size).
           if (mask.texture !== source || mask.texture.version !== version) {
             source = mask.texture;
             version = source.version;
             const fontSize = parseFloat(getComputedStyle(title).fontSize);
             if (fontSize !== built) build(fontSize);
-            redraw = true;
+            fieldStale = true;
+            maskChanged = now;
+            placedFor = null;
           }
-          const rect = moundRect(mask.box, built);
-          const key = rectKey(mask.box, rect);
-          if (redraw || key !== drawnFor) {
-            field.update(mask, built, rect);
-            drawnFor = key;
+          if (fieldStale && !fieldBusy && settled && now - maskChanged >= FIELD_SETTLE) {
+            fieldStale = false;
+            fieldBusy = true;
+            field.update(mask, built).catch(fail).finally(() => (fieldBusy = false));
           }
-          const map = text.place(camera, renderer) && SW.planeMap(camera, renderer, rect, topZ);
-          if (map) {
+          // Placing rewrites both meshes' instance matrices; it is skipped
+          // while the mask, the camera and the h1's box hold still.
+          const e = camera.matrixWorld.elements, q = camera.projectionMatrix.elements, b = mask.box;
+          let moved = !placedFor;
+          for (let i = 0; !moved && i < 16; i++) moved = e[i] !== placedFor[i] || q[i] !== placedFor[16 + i];
+          if (!moved) moved = b.left !== placedFor[32] || b.top !== placedFor[33] || b.width !== placedFor[34] || b.height !== placedFor[35];
+          if (moved && text.place(camera, renderer)) {
             placed = true;
-            moundMap = map;
+            placedFor ||= new Float64Array(36);
+            placedFor.set(e);
+            placedFor.set(q, 16);
+            placedFor.set([b.left, b.top, b.width, b.height], 32);
             rings.place(text.map);
           }
         }
         if (!text) return;
-        const target = placed ? shown : 0;
-        rise += (target - rise) * Math.min(1, dt * SPEED);
-        const eased = rise * rise * (3 - 2 * rise);
-        text.setAmount(eased);
-        rings.setAmount(eased);
-        if (placed) SW.setMound(hero, { mask: field.mound, map: moundMap, strength: eased, level: MOUND_LEVEL, lod: 0, gain: 1 });
+        // The site fades its canvas in after loading and swings the camera
+        // in; the letters first rise once the canvas is half shown and the
+        // camera has settled (moving less than CAMERA_STILL a frame), so
+        // the rise is seen and the letters don't ride the swing.
+        if (!settled) {
+          const e = camera.matrixWorld.elements;
+          let moved = lastCamera ? 0 : Infinity;
+          for (let i = 0; lastCamera && i < 16; i++) moved = Math.max(moved, Math.abs(e[i] - lastCamera[i]));
+          lastCamera = e.slice();
+          const canvasShown = parseFloat(getComputedStyle(renderer.domElement).opacity);
+          settled = placed && !(canvasShown < 0.5) && moved < CAMERA_STILL;
+        }
+        const stand = settled && shown > SHOWN_FROM;
+        const target = stand || appear > 0 ? 1 : 0;
+        const speed = target < rise ? SINK_SPEED : risen ? RISE_SPEED : FIRST_SPEED;
+        rise += Math.max(-dt * speed, Math.min(dt * speed, target - rise));
+        const show = stand && rise >= FADE_FROM ? 1 : 0;
+        appear += Math.max(-dt * FADE_SPEED, Math.min(dt * FADE_SPEED, show - appear));
+        if (rise >= 1) risen = true;
+        const fade = appear * clamp01((shown - SHOWN_FROM) / (FULL_FROM - SHOWN_FROM));
+        if (formed < 1) {
+          const h = layer.mesh.material.uniforms.uHeight?.value;
+          formed = typeof h === "number" ? clamp01((h - TERRAIN_FROM) / (TERRAIN_TO - TERRAIN_FROM)) : 1;
+        }
+        const amount = lift(rise);
+        if (amount !== text.amount) text.setAmount(amount);
+        text.setFade(fade);
+        rings.setAmount(amount);
+        // Squared, so mid-fade the rings' outlines don't show through the letters
+        // as copies of them.
+        rings.setOpacity(fade * fade * formed);
+        lensOptions.texture = field.dist.texture;
+        lensOptions.rect = mask.box;
+        // The lens eases in once the field exists (it is built a moment after
+        // the letters rise), so the fringes don't vanish in one frame.
+        if (field.dist.texture) lensIn = Math.min(1, lensIn + dt * FADE_SPEED);
+        lensOptions.strength = placed ? LENS * fade * lensIn : 0;
+        SW.lens(lensOptions);
       } catch (err) {
         fail(err);
       }
@@ -473,8 +636,10 @@ gl_FragColor=vec4(c,1.);
     stopFooter = SW.onFrame(() => {
       if (!rise) return;
       rise = 0;
+      appear = 0;
       text?.setAmount(0);
       rings?.setAmount(0);
+      SW.lens();
     }, { name: "Layers Footer" });
     try {
       setup();

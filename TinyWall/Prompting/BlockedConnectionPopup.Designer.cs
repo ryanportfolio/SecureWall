@@ -17,6 +17,7 @@ namespace pylorak.TinyWall.Prompting
         private Label noticeLabel = null!;
         private Label statusLabel = null!;
         private Button allowButton = null!;
+        private Button alwaysAllowButton = null!;
         private Button ignoreButton = null!;
         private ToolTip toolTip = null!;
         private Timer timeoutTimer = null!;
@@ -26,14 +27,15 @@ namespace pylorak.TinyWall.Prompting
             components = new System.ComponentModel.Container();
             titlePanel = new Panel();
             titleLabel = new Label();
-            closeButton = new Button();
+            closeButton = new NoFocusButton();
             identityLabel = new Label();
             pathLabel = new Label();
             destinationLabel = new Label();
             noticeLabel = new Label();
             statusLabel = new Label();
-            allowButton = new Button();
-            ignoreButton = new Button();
+            allowButton = new NoFocusButton();
+            alwaysAllowButton = new NoFocusButton();
+            ignoreButton = new NoFocusButton();
             toolTip = new ToolTip(components);
             timeoutTimer = new Timer(components);
             titlePanel.SuspendLayout();
@@ -121,6 +123,21 @@ namespace pylorak.TinyWall.Prompting
             allowButton.UseVisualStyleBackColor = false;
             allowButton.Click += AllowButtonClick;
 
+            alwaysAllowButton.AccessibleName = "Always allow this app in any folder when signed by the same publisher";
+            alwaysAllowButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
+            alwaysAllowButton.BackColor = Color.FromArgb(219, 234, 254);
+            alwaysAllowButton.FlatAppearance.BorderSize = 0;
+            alwaysAllowButton.FlatStyle = FlatStyle.Flat;
+            alwaysAllowButton.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point);
+            alwaysAllowButton.ForeColor = Color.FromArgb(30, 64, 175);
+            alwaysAllowButton.Location = new Point(102, 222);
+            alwaysAllowButton.Name = "alwaysAllowButton";
+            alwaysAllowButton.Size = new Size(116, 36);
+            alwaysAllowButton.Text = "Always allow";
+            alwaysAllowButton.UseVisualStyleBackColor = false;
+            alwaysAllowButton.Visible = false;
+            alwaysAllowButton.Click += AlwaysAllowButtonClick;
+
             ignoreButton.AccessibleName = "Ignore and keep blocking";
             ignoreButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             ignoreButton.BackColor = Color.FromArgb(229, 231, 235);
@@ -151,6 +168,7 @@ namespace pylorak.TinyWall.Prompting
             Controls.Add(noticeLabel);
             Controls.Add(statusLabel);
             Controls.Add(allowButton);
+            Controls.Add(alwaysAllowButton);
             Controls.Add(ignoreButton);
             FormBorderStyle = FormBorderStyle.None;
             MaximizeBox = false;

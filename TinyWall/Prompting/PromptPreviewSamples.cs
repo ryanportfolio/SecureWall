@@ -9,6 +9,7 @@ namespace pylorak.TinyWall.Prompting
         internal const string SidNoticeSwitch = "/sidnotice";
         internal const string DefaultSidNoticeService = "MicrosoftEdgeElevationService";
         internal const string NoWarningsSwitch = "/nowarnings";
+        internal const string ExecutableSwitch = "/executable";
 
         // Every warning line by default, whatever the sample executable looks like on disk;
         // "/nowarnings" shows the popup without them.
@@ -40,6 +41,21 @@ namespace pylorak.TinyWall.Prompting
                 Protocol = 17,
                 OccurrenceCount = 1,
             };
+
+            // "/promptpreview /executable <path>" shows an allowable executable prompt, which
+            // offers Always allow when that file has a valid embedded signature.
+            int executable = IndexOfSwitch(args, ExecutableSwitch);
+            if (executable >= 0 && executable + 1 < args.Length &&
+                !args[executable + 1].StartsWith("/", StringComparison.Ordinal))
+            {
+                prompt.SubjectKind = PromptIdentityKind.Executable;
+                prompt.ExecutablePath = args[executable + 1];
+                prompt.ServiceName = null;
+                prompt.RemoteAddress = "203.0.113.20";
+                prompt.RemotePort = 443;
+                prompt.Protocol = 6;
+                return prompt;
+            }
 
             int sidNotice = IndexOfSwitch(args, SidNoticeSwitch);
             if (sidNotice < 0)

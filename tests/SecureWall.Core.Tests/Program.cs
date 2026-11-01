@@ -955,6 +955,12 @@ internal static class Program
             return AllowResult;
         }
 
+        public PromptActionStatus AllowAlways(Guid token)
+        {
+            Allowed.Add(token);
+            return AllowResult;
+        }
+
         public PromptActionStatus Dismiss(Guid token)
         {
             Dismissed.Add(token);
@@ -976,6 +982,7 @@ internal static class Program
     private sealed class FakePromptView : IPromptView
     {
         public event EventHandler? AllowRequested;
+        public event EventHandler? AlwaysAllowRequested { add { } remove { } }
         public event EventHandler? IgnoreRequested;
         public event EventHandler? PromptClosed;
         public event EventHandler? PromptTimedOut;

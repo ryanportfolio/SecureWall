@@ -6,17 +6,29 @@
    and the screen centre keeps them clear of the post-processing's colour
    fringes, which grow toward the edges. Its size also follows the viewport
    height, so on short windows it stays below the header instead of rising
-   off the top. Below 1024 px the headline is smaller, centred and lifted,
-   for the same reason. */
+   off the top, and a bottom margin lifts it off the tagline, which its walls
+   would otherwise reach (they hang below the glyphs). On short landscape
+   windows (500 px tall or less) it takes most of the height, with less room
+   around it, and below 600 px wide it is smaller. The site's .grid pulls its
+   columns 2rem left and pads each one 2rem, so a 100% column ends 2rem short
+   of the right edge; the headline's column is 2rem wider (and must not
+   shrink in the flex row) so it is centred on the page. The 3D letters are
+   drawn heavier than the font (hero.js BOLD), so the letters are spaced
+   .06em apart, and the same padding on the left keeps the lines centred
+   (letter-spacing also follows each line's last letter). */
 .sw-hero-3d .js-hero h1{color:transparent!important;transition:color .8s ease}
 .sw-hero-3d .js-hero{background:linear-gradient(0deg,rgba(9,13,20,.6),transparent 32%)!important}
-.js-hero h1{line-height:1!important}
-@media(min-width:1024px){
-.js-hero .grid>div:first-child{width:100%!important}
+.js-hero h1{line-height:1!important;text-align:center;letter-spacing:.06em!important;padding-left:.06em!important}
+.js-hero .grid>div:first-child{width:calc(100% + 2rem)!important;flex:0 0 calc(100% + 2rem)}
+@media(min-width:600px){
 .js-hero .grid>div:nth-child(2){width:100%!important;margin-left:0!important;margin-top:28px}
 .js-hero p.t-lazare{max-width:560px!important}
-.js-hero h1{font-size:min(190px,13.2vw,calc((100vh - 250px) / 2.75))!important;line-height:.9!important;max-width:9ch;margin-left:auto!important;margin-right:auto!important;text-align:center}
+.js-hero h1{line-height:.9!important;max-width:9ch;margin-left:auto!important;margin-right:auto!important;font-size:min(190px,16.5vw,calc((93vh - 290px) / 2.6))!important;margin-bottom:7vh!important}
 }
-@media(max-width:1023.98px){
-.js-hero h1{font-size:min(72px,18.5vw)!important;text-align:center;margin-bottom:max(35px,6vh)!important}
+@media(min-width:600px) and (max-height:500px){
+.js-hero .grid>div:nth-child(2){margin-top:8px}
+.js-hero h1{font-size:min(64px,15vh)!important;margin-bottom:3vh!important}
+}
+@media(max-width:599.98px){
+.js-hero h1{font-size:min(64px,16.5vw)!important;margin-bottom:max(35px,6vh)!important}
 }

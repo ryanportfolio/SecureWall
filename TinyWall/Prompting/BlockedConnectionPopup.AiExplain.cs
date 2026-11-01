@@ -20,7 +20,7 @@ namespace pylorak.TinyWall.Prompting
 
         private void InitializeAiExplain()
         {
-            _aiButton = new Button
+            _aiButton = new NoFocusButton
             {
                 Text = "?",
                 Size = new Size(26, 24),
@@ -31,7 +31,7 @@ namespace pylorak.TinyWall.Prompting
             _aiButton.Click += AiButtonClick;
             toolTip.SetToolTip(_aiButton, "Ask an AI assistant what this program likely is.");
 
-            _aiResult = new TextBox
+            _aiResult = new NoFocusTextBox
             {
                 Multiline = true,
                 ReadOnly = true,

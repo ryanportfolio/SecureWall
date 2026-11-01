@@ -34,6 +34,7 @@ namespace pylorak.TinyWall
                 MessageType.MINUTE_TIMER => (TwMessage?)JsonSerializer.Deserialize<TwMessageSimple>(ref reader, SourceGenerationContext.Default.TwMessageSimple),
                 MessageType.ADD_TEMPORARY_EXCEPTION => (TwMessage?)JsonSerializer.Deserialize<TwMessageAddTempException>(ref reader, SourceGenerationContext.Default.TwMessageAddTempException),
                 MessageType.ALLOW_PROMPT => (TwMessage?)JsonSerializer.Deserialize<TwMessagePromptAction>(ref reader, SourceGenerationContext.Default.TwMessagePromptAction),
+                MessageType.ALLOW_PROMPT_ALWAYS => (TwMessage?)JsonSerializer.Deserialize<TwMessagePromptAction>(ref reader, SourceGenerationContext.Default.TwMessagePromptAction),
                 _ => throw new JsonException($"Tried to deserialize unsupported type with discriminator {(MessageType)discriminator}."),
             };
             return ret;
@@ -302,7 +303,7 @@ namespace pylorak.TinyWall
             base(type)
         {
             if (type != MessageType.DISMISS_PROMPT && type != MessageType.DISMISS_PROMPT_TIMEOUT &&
-                type != MessageType.ALLOW_PROMPT)
+                type != MessageType.ALLOW_PROMPT && type != MessageType.ALLOW_PROMPT_ALWAYS)
                 throw new ArgumentOutOfRangeException(nameof(type));
             Token = token;
             Status = status;
@@ -316,6 +317,9 @@ namespace pylorak.TinyWall
 
         internal static TwMessagePromptAction CreateAllowRequest(Guid token) =>
             new TwMessagePromptAction(MessageType.ALLOW_PROMPT, token, PromptActionStatus.UnknownToken);
+
+        internal static TwMessagePromptAction CreateAllowAlwaysRequest(Guid token) =>
+            new TwMessagePromptAction(MessageType.ALLOW_PROMPT_ALWAYS, token, PromptActionStatus.UnknownToken);
 
         internal TwMessagePromptAction CreateResponse(PromptActionStatus status) =>
             new TwMessagePromptAction(Type, Token, status);
