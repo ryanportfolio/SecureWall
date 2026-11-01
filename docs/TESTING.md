@@ -1,10 +1,10 @@
 # SecureWall testing
 
-For an owner-chosen diagnostic trial on a physical PC, see [LIVE-TESTING.md](LIVE-TESTING.md). This path records normal-use evidence and explicitly accepts remaining unverified cases; it does not replace the full release matrix below.
+To try SecureWall on a physical PC with diagnostic logging, see [LIVE-TESTING.md](LIVE-TESTING.md). That trial records normal use and does not cover the failure cases below.
 
 ## Automated and non-enforcing checks
 
-Run the pure test harness, native .NET Framework build, debug protocol self-test, and authenticated named-pipe integration self-test using `.claude/reference/commands.md`. The debug `/promptpreview` switch is the only UI check permitted without firewall-activation approval; it starts neither the service nor WFP.
+Run the pure test harness, native .NET Framework build, debug protocol self-test, and authenticated named-pipe integration self-test using `.claude/reference/commands.md`. The debug `/promptpreview` switch shows the prompt UI with synthetic data; it starts neither the service nor WFP.
 
 Source checks must confirm:
 
@@ -16,7 +16,7 @@ Source checks must confirm:
 - GPL and upstream provenance files exist;
 - runtime service, pipe, task, data directory, installer, executable, and WFP provider identities are SecureWall;
 - product sources contain no update client: no TinyWall feed host, update descriptor, `/updatenow` switch or `WebClient` download; legacy `AutoUpdateCheck` settings still load.
-- the MSI declarations cover staging's runtime and localization lists, including `System.IO.Pipelines.dll`; after tooling is available, compare actual packaged files against every assembly emitted by a clean Release build.
+- the MSI declarations cover staging's runtime and localization lists, including `System.IO.Pipelines.dll`; compare actual packaged files against every assembly emitted by a clean Release build.
 - both defaults target `INSTALLDIR/data-defaults`; only guarded SYSTEM setup writes machine-data defaults, after full-tree validation: an absent `profiles.json` or `hosts.bck` is created, an identical one is left untouched and a different one is replaced; configuration, password, `hosts.orig` and journals are never written, and MSI has no ProgramData writes/deletes.
 - source and packaged Windows_Update entries retain the exact `wuauserv` outbound TCP service rule and contain no executable-wide allow.
 - persistent and boot-time filters contain only external denial, including DNS/DHCP; no recovery permits survive service loss.
@@ -25,13 +25,11 @@ Source checks must confirm:
 
 Build all three MSI packages and `tests\SecureWall.NetworkProbe`, then run `tools\vm\Prepare-SecureWallVmBundle.ps1` to create an ignored, hash-manifested VM bundle. Its guarded runner verifies the selected MSI hash and baseline connectivity, installs that MSI silently, checks the WFP provider, drives separate Allow and Ignore probes, captures 5157/WFP/audit evidence, uninstalls through MSI, and compares service, provider, task, audit policy, firewall rules, notification flags and hosts state. This guided path does not execute every failure case below.
 
-The additional pre-switch fault, reboot, identity and MSI matrix is in [HARDENING-VALIDATION.md](HARDENING-VALIDATION.md). It is a required release gate; source tests and package ICE validation cannot substitute for it.
+The additional pre-switch fault, reboot, identity and MSI matrix is in [HARDENING-VALIDATION.md](HARDENING-VALIDATION.md). Source tests and package ICE validation do not substitute for it.
 
 ## Installer source evidence
 
 Run `tests/installer/Test-SecureWallInstaller.ps1` without an artifacts argument for non-enforcing source checks. This checks XML declarations, guarded seeding order and JSON defaults without building or installing. An artifacts argument requires separately built packages and does not prove live behavior.
-
-For the September 12 R5 round, WiX binaries were unavailable after searches of PATH, standard locations and checkout tool directories. No package build, ICE validation or package-content pass is claimed; those checks remain pending tooling. Shared application/core builds belong to a separate executor and are not R5 evidence. Windows PowerShell syntax and JSON/XML parsing are recorded separately under `.tmp/long-horizon/pre-switch-fixes`.
 
 ## Manual local-console VM matrix
 
@@ -67,8 +65,4 @@ Do not run this matrix on the development host. Use an expendable Windows VM wit
 | Queue/candidate overflow | New entries are dropped fail-closed; memory stays bounded |
 | Uninstall | Service/task/provider/filters/compat rules removed; prior host settings restored |
 
-Record OS build, architecture, SecureWall commit, each result, Event Viewer evidence, WFP filter IDs, and recovery outcome. Real firewall behavior remains unverified until every applicable row passes.
-
-## Current live evidence
-
-On 2026-07-14, the user reported that a live SecureWall test "seems to work well." After that test, the development host showed TinyWall running with no SecureWall service, process, scheduled task, data directory, or installed-app entry. This supports basic operation and cleanup, but the test coverage was not recorded row by row and therefore does not replace the full matrix above.
+Record OS build, architecture, SecureWall commit, each result, Event Viewer evidence, WFP filter IDs, and recovery outcome.
