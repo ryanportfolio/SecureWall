@@ -128,12 +128,13 @@ namespace pylorak.TinyWall
                 AllowedRemoteTcpConnectPorts = "*",
                 AllowedRemoteUdpConnectPorts = "*",
             };
-            // Like Allow in the popup, lock SecureWall again if this Allow had to unlock it.
-            bool wasLocked = GlobalInstances.Controller.IsServerLocked;
+            // Like Allow in the popup, lock SecureWall again whenever this Allow asked for the
+            // password, including after a cancel or a failed unlock.
+            int passwordPrompts = PasswordPromptsShown;
             // AddExceptions reports failures itself. Keep the entry unless the service
             // confirmed the save: a cancelled editor or password dialog leaves the app blocked.
             bool saved = AddExceptions(new List<FirewallExceptionV3> { new FirewallExceptionV3(subject, policy) });
-            if (wasLocked)
+            if (PasswordPromptsShown != passwordPrompts)
                 RelockAfterPrompt();
             if (saved)
                 PromptCoordinator?.RemoveMissed(prompt);

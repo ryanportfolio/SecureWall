@@ -32,6 +32,8 @@ namespace pylorak.TinyWall
         }
 
         internal ConfigContainer TmpConfig;
+        // An import replaced the whole configuration, controller settings included.
+        internal bool ImportedConfig { get; private set; }
 
         private readonly AsyncIconScanner IconScanner;
         private readonly List<ListViewItem> ExceptionItems = new();
@@ -526,6 +528,7 @@ namespace pylorak.TinyWall
                 try
                 {
                     TmpConfig = SerializationHelper.DeserializeFromFile(ofd.FileName, new ConfigContainer(), true);
+                    ImportedConfig = true;
                 }
                 catch
                 {

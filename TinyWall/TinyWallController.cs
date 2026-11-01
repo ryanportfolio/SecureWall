@@ -930,12 +930,31 @@ namespace pylorak.TinyWall
                 {
                     var oldLang = ActiveConfig.Controller.Language;
 
-                    // Save settings. A rule added from Network Activity or a prompt while this
-                    // window was open makes the service refuse the save and ask for a retry,
-                    // instead of the save silently removing that rule.
-                    ActiveConfig.Controller = sf.TmpConfig.Controller;
+                    // A rule added from Network Activity, a prompt or the tray while this window
+                    // was open makes the service refuse the save; the controller then shows its
+                    // "make your changes again" warning. Apply nothing else from this window in
+                    // that case, so the warning is true.
+                    TwMessage saveResp = ApplyFirewallSettings(sf.TmpConfig.Service, baseChangeset: openedChangeset);
+                    if (saveResp is not TwMessagePutSettings { Warning: false })
+                        return;
+
+                    if (sf.ImportedConfig)
+                    {
+                        ActiveConfig.Controller = sf.TmpConfig.Controller;
+                    }
+                    else
+                    {
+                        // Copy only what this window edits. Other controller settings (Network
+                        // Activity's layout, the AI assistant) may have changed while it was open.
+                        ControllerSettings edited = sf.TmpConfig.Controller;
+                        ControllerSettings live = ActiveConfig.Controller;
+                        live.AskForExceptionDetails = edited.AskForExceptionDetails;
+                        live.EnableGlobalHotkeys = edited.EnableGlobalHotkeys;
+                        live.SettingsTabIndex = edited.SettingsTabIndex;
+                        live.Language = edited.Language;
+                        live.UiTheme = edited.UiTheme;
+                    }
                     ActiveConfig.Controller.Save();
-                    ApplyFirewallSettings(sf.TmpConfig.Service, baseChangeset: openedChangeset);
 
                     // Handle password change request
                     string? newPassword = sf.NewPassword;
@@ -960,6 +979,13 @@ namespace pylorak.TinyWall
 
                     if (oldLang != ActiveConfig.Controller.Language)
                     {
+                        // ExitThread does not raise FormClosing; close Network Activity first
+                        // so it saves its layout.
+                        foreach (Form open in ActiveForms.ToArray())
+                        {
+                            if (open is ConnectionsForm)
+                                open.Close();
+                        }
                         Program.RestartOnQuit = true;
                         ExitThread();
                     }
@@ -1127,6 +1153,9 @@ namespace pylorak.TinyWall
             return resp is TwMessagePutSettings { Warning: false };
         }
 
+        // Counts password dialogs, so an action can relock after any unlock it asked for.
+        private int PasswordPromptsShown;
+
         internal bool EnsureUnlockedServer(bool showUi = true)
         {
             Locked = GlobalInstances.Controller.IsServerLocked;
@@ -1136,6 +1165,7 @@ namespace pylorak.TinyWall
             using var pf = new PasswordForm();
             pf.BringToFront();
             pf.Activate();
+            PasswordPromptsShown++;
             if (pf.ShowDialog() == DialogResult.OK)
             {
                 MessageType resp = GlobalInstances.Controller.TryUnlockServer(pf.PassHash);

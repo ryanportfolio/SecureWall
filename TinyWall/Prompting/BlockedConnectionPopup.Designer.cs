@@ -26,14 +26,14 @@ namespace pylorak.TinyWall.Prompting
             components = new System.ComponentModel.Container();
             titlePanel = new Panel();
             titleLabel = new Label();
-            closeButton = new Button();
+            closeButton = new NoFocusButton();
             identityLabel = new Label();
             pathLabel = new Label();
             destinationLabel = new Label();
             noticeLabel = new Label();
             statusLabel = new Label();
-            allowButton = new Button();
-            ignoreButton = new Button();
+            allowButton = new NoFocusButton();
+            ignoreButton = new NoFocusButton();
             toolTip = new ToolTip(components);
             timeoutTimer = new Timer(components);
             titlePanel.SuspendLayout();

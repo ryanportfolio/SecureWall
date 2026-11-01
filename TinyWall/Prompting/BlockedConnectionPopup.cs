@@ -55,6 +55,41 @@ namespace pylorak.TinyWall.Prompting
             base.WndProc(ref m);
         }
 
+        // A clicked control that takes focus calls SetFocus, which activates the popup
+        // whenever another SecureWall window is in the foreground. The popup's controls
+        // therefore never take focus.
+        internal sealed class NoFocusButton : Button
+        {
+            internal NoFocusButton()
+            {
+                SetStyle(ControlStyles.Selectable, false);
+            }
+        }
+
+        // The native edit control focuses itself on a click, so clicks inside the text are
+        // dropped. The scroll bar and the mouse wheel still scroll it.
+        internal sealed class NoFocusTextBox : TextBox
+        {
+            private const int WM_LBUTTONDOWN = 0x0201, WM_LBUTTONDBLCLK = 0x0203,
+                WM_RBUTTONDOWN = 0x0204, WM_RBUTTONDBLCLK = 0x0206,
+                WM_MBUTTONDOWN = 0x0207, WM_MBUTTONDBLCLK = 0x0209;
+
+            protected override void WndProc(ref Message m)
+            {
+                switch (m.Msg)
+                {
+                    case WM_LBUTTONDOWN:
+                    case WM_LBUTTONDBLCLK:
+                    case WM_RBUTTONDOWN:
+                    case WM_RBUTTONDBLCLK:
+                    case WM_MBUTTONDOWN:
+                    case WM_MBUTTONDBLCLK:
+                        return;
+                }
+                base.WndProc(ref m);
+            }
+        }
+
         private const string DefaultTitle = "SecureWall blocked an outgoing connection";
 
         public void ShowWaitingCount(int waiting)
