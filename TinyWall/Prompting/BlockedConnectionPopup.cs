@@ -131,6 +131,12 @@ namespace pylorak.TinyWall.Prompting
                 prompt.CanAllow
                     ? "Permanent outbound TCP/UDP access to all destinations and ports. The shown destination does not limit this rule."
                     : PromptNoticeText.BlockedTooltip(prompt.AllowBlocker));
+            toolTip.SetToolTip(
+                ignoreButton,
+                prompt.SubjectKind == PromptIdentityKind.AmbiguousService
+                    ? "Keep blocking. SecureWall cannot tell which service this is, so it asks again after five minutes."
+                    : "Keep blocking and stop asking about this app. It is listed under Manage, Ignored; remove it there to be asked again. " +
+                        "While SecureWall is locked, Ignore only stops asking for five minutes.");
             FitNoticeLabel();
 
             PositionBottomRight();

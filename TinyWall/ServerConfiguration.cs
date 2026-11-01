@@ -60,6 +60,15 @@ namespace pylorak.TinyWall
         }
         private List<AlwaysAllowRule>? _alwaysAllowRules;
 
+        // Apps whose default-deny drops are not prompted. Never null and never holds null entries.
+        [DataMember(EmitDefaultValue = false)]
+        public List<IgnoredApp> IgnoredApps
+        {
+            get => _ignoredApps ??= new List<IgnoredApp>();
+            set => _ignoredApps = value?.FindAll(app => app != null) ?? new List<IgnoredApp>();
+        }
+        private List<IgnoredApp>? _ignoredApps;
+
         public ServerProfileConfiguration()
         { }
 

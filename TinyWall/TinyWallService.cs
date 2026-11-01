@@ -1554,6 +1554,52 @@ namespace pylorak.TinyWall
             }
         }
 
+        // The popup's Ignore button. The Ignored list is a saved setting, so it changes only while
+        // the service is unlocked; locked, Ignore keeps just the five-minute cooldown.
+        private void RememberIgnored(PromptIdentity identity)
+        {
+            IgnoredApp? app = IgnoredApp.FromIdentity(identity);
+            if (app == null || PasswordLock.Locked || VisibleState.Mode != FirewallMode.Normal || RuntimeSessionRevoked)
+                return;
+            var candidate = Utils.DeepClone(ActiveConfig.Service);
+            if (!IgnoredApp.AddTo(candidate.ActiveProfile.IgnoredApps, app))
+                return;
+            try
+            {
+                ApplyConfiguration(candidate, VisibleState.Mode);
+                Utils.Log("Ignore added " + app.DisplayName + " (" + app.Detail + ") to the Ignored list. It stays blocked and is no longer prompted.", Utils.LOG_ID_SERVICE);
+            }
+            catch (Exception exception)
+            {
+                Utils.LogException(exception, Utils.LOG_ID_SERVICE);
+            }
+        }
+
+        // True when a change adds or removes Ignored entries and nothing else. The list changes no
+        // filter, so pending prompts for other apps stay valid.
+        private static bool IsIgnoredAppsOnlyChange(ServerConfiguration previous, ServerConfiguration candidate, bool modeUnchanged)
+        {
+            List<IgnoredApp> before = previous.ActiveProfile.IgnoredApps, now = candidate.ActiveProfile.IgnoredApps;
+            // Cheap exit first: Allow applies its change while holding the prompt-queue lock.
+            if (!modeUnchanged || (before.Count == now.Count && before.TrueForAll(app => now.Exists(other => other.SameEntry(app)))))
+                return false;
+            byte[] after = SerializationHelper.Serialize(candidate);
+            ServerConfiguration copy = Utils.DeepClone(previous);
+            copy.ActiveProfile.IgnoredApps = candidate.ActiveProfile.IgnoredApps;
+            return SerializationHelper.Serialize(copy).SequenceEqual(after);
+        }
+
+        // An app removed from the Ignored list prompts again on its next block, even within the
+        // five-minute cooldown its Ignore started.
+        private void EndRemovedIgnoreCooldowns(ServerConfiguration previous, ServerConfiguration candidate)
+        {
+            List<IgnoredApp> kept = candidate.ActiveProfile.IgnoredApps;
+            List<IgnoredApp> removed = previous.ActiveProfile.IgnoredApps.FindAll(
+                app => app.IsValid && !kept.Exists(other => other != null && other.SameEntry(app)));
+            if (removed.Count > 0)
+                BlockedPromptQueue.EndCooldowns(identity => removed.Exists(app => app.Matches(identity)));
+        }
+
         private void ApplyConfiguration(ServerConfiguration candidate, FirewallMode mode)
         {
             if (!FirewallModePolicy.IsRuntimeMode(mode) || !FirewallModePolicy.IsStartupMode(candidate.StartupMode))
@@ -1572,7 +1618,7 @@ namespace pylorak.TinyWall
                         ServerConfiguration copy = Utils.DeepClone(config);
                         copy.AiAssistantEgress = flag;
                         return SerializationHelper.Serialize(copy);
-                    });
+                    }) || IsIgnoredAppsOnlyChange(previous, candidate, mode == VisibleState.Mode);
             }
             catch (Exception exception)
             {
@@ -1603,6 +1649,7 @@ namespace pylorak.TinyWall
                         {
                             ResetPromptCandidates(revokeTokens: !PreservePromptTokens);
                             VisibleState.Mode = mode;
+                            EndRemovedIgnoreCooldowns(previous, candidate);
                         }
                         GlobalInstances.ServerChangeset = Guid.NewGuid();
                     }),
@@ -1898,6 +1945,16 @@ namespace pylorak.TinyWall
                         var args = (TwMessagePromptAction)req;
                         PromptActionResult result = BlockedPromptQueue.Dismiss(args.Token);
                         Diagnostics.Emit(RuntimeEvent.prompt_ignore, RuntimeJournal.PromptResult(result.Status));
+                        return args.CreateResponse(result.Status);
+                    }
+                case MessageType.IGNORE_PROMPT:
+                    {
+                        var args = (TwMessagePromptAction)req;
+                        PromptActionResult result = BlockedPromptQueue.Dismiss(args.Token);
+                        Diagnostics.Emit(RuntimeEvent.prompt_ignore, RuntimeJournal.PromptResult(result.Status));
+                        // Saved after the queue lock is released. A failed save still leaves the cooldown.
+                        if (result.Status == PromptActionStatus.Dismissed && result.Prompt != null)
+                            RememberIgnored(result.Prompt.Identity);
                         return args.CreateResponse(result.Status);
                     }
                 case MessageType.ALLOW_PROMPT:
@@ -2826,6 +2883,12 @@ namespace pylorak.TinyWall
                     QueryServiceSidType);
                 if (TryQueueAlwaysAllow(identity, candidate.TimestampUtc))
                     return () => { };
+                // Ignored apps stay blocked; only the prompt is skipped.
+                if (IgnoredApp.AnyMatch(ActiveConfig.Service.ActiveProfile.IgnoredApps, identity))
+                {
+                    MarkIgnoredRow(candidate);
+                    return () => { };
+                }
                 return () =>
                 {
                     if (RuntimeStopping || VisibleState.Mode != FirewallMode.Normal ||
@@ -2969,6 +3032,26 @@ namespace pylorak.TinyWall
                             new DateTimeOffset(entry.Timestamp).ToUniversalTime() >= path.Value.FirstDropUtc)
                             entry.AllowedByAlwaysAllow = true;
                     }
+                }
+            }
+        }
+
+        // Network Activity shows a drop whose prompt the Ignored list skipped as "Blocked (ignored)".
+        // The candidate was built from one row, so only that row is marked: matching by path
+        // alone would also mark other services sharing svchost.exe.
+        private void MarkIgnoredRow(DropCandidate candidate)
+        {
+            lock (FirewallLogEntries)
+            {
+                foreach (FirewallLogEntry entry in FirewallLogEntries)
+                {
+                    if (entry.Event == EventLogEvent.BLOCKED && entry.FilterRuntimeId == candidate.FilterRuntimeId &&
+                        entry.Direction == RuleDirection.Out && (byte)entry.Protocol == candidate.Protocol &&
+                        entry.LocalPort == candidate.LocalPort && entry.RemotePort == candidate.RemotePort &&
+                        string.Equals(entry.RemoteIp, candidate.RemoteAddress, StringComparison.Ordinal) &&
+                        string.Equals(entry.AppPath, candidate.ApplicationPath, StringComparison.OrdinalIgnoreCase) &&
+                        new DateTimeOffset(entry.Timestamp).ToUniversalTime() == candidate.TimestampUtc)
+                        entry.PromptIgnored = true;
                 }
             }
         }

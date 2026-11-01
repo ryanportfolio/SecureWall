@@ -256,7 +256,7 @@ namespace pylorak.TinyWall
                     ConstructListItem(itemColl, pi, entry.Protocol.ToString(),
                         new IPEndPoint(IPAddress.Parse(entry.LocalIp), entry.LocalPort),
                         new IPEndPoint(IPAddress.Parse(entry.RemoteIp), entry.RemotePort),
-                        NetworkActivityStatusClassifier.ToDisplayText(status, entry.FilterGroup, entry.AllowedByAlwaysAllow),
+                        NetworkActivityStatusClassifier.ToDisplayText(status, entry.FilterGroup, entry.AllowedByAlwaysAllow, entry.PromptIgnored),
                         entry.Timestamp, entry.Direction);
                 }
             }

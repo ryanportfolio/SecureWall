@@ -16,7 +16,11 @@ namespace pylorak.TinyWall.Prompting
         PromptActionStatus Allow(Guid token);
         // Allow, plus an Always allow rule for the file name and the signer the service verifies.
         PromptActionStatus AllowAlways(Guid token);
+        // Closing the popup: no prompt for this identity for five minutes.
         PromptActionStatus Dismiss(Guid token);
+        // The Ignore button: Dismiss, and the service also adds the identity to the Ignored list
+        // while it is unlocked.
+        PromptActionStatus Ignore(Guid token);
         // Same effect as Dismiss, but marked as automatic so it never extends the unlock window.
         PromptActionStatus DismissAfterTimeout(Guid token);
 
@@ -332,8 +336,8 @@ namespace pylorak.TinyWall.Prompting
             }
         }
 
-        private void IgnoreRequested(object? sender, EventArgs eventArgs) => IgnoreCurrent();
-        private void PromptClosed(object? sender, EventArgs eventArgs) => IgnoreCurrent();
+        private void IgnoreRequested(object? sender, EventArgs eventArgs) => IgnoreCurrent(remember: true);
+        private void PromptClosed(object? sender, EventArgs eventArgs) => IgnoreCurrent(remember: false);
         private async void PromptTimedOut(object? sender, EventArgs eventArgs)
         {
             if (_current == null || _currentView == null) return;
@@ -361,7 +365,7 @@ namespace pylorak.TinyWall.Prompting
             _actionsInFlight.Remove(token);
         }
 
-        private async void IgnoreCurrent()
+        private async void IgnoreCurrent(bool remember)
         {
             if (_current == null || _currentView == null)
                 return;
@@ -374,7 +378,7 @@ namespace pylorak.TinyWall.Prompting
             Guid token = _current.Token;
             IPromptView view = _currentView;
             if (!_actionsInFlight.Add(token)) return;
-            PromptActionStatus status = await PerformAction(() => _actions.Dismiss(token));
+            PromptActionStatus status = await PerformAction(() => remember ? _actions.Ignore(token) : _actions.Dismiss(token));
             _actionsInFlight.Remove(token);
             if (_disposed || _current?.Token != token || !ReferenceEquals(view, _currentView)) return;
             if (status == PromptActionStatus.Dismissed ||
