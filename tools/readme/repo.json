@@ -1,0 +1,17 @@
+{
+  "repo": "ryanportfolio/SecureWall",
+  "description": "Open-source default-deny firewall for Windows 10 and 11, forked from TinyWall. Prompts you when an unknown app tries to connect.",
+  "homepage": "https://secwall.org/",
+  "topics": [
+    "default-deny",
+    "firewall",
+    "outbound-firewall",
+    "privacy",
+    "security",
+    "tinywall",
+    "wfp",
+    "windows",
+    "windows-filtering-platform",
+    "windows-firewall"
+  ]
+}

@@ -9,9 +9,10 @@
    off the top, and a bottom margin lifts it off the tagline, which its walls
    would otherwise reach (they hang below the glyphs). On short landscape
    windows (500 px tall or less) it takes most of the height, with less room
-   around it, and below 600 px wide it is smaller. The site's .grid pulls its
-   columns 2rem left and pads each one 2rem, so a 100% column ends 2rem short
-   of the right edge; the headline's column is 2rem wider (and must not
+   around it, and below 600 px wide it is smaller, as is the tagline, sized
+   so its first line (a bundle patch sets it in two) never wraps. The site's
+   .grid pulls its columns 2rem left and pads each one 2rem, so a 100% column
+   ends 2rem short of the right edge; the headline's column is 2rem wider (and must not
    shrink in the flex row) so it is centred on the page. The 3D letters are
    drawn heavier than the font (hero.js BOLD), so the letters are spaced
    .06em apart, and the same padding on the left keeps the lines centred
@@ -31,4 +32,5 @@
 }
 @media(max-width:599.98px){
 .js-hero h1{font-size:min(64px,16.5vw)!important;margin-bottom:max(35px,6vh)!important}
+.js-hero\:tagline{font-size:min(24px,calc((100vw - 60px) / 16.8))!important}
 }
