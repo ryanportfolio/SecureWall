@@ -36,7 +36,7 @@ The persistent and boot-time baseline denies all non-loopback traffic, including
 
 A running service that has to withdraw its permissions rebuilds its policy in-process; if that keeps failing, it exits with an error code and Windows restarts it after 5, 30 and 60 seconds, then every minute. That automatic restart takes effect from the first Windows restart after installation. A reload that fails before changing any filter keeps the current policy and retries after about 5, 15 and 30 seconds, unless the failure leaves network addresses unverified or a grant already out of date; then it withdraws permissions and rebuilds. See [SECURITY.md](SECURITY.md).
 
-Address renewal and name resolution can fail during this interval. If the cause persists, recovery requires a local console.
+Address renewal and name resolution can fail during this interval. If the cause persists, recovery requires a local console. Disabling the SecureWall service does not release the baseline: it still loads at every boot and keeps external traffic blocked until SecureWall is removed, or until the service is set back to Automatic (`sc config SecureWall start= auto`) and started. [SECURITY.md](SECURITY.md) explains why and which validation case to run first.
 
 ## Setup logs
 

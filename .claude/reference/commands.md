@@ -75,3 +75,14 @@ After Release builds of SecureWall and the network probe:
 ```
 
 The emitted ignored zip contains all three unsigned MSIs, the unpackaged app, distinct Allow/Ignore probes, hashes, and a short physical/spare-PC test and recovery guide. Building or extracting it does not install SecureWall or touch WFP.
+
+## README
+
+`README.md` and `docs/readme/*.svg` are generated. Edit the prose in `tools/readme/body.md`, the documentation table in `tools/readme/items.json`, and the hero art in `tools/readme/panels.mjs`, then rebuild. The popup words, colours and status strings in the art are read from the C# sources, so a UI text change needs a rebuild too; CI fails on a stale README.
+
+```powershell
+node tools\readme\build.mjs
+node tools\readme\build.mjs --check
+```
+
+The About panel (description, website, topics) lives in `tools/readme/repo.json`. `node tools\readme\meta.mjs --apply` pushes it to GitHub; CI lints it on pull requests and compares it with GitHub on pushes to main.

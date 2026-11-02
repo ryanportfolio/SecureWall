@@ -120,6 +120,23 @@ jobs:
           node .claude\scripts\sync-codex-skills.mjs --check
           Get-Content -Raw .claude\settings.json | ConvertFrom-Json | Out-Null
 
+      - name: Verify README is generated and current
+        shell: pwsh
+        run: node tools\readme\build.mjs --check
+
+      # PRs only lint repo.json: a change to it cannot match GitHub until merged and applied.
+      - name: Lint repository About metadata
+        if: github.event_name == 'pull_request'
+        shell: pwsh
+        run: node tools\readme\meta.mjs --lint
+
+      - name: Check repository About metadata and README links
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools\readme\meta.mjs --check
+
       - uses: actions/upload-artifact@v4
         with:
           name: SecureWall-unsigned-installers
