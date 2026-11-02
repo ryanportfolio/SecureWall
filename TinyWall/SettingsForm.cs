@@ -214,6 +214,7 @@ namespace pylorak.TinyWall
                         listBox.SetItemChecked(itemIdx, TmpConfig.Service.ActiveProfile.SpecialExceptions.Contains(item.Id));
                     }
                 }
+                AddAiHelpRow();
                 listRecommendedGlobalProfiles.EndUpdate();
                 listOptionalGlobalProfiles.EndUpdate();
 
@@ -410,6 +411,8 @@ namespace pylorak.TinyWall
 
             CheckedListBox clb = (CheckedListBox)sender;
             IdWithName item = (IdWithName)clb.Items[e.Index];
+            if (TryApplyAiHelpRow(item, e.NewValue))
+                return;
             if (e.NewValue == CheckState.Checked)
             {
                 TmpConfig.Service.ActiveProfile.SpecialExceptions.Add(item.Id);

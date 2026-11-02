@@ -201,19 +201,25 @@ namespace pylorak.TinyWall
         // Reads the service's current settings with an empty changeset so the service always
         // returns them. Does not touch the controller's cache. Returns the reply type; `config`
         // is null unless the reply carried settings.
-        internal static MessageType TryReadServiceSettings(out ServerConfiguration? config, out Guid changeset)
+        internal static MessageType TryReadServiceSettings(out ServerConfiguration? config, out Guid changeset) =>
+            TryReadServiceSettings(out config, out _, out changeset);
+
+        // Same, also returning the service state (firewall mode) from the same reply.
+        internal static MessageType TryReadServiceSettings(out ServerConfiguration? config, out ServerState? state, out Guid changeset)
         {
             config = null;
+            state = null;
             changeset = Guid.Empty;
             Controller? pipe = GlobalInstances.Controller;
             if (pipe == null)
                 return MessageType.COM_ERROR;
 
             Guid received = Guid.Empty;
-            MessageType reply = pipe.GetServerConfig(out ServerConfiguration? fresh, out _, ref received);
+            MessageType reply = pipe.GetServerConfig(out ServerConfiguration? fresh, out ServerState? freshState, ref received);
             if (reply == MessageType.GET_SETTINGS && fresh != null && received != Guid.Empty)
             {
                 config = fresh;
+                state = freshState;
                 changeset = received;
             }
             return reply;

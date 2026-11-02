@@ -94,13 +94,9 @@ namespace pylorak.TinyWall
             {
                 return AiExplainResult.Fail("The AI request was cancelled.");
             }
-            catch (HttpRequestException exception)
+            catch (Exception exception) when (exception is HttpRequestException || exception is IOException)
             {
-                return AiExplainResult.Fail("Could not reach the AI service: " + exception.Message);
-            }
-            catch (IOException exception)
-            {
-                return AiExplainResult.Fail("The AI service connection failed: " + exception.Message);
+                return AiExplainResult.Unreachable(exception);
             }
         }
 

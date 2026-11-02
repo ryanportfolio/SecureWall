@@ -15,6 +15,18 @@ namespace pylorak.TinyWall.Prompting
         internal const byte TcpProtocol = 6;
         internal const ushort RemotePort = 443;
 
+        // WFP weight of the permits for SecureWall's own image (this one and Check for updates):
+        // above user blocks (6000000), below raw-socket rules and blocklists. A block on
+        // SecureWall.exe also comes from child-process inheritance: the service is a child of
+        // services.exe, and a block on services.exe with "child processes inherit" yields a
+        // block on the shared image. At user-permit weight that block hid the permit, and a
+        // feature the user had turned on failed with no visible reason.
+        internal const ulong PermitWeight = 6500000;
+
+        // The row in Settings > Special Exceptions > Optional that shows and sets the machine
+        // setting. It is not a database profile and is never saved in SpecialExceptions.
+        internal const string SpecialExceptionName = "SecureWall AI help";
+
         // Deny ACEs come first in the DACL, so these never match even if a token also carries
         // an allowed group. LocalSystem, LocalService and NetworkService tokens are excluded.
         internal static readonly IReadOnlyList<string> DeniedUserSids = new[]
@@ -28,11 +40,15 @@ namespace pylorak.TinyWall.Prompting
         // in the controller started by the logon task), absent from service tokens.
         internal static readonly IReadOnlyList<string> AllowedUserSids = new[] { "S-1-5-4" };
 
+        // Where the switch is, for messages that tell the user to turn it on.
+        internal const string SwitchLocation =
+            "open Manage from the tray menu, go to Special Exceptions and tick \"" + SpecialExceptionName +
+            "\" under Optional (or click ? on a blocked-connection popup and choose Yes)";
+
         internal const string ServiceAccessOffMessage =
-            "The AI lookup did not run: SecureWall's network access for the AI assistant is off, " +
-            "so the request would be blocked. Click ? again and choose Yes to turn it on " +
-            "(SecureWall must be unlocked). Do not add a manual exception for SecureWall.exe: " +
-            "that would also give the SecureWall service network access.";
+            "The AI lookup did not run: AI help's network access is off, so the request would be blocked. " +
+            "To turn it on, click ? again and choose Yes, or " + SwitchLocation + ". SecureWall must be unlocked. " +
+            "Do not add an exception for SecureWall.exe: that would also give the SecureWall service network access.";
 
         internal const string EnablePrompt =
             "The AI assistant needs SecureWall's own program to reach the AI service.\n\n" +
@@ -89,8 +105,8 @@ namespace pylorak.TinyWall.Prompting
         internal const string OwnImageExceptionWarning =
             "This exception targets SecureWall's own program file.\n" +
             "SecureWall.exe also runs the SecureWall service as LocalSystem, so this rule would give the firewall service " +
-            "the same network access. For the AI assistant, use its built-in permit instead: it allows only TCP port 443 " +
-            "for signed-in accounts and never the service.\n\nSave this exception anyway?";
+            "the same network access.\n\nAI help does not need an exception. To give it network access, " + SwitchLocation +
+            ". That permit allows only TCP port 443 for signed-in accounts and never the service.\n\nSave this exception anyway?";
 
         // Every path that saves an exception (editor and tray whitelisting) asks before a
         // non-block rule for SecureWall's own image.
