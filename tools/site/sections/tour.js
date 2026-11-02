@@ -154,7 +154,8 @@
       drawnT = local;
       range.value = String(Math.round(t));
       range.style.setProperty("--p", (t / total).toFixed(4));
-      const sec = Math.floor(t / 1000);
+      // The end counts as its own second: it can fall inside the last whole one.
+      const sec = t >= total ? Infinity : Math.floor(t / 1000);
       if (sec !== lastSec) {
         lastSec = sec;
         // Whole seconds, rounded down; the end shows the length (0:44 / 0:44).
