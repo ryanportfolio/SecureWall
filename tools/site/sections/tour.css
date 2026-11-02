@@ -20,8 +20,10 @@
 
 /* Picture and controls, framed like a download card. */
 .sw-tour__screen{border:1px solid var(--line);border-radius:2px;background:#101214}
-.sw-tour__frame{position:relative;aspect-ratio:5/3;overflow:hidden;background:#0d1117;transition:background .3s}
-.sw-tour[data-app-theme="light"] .sw-tour__frame{background:#eef1f5}
+/* Dark in both app themes: the stage's edges are the dark wallpaper and
+   taskbar, and up to a pixel of this shows where the fitted stage falls
+   short of a fractional frame size. */
+.sw-tour__frame{position:relative;aspect-ratio:5/3;overflow:hidden;background:#0d1117}
 .sw-tour__iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;opacity:0;transition:opacity .5s}
 .sw-tour.is-ready .sw-tour__iframe{opacity:1}
 /* Top left: the wallpaper there stays clear of the poster frame's popup. */
@@ -65,8 +67,13 @@
 .sw-tour__row[data-kind="block"] .sw-tour__result::before{border:1.5px solid var(--block)}
 .sw-tour__row[data-kind="info"] .sw-tour__result{color:var(--info)}
 .sw-tour__row[data-kind="info"] .sw-tour__result::before{border:1.5px solid var(--info);border-radius:1px}
-.sw-tour__take{grid-area:take;display:grid;grid-template-rows:0fr;transition:grid-template-rows .4s ease}
+.sw-tour__take{grid-area:take;display:grid;grid-template-rows:0fr}
 .sw-tour__take>span{overflow:hidden;min-height:0;font-family:'Space Mono',monospace;font-size:13px;line-height:1.5;color:var(--text)}
+/* Every takeaway is three lines tall and opens at once (its text fades in),
+   so the row that opens is as tall as the one that closes and the page
+   below never moves. */
+.sw-tour__take>span>span{display:block;box-sizing:border-box;min-height:calc(4.5em + 8px);padding-top:8px;opacity:0;transition:opacity .4s ease}
+.sw-tour__row.is-current .sw-tour__take>span>span{opacity:1}
 .sw-tour__meter{position:absolute;left:0;bottom:-1px;height:2px;width:0;background:var(--ink)}
 
 .sw-tour__row.is-done .sw-tour__name{color:var(--text)}
@@ -76,12 +83,12 @@
 .sw-tour__row.is-current .sw-tour__num,.sw-tour__row.is-current .sw-tour__at{color:var(--info)}
 .sw-tour__row.is-current .sw-tour__name{color:var(--ink)}
 .sw-tour__row.is-current .sw-tour__take{grid-template-rows:1fr}
-.sw-tour__row.is-current .sw-tour__take>span{padding-top:8px}
 .sw-tour__row.is-current .sw-tour__meter{width:calc(var(--p,0) * 100%);z-index:1}
 
 .sw-tour.is-failed .sw-tour__bar,.sw-tour.is-failed .sw-tour__log{display:none}
 
 @media(max-width:1199px){
+.sw-tour__head{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 .sw-tour__body{grid-template-columns:1fr}
 .sw-tour__log{display:grid;grid-template-columns:1fr 1fr}
 .sw-tour__row+.sw-tour__row{border-top:0}
@@ -95,6 +102,7 @@
 .sw-tour__chip{margin-bottom:0}
 .sw-tour__title{font-size:38px}
 .sw-tour__lede{font-size:14px}
+.sw-tour__start,.sw-tour__fallback{left:10px;top:10px;gap:8px;padding:8px 12px;font-size:12px}
 .sw-tour__bar{flex-wrap:wrap;gap:10px 14px;padding:10px 12px}
 .sw-tour__scrub{order:-1;flex:1 0 100%}
 .sw-tour__time{min-width:0;text-align:left;margin-right:auto}

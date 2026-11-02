@@ -12,8 +12,8 @@
 // Playback: starts when the section is in view, pauses when it leaves, loops
 // after a short hold on the last frame. Pause, the scrubber (a native range
 // input) and the rows are the controls. With prefers-reduced-motion nothing
-// plays until Play is pressed; a chapter picked from the log shows its end
-// frame. The app theme switch (Dark / Light) sets the replayed Windows app's
+// plays until Play is pressed; while paused, a chapter picked from the log
+// shows its end frame, and Play then plays that chapter from its start. The app theme switch (Dark / Light) sets the replayed Windows app's
 // theme; the site itself has one theme.
 //
 // The iframe is created when the section comes near the viewport. If the
@@ -45,7 +45,7 @@
 
   const reduceQuery = matchMedia("(prefers-reduced-motion: reduce)");
   const fmt = ms => {
-    const s = Math.max(0, Math.round(ms / 1000));
+    const s = Math.max(0, Math.floor(ms / 1000));
     return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
   };
   const el = (tag, cls, attrs = {}) => {
@@ -73,7 +73,7 @@
             <button class="sw-tour__play" type="button" aria-label="Pause the tour"><span aria-hidden="true"></span></button>
             <div class="sw-tour__scrub">
               <div class="sw-tour__ticks" aria-hidden="true"></div>
-              <input class="sw-tour__range" type="range" min="0" max="1" step="50" value="0" aria-label="Tour position">
+              <input class="sw-tour__range" type="range" min="0" max="1" step="1" value="0" aria-label="Tour position">
             </div>
             <span class="sw-tour__time" aria-hidden="true">0:00 / 0:00</span>
             <div class="sw-tour__theme" role="group" aria-label="App theme"></div>
@@ -103,6 +103,7 @@
     let P = null;
     let segs = [];
     let total = 0;
+    let totalLabel = "0:00";
     let T = 0; // film time; total..total + HOLD is the hold
     let want = !reduceQuery.matches; // the visitor's play state
     let seen = false; // section in view
@@ -128,7 +129,13 @@
       playBtn.classList.toggle("is-paused", !v);
       playBtn.setAttribute("aria-label", v ? "Pause the tour" : "Play the tour");
       if (v) startBtn.hidden = true;
+      // Play from the end, or from a chapter's end frame (reduced motion),
+      // replays: the film from 0, the chapter from its start.
       if (v && T >= total) T = 0;
+      else if (v && segs.length) {
+        const s = segAt(T);
+        if (T >= s.start + s.dur - 1) T = s.start;
+      }
       kick();
     }
 
@@ -150,18 +157,22 @@
       const sec = Math.floor(t / 1000);
       if (sec !== lastSec) {
         lastSec = sec;
-        time.textContent = `${fmt(t)} / ${fmt(total)}`;
-        range.setAttribute("aria-valuetext", `${fmt(t)} of ${fmt(total)}, chapter ${s.n}: ${s.title}`);
+        // Whole seconds, rounded down; the end shows the length (0:44 / 0:44).
+        const now = t >= total ? totalLabel : fmt(t);
+        time.textContent = `${now} / ${totalLabel}`;
+        range.setAttribute("aria-valuetext", `${now} of ${totalLabel}, chapter ${s.n}: ${s.title}`);
       }
-      // Rows: current one, its progress, and every finished one's result.
+      // Rows: current one, its progress, and every finished one's result. At
+      // the end the last row stays open (and logged), so the log keeps its
+      // height through the hold.
       const done = t >= total ? segs.length : s.n - 1;
       if (s.n !== rowAt || done !== rowDone) {
         rowAt = s.n;
         rowDone = done;
         segs.forEach((g, i) => {
-          g.row.classList.toggle("is-current", g === s && t < total);
+          g.row.classList.toggle("is-current", g === s);
           g.row.classList.toggle("is-done", i < done);
-          if (g === s && t < total) g.btn.setAttribute("aria-current", "step");
+          if (g === s) g.btn.setAttribute("aria-current", "step");
           else g.btn.removeAttribute("aria-current");
         });
       }
@@ -195,6 +206,7 @@
     // To a chapter's start; with reduced motion while paused, to its end
     // frame, where its result shows.
     function jump(seg) {
+      startBtn.hidden = true;
       seek(reduceQuery.matches && !want ? seg.start + seg.dur - 1 : seg.start);
     }
 
@@ -202,7 +214,6 @@
       if (id === theme) return;
       theme = id;
       for (const b of box.querySelectorAll(".sw-tour__theme-btn")) b.setAttribute("aria-pressed", String(b.dataset.theme === id));
-      box.dataset.appTheme = id;
       if (!P) return;
       P.set({ theme: id, scene: shownScene || segs[0].id });
       drawnT = -1;
@@ -232,13 +243,13 @@
           <span class="sw-tour__at" aria-hidden="true"></span>
           <span class="sw-tour__name"></span>
           <span class="sw-tour__result"></span>
-          <span class="sw-tour__take"><span></span></span>
+          <span class="sw-tour__take"><span><span></span></span></span>
           <span class="sw-tour__meter" aria-hidden="true"></span>`;
         btn.querySelector(".sw-tour__num").textContent = String(i + 1).padStart(2, "0");
         btn.querySelector(".sw-tour__at").textContent = fmt(seg.start);
         btn.querySelector(".sw-tour__name").textContent = s.title;
         btn.querySelector(".sw-tour__result").textContent = result;
-        btn.querySelector(".sw-tour__take span").textContent = s.takeaway || "";
+        btn.querySelector(".sw-tour__take span span").textContent = s.takeaway || "";
         btn.addEventListener("click", () => jump(seg));
         row.append(btn);
         log.append(row);
@@ -247,6 +258,7 @@
         return seg;
       });
       total = at;
+      totalLabel = fmt(Math.round(total / 1000) * 1000);
       for (const s of segs.slice(1)) {
         const tk = el("i");
         tk.style.left = `${(s.start / total) * 100}%`;
@@ -270,7 +282,7 @@
           if (next) jump(next);
         }
       }, true);
-      if (!want) {
+      if (!want && reduceQuery.matches) {
         const poster = segs.find(s => s.id === POSTER.scene) || segs[0];
         T = poster.start + Math.round(poster.dur * POSTER.at);
         startBtn.hidden = false;
@@ -340,19 +352,30 @@
       scrubbing = false;
       kick();
     };
+    // Keys: the range steps by 1 ms so its end is the film's end; arrows move
+    // 1 s and Page Up / Page Down 5 s instead.
+    const KEY_STEP = { ArrowRight: 1000, ArrowUp: 1000, ArrowLeft: -1000, ArrowDown: -1000, PageUp: 5000, PageDown: -5000 };
+    range.addEventListener("keydown", e => {
+      if (!(e.key in KEY_STEP)) return;
+      e.preventDefault();
+      startBtn.hidden = true;
+      seek(Math.min(T, total) + KEY_STEP[e.key]);
+    });
     range.addEventListener("pointerup", endScrub);
     range.addEventListener("pointercancel", endScrub);
     range.addEventListener("change", endScrub);
     reduceQuery.addEventListener("change", e => { if (e.matches) setWant(false); });
 
     // Load the player when the section comes near; play while it is in view.
-    let loaded = false;
-    new IntersectionObserver(entries => {
-      if (entries.some(e => e.isIntersecting) && !loaded) {
-        loaded = true;
+    // The site scrolls inside .scroll-container, which clips the page, so the
+    // margin is measured against it (against the viewport it would not apply).
+    const near = new IntersectionObserver(entries => {
+      if (entries.some(e => e.isIntersecting)) {
+        near.disconnect();
         load();
       }
-    }, { rootMargin: "800px 0px" }).observe(box);
+    }, { root: box.closest(".scroll-container"), rootMargin: "800px 0px" });
+    near.observe(box);
     new IntersectionObserver(entries => {
       seen = entries[entries.length - 1].isIntersecting;
       kick();
@@ -360,21 +383,19 @@
   }
 
   // The site renders #team after this script runs: wait for the download
-  // grid, put the section after it, and put it back if a re-render drops it.
-  const box = build();
-  let started = false;
+  // grid and put the section after it, once.
   function place() {
     const grid = document.querySelector("#team .sw-download-grid");
     if (!grid) return false;
-    if (grid.nextElementSibling !== box) grid.after(box);
-    if (!started) {
-      started = true;
-      start(box);
-    }
+    const box = build();
+    grid.after(box);
+    start(box);
     return true;
   }
-  new MutationObserver(() => {
-    if (!box.isConnected || !started) place();
-  }).observe(document.documentElement, { childList: true, subtree: true });
-  place();
+  if (!place()) {
+    const watch = new MutationObserver(() => {
+      if (place()) watch.disconnect();
+    });
+    watch.observe(document.documentElement, { childList: true, subtree: true });
+  }
 })();
