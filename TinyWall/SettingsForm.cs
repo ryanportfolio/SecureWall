@@ -349,7 +349,7 @@ namespace pylorak.TinyWall
                 {
                     li.ImageIndex = IconList.Images.IndexOfKey("system");
                 }
-                else if (File.Exists(exeSubj.ExecutablePath))
+                else if (File.Exists(exeSubj.ExecutablePath) || PreviewSampleApp)
                 {
                     // Real icon will be loaded later asynchronously, for now just assign a generic icon
                     li.ImageIndex = IconList.Images.ContainsKey(exeSubj.ExecutablePath) ? IconList.Images.IndexOfKey(exeSubj.ExecutablePath) : IconScanner.TemporaryIconIdx;
@@ -363,6 +363,14 @@ namespace pylorak.TinyWall
 
             return li;
         }
+
+        // Debug /uipreview: the sample apps (UiPreviewSamples) are not on disk; list them as
+        // installed, as the walkthrough shows them, not as deleted files.
+#if DEBUG
+        private static bool PreviewSampleApp => UiPreview.Active;
+#else
+        private const bool PreviewSampleApp = false;
+#endif
 
         private void btnOK_Click(object sender, EventArgs e)
         {

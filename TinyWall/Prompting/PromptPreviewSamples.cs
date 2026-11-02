@@ -9,14 +9,32 @@ namespace pylorak.TinyWall.Prompting
         internal const string SidNoticeSwitch = "/sidnotice";
         internal const string DefaultSidNoticeService = "MicrosoftEdgeElevationService";
         internal const string NoWarningsSwitch = "/nowarnings";
+        internal const string WarningsSwitch = "/warnings";
         internal const string ExecutableSwitch = "/executable";
 
         // Every warning line by default, whatever the sample executable looks like on disk;
-        // "/nowarnings" shows the popup without them.
-        internal static ExecutableRiskFlags RiskFlags(string[] args) =>
-            HasSwitch(args, NoWarningsSwitch)
-                ? ExecutableRiskFlags.None
-                : ExecutableRiskFlags.Unsigned | ExecutableRiskFlags.UserWritableLocation | ExecutableRiskFlags.RecentlyModified;
+        // "/nowarnings" shows the popup without them, and "/warnings writable,recent" shows
+        // only the named ones (unsigned, writable, recent).
+        internal static ExecutableRiskFlags RiskFlags(string[] args)
+        {
+            if (HasSwitch(args, NoWarningsSwitch))
+                return ExecutableRiskFlags.None;
+            int warnings = IndexOfSwitch(args, WarningsSwitch);
+            if (warnings < 0 || warnings + 1 >= args.Length)
+                return ExecutableRiskFlags.Unsigned | ExecutableRiskFlags.UserWritableLocation | ExecutableRiskFlags.RecentlyModified;
+
+            var flags = ExecutableRiskFlags.None;
+            foreach (string name in args[warnings + 1].Split(','))
+            {
+                switch (name.Trim().ToLowerInvariant())
+                {
+                    case "unsigned": flags |= ExecutableRiskFlags.Unsigned; break;
+                    case "writable": flags |= ExecutableRiskFlags.UserWritableLocation; break;
+                    case "recent": flags |= ExecutableRiskFlags.RecentlyModified; break;
+                }
+            }
+            return flags;
+        }
 
         // "/promptpreview" shows an allowable Dnscache prompt. "/promptpreview /sidnotice"
         // shows the SID-type NONE notice for MicrosoftEdgeElevationService, and

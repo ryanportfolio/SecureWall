@@ -14,6 +14,10 @@
 // entry bundle, so window.__swLayers is watched before the terrain is built.
 // CSS: every tools/site/sections/*.css, alphabetical, concatenated into one
 // marked block at the end of securewall.css.
+// Walkthrough: tools/site/walkthrough (the player the Tour section frames),
+// without its README and review page, replaces /walkthrough/. vercel.json gets
+// one headers entry for it: frame-ancestors 'self', so only the site itself
+// can frame it, and noindex, so the bare player stays out of search results.
 //
 //   node tools/release/update-secwall-site.mjs --download .tmp/site-live
 //   node tools/site/patch-secwall-site.mjs --from .tmp/site-live --out .tmp/site-patched
@@ -33,6 +37,15 @@ const SECTIONS = path.join(HERE, "sections");
 // Added scripts and their tags, including the older sw-terrain-text-<hash>.js.
 const ADDED_FILE = /^build\/sw-[A-Za-z0-9_-]+-[A-Za-z0-9_-]{8}\.js$/;
 const ADDED_TAG = /<script src="\/build\/sw-[A-Za-z0-9_-]+-[A-Za-z0-9_-]{8}\.js"><\/script>/g;
+const WALKTHROUGH = path.join(HERE, "walkthrough");
+const WALKTHROUGH_SKIP = new Set(["README.md", "film.html"]);
+const WALKTHROUGH_HEADERS = {
+  source: "/walkthrough/(.*)",
+  headers: [
+    { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+    { key: "X-Robots-Tag", value: "noindex" },
+  ],
+};
 
 // Anchored bundle patches: [anchor, replacement, already-applied marker].
 const BUNDLE_PATCHES = [
@@ -144,7 +157,8 @@ function patch(from, out) {
     if (!/^[A-Za-z0-9_-]+$/.test(base)) fail(`${src}: script names may use only letters, digits, "_" and "-"`);
     if (seen.has(base)) fail(`two scripts are named ${base}.js`);
     seen.add(base);
-    const bytes = fs.readFileSync(src);
+    // LF, as the CSS below: a Windows checkout's CRLF would rename unchanged scripts.
+    const bytes = fs.readFileSync(src, "utf8").replace(/\r\n/g, "\n");
     const name = `sw-${base}-${hash8(bytes)}.js`;
     write(`build/${name}`, bytes);
     tags.push(`<script src="/build/${name}"></script>`);
@@ -172,6 +186,22 @@ function patch(from, out) {
   if (css.includes(CSS_START) || css.includes(CSS_END)) fail("securewall.css: more than one marked block");
   write("securewall.css", `${css.trimEnd()}\n\n${[CSS_START, ...blocks, CSS_END].join("\n")}\n`);
   console.log(`updated securewall.css (${blocks.length} section CSS files)`);
+
+  // The walkthrough player, replacing any earlier copy.
+  fs.rmSync(path.join(out, "walkthrough"), { recursive: true, force: true });
+  const players = listFiles(WALKTHROUGH).filter(f => !WALKTHROUGH_SKIP.has(f));
+  if (!players.includes("index.html")) fail(`${WALKTHROUGH} has no index.html`);
+  for (const rel of players) {
+    fs.mkdirSync(path.dirname(path.join(out, "walkthrough", rel)), { recursive: true });
+    fs.copyFileSync(path.join(WALKTHROUGH, rel), path.join(out, "walkthrough", rel));
+  }
+  console.log(`added walkthrough/ (${players.length} files)`);
+  const vercel = JSON.parse(read("vercel.json"));
+  if (!Array.isArray(vercel.headers)) fail("vercel.json: no headers list");
+  vercel.headers = vercel.headers.filter(h => h.source !== WALKTHROUGH_HEADERS.source);
+  vercel.headers.push(WALKTHROUGH_HEADERS);
+  write("vercel.json", `${JSON.stringify(vercel, null, 2)}\n`);
+  console.log("updated vercel.json (walkthrough headers)");
 
   for (const src of [...html.matchAll(/src="\/(build\/[^"]+\.js)"/g)].map(m => m[1])) {
     if (!fs.existsSync(path.join(out, src))) fail(`index.html references missing ${src}`);

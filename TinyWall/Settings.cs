@@ -147,6 +147,11 @@ namespace pylorak.TinyWall
 
         internal void Save()
         {
+#if DEBUG
+            // The /uipreview windows run on sample settings; never write them over this build's file.
+            if (UiPreview.Active)
+                return;
+#endif
             try
             {
                 SerializationHelper.SerializeToFile(this, FilePath);

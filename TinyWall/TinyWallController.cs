@@ -325,7 +325,13 @@ namespace pylorak.TinyWall
         {
             this.StartupOpts = opts;
 
+#if DEBUG
+            // /uipreview: English sample settings. Loading this build's file could rewrite it (a
+            // legacy XML file is migrated in place) and would localize the reference captures.
+            ActiveConfig.Controller = UiPreview.Active ? new ControllerSettings { Language = "en-US" } : ControllerSettings.Load();
+#else
             ActiveConfig.Controller = ControllerSettings.Load();
+#endif
             try
             {
                 if (!ActiveConfig.Controller.Language.Equals("auto", StringComparison.InvariantCultureIgnoreCase))

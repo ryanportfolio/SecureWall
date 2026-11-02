@@ -1,0 +1,117 @@
+/* Tour: the walkthrough film between the download cards and "Before you
+   install" (tour.js). Borders, greys and the mono chip follow the download
+   cards; results in the log use the Control cards' cyan (allow) and violet
+   (block). */
+.sw-tour{--line:#575b60;--soft:#2c2f33;--ink:#e8eaed;--text:#b3b6ba;--dim:#7d8287;--allow:#5fd3f3;--block:#a58bff;--info:#a9bed7;margin:0 0 160px;color:var(--text)}
+.sw-tour [hidden]{display:none!important}
+.sw-tour :where(button){font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+.sw-tour button:focus-visible,.sw-tour input:focus-visible,.sw-tour a:focus-visible{outline:2px solid var(--info);outline-offset:2px}
+
+.sw-tour__head{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,440px);grid-template-areas:"chip chip" "title lede";column-gap:48px;align-items:end;margin-bottom:40px}
+.sw-tour__chip{grid-area:chip;display:block;margin-bottom:28px;font-family:'Space Mono',monospace;font-size:14px;letter-spacing:.08em;color:var(--info)}
+/* State dot: cyan and pulsing while the film plays, grey when it is paused. */
+.sw-tour__chip::before{content:"";display:inline-block;width:7px;height:7px;margin:0 10px 1px 0;border-radius:50%;background:var(--dim);transition:background .3s}
+.sw-tour.is-playing .sw-tour__chip::before{background:var(--allow);animation:sw-tour-pulse 2s ease-out infinite}
+@keyframes sw-tour-pulse{0%{box-shadow:0 0 0 0 rgba(95,211,243,.45)}70%,100%{box-shadow:0 0 0 7px rgba(95,211,243,0)}}
+.sw-tour__title{grid-area:title;margin:0;font-family:Magnetik,system-ui,sans-serif;font-weight:400;font-size:60px;line-height:.95;letter-spacing:-.02em;color:var(--ink)}
+.sw-tour__lede{grid-area:lede;margin:0;font-family:'Space Mono',monospace;font-size:16px;line-height:1.5}
+
+.sw-tour__body{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:24px;align-items:start}
+
+/* Picture and controls, framed like a download card. */
+.sw-tour__screen{border:1px solid var(--line);border-radius:2px;background:#101214}
+/* Dark in both app themes: the stage's edges are the dark wallpaper and
+   taskbar, and up to a pixel of this shows where the fitted stage falls
+   short of a fractional frame size. */
+.sw-tour__frame{position:relative;aspect-ratio:5/3;overflow:hidden;background:#0d1117}
+.sw-tour__iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;opacity:0;transition:opacity .5s}
+.sw-tour.is-ready .sw-tour__iframe{opacity:1}
+/* Top left: the wallpaper there stays clear of the poster frame's popup. */
+.sw-tour__start,.sw-tour__fallback{position:absolute;left:24px;top:24px;z-index:2;display:inline-flex;align-items:center;gap:12px;padding:16px 22px;border:1px solid #89949f!important;background:rgba(16,18,20,.82)!important;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);font-family:'Space Mono',monospace;font-size:14px;color:var(--ink)!important;text-decoration:none;white-space:nowrap}
+.sw-tour__start:hover,.sw-tour__fallback:hover{background:#272b30!important;border-color:#b9c4d1!important}
+.sw-tour__start-icon{width:0;height:0;border-style:solid;border-width:6px 0 6px 10px;border-color:transparent transparent transparent currentColor}
+
+.sw-tour__bar{display:flex;align-items:center;gap:18px;padding:12px 16px;border-top:1px solid var(--line);font-family:'Space Mono',monospace;font-size:13px}
+.sw-tour__play{position:relative;flex:none;width:40px;height:40px;border:1px solid #89949f!important;border-radius:2px}
+.sw-tour__play:hover{background:#272b30!important;border-color:#b9c4d1!important}
+.sw-tour__play span{position:absolute;left:50%;top:50%;width:10px;height:12px;margin:-6px 0 0 -5px;border-left:3px solid var(--ink);border-right:3px solid var(--ink);box-sizing:border-box}
+.sw-tour__play.is-paused span{width:0;height:0;margin:-6px 0 0 -3px;border-style:solid;border-width:6px 0 6px 10px;border-color:transparent transparent transparent var(--ink)}
+.sw-tour__scrub{position:relative;flex:1;min-width:0;height:32px}
+.sw-tour__ticks i{position:absolute;top:50%;width:1px;height:10px;margin-top:-5px;background:var(--line)}
+.sw-tour__range{--p:0;position:absolute;inset:0;width:100%;height:100%;margin:0;background:transparent;-webkit-appearance:none;appearance:none;cursor:pointer}
+.sw-tour__range::-webkit-slider-runnable-track{height:2px;background:linear-gradient(to right,var(--ink) calc(var(--p) * 100%),var(--line) 0)}
+.sw-tour__range::-moz-range-track{height:2px;background:linear-gradient(to right,var(--ink) calc(var(--p) * 100%),var(--line) 0)}
+.sw-tour__range::-webkit-slider-thumb{-webkit-appearance:none;width:3px;height:18px;margin-top:-8px;border:0;border-radius:0;background:var(--ink)}
+.sw-tour__range::-moz-range-thumb{width:3px;height:18px;border:0;border-radius:0;background:var(--ink)}
+.sw-tour__time{flex:none;min-width:84px;text-align:right;font-variant-numeric:tabular-nums;color:var(--text)}
+.sw-tour__theme{flex:none;display:flex;border:1px solid var(--line)}
+.sw-tour__theme-btn{padding:7px 11px!important;font-size:12px!important;letter-spacing:.06em;color:var(--dim)!important}
+.sw-tour__theme-btn[aria-pressed="true"]{background:var(--ink)!important;color:#151515!important}
+
+/* The chapter log. Rows are buttons; the current one shows its takeaway and
+   a progress hairline, finished ones show their result. */
+.sw-tour__log{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:2px;counter-reset:none}
+.sw-tour__row{position:relative}
+.sw-tour__row+.sw-tour__row{border-top:1px solid var(--soft)}
+.sw-tour__row-btn{position:relative;display:grid!important;grid-template-columns:auto auto 1fr;grid-template-areas:"num at result" "name name name" "take take take";align-items:baseline;column-gap:10px;width:100%;padding:13px 18px 14px!important;text-align:left;transition:background .25s}
+.sw-tour__row-btn:hover{background:#1d2024!important}
+.sw-tour__num,.sw-tour__at,.sw-tour__result{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.1em}
+.sw-tour__num{grid-area:num;color:var(--dim)}
+.sw-tour__at{grid-area:at;color:var(--dim);font-variant-numeric:tabular-nums}
+.sw-tour__name{grid-area:name;margin-top:6px;font-family:Magnetik,system-ui,sans-serif;font-size:17px;line-height:1.25;color:var(--dim);transition:color .3s}
+.sw-tour__result{grid-area:result;justify-self:end;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;clip-path:inset(0 100% 0 0);transition:clip-path .45s steps(10,end)}
+.sw-tour__result::before{content:"";width:7px;height:7px;border-radius:50%;box-sizing:border-box}
+.sw-tour__row[data-kind="allow"] .sw-tour__result{color:var(--allow)}
+.sw-tour__row[data-kind="allow"] .sw-tour__result::before{background:var(--allow)}
+.sw-tour__row[data-kind="block"] .sw-tour__result{color:var(--block)}
+.sw-tour__row[data-kind="block"] .sw-tour__result::before{border:1.5px solid var(--block)}
+.sw-tour__row[data-kind="info"] .sw-tour__result{color:var(--info)}
+.sw-tour__row[data-kind="info"] .sw-tour__result::before{border:1.5px solid var(--info);border-radius:1px}
+.sw-tour__take{grid-area:take;display:grid;grid-template-rows:0fr}
+.sw-tour__take>span{overflow:hidden;min-height:0;font-family:'Space Mono',monospace;font-size:13px;line-height:1.5;color:var(--text)}
+/* Every takeaway is three lines tall and opens at once (its text fades in),
+   so the row that opens is as tall as the one that closes and the page
+   below never moves. */
+.sw-tour__take>span>span{display:block;box-sizing:border-box;min-height:calc(4.5em + 8px);padding-top:8px;opacity:0;transition:opacity .4s ease}
+.sw-tour__row.is-current .sw-tour__take>span>span{opacity:1}
+.sw-tour__meter{position:absolute;left:0;bottom:-1px;height:2px;width:0;background:var(--ink)}
+
+.sw-tour__row.is-done .sw-tour__name{color:var(--text)}
+.sw-tour__row.is-done .sw-tour__result{clip-path:inset(0 0 0 0)}
+.sw-tour__row.is-current .sw-tour__row-btn{background:#1a1d20}
+.sw-tour__row.is-current .sw-tour__row-btn::before{content:"";position:absolute;left:-1px;top:-1px;bottom:-1px;width:2px;background:var(--ink)}
+.sw-tour__row.is-current .sw-tour__num,.sw-tour__row.is-current .sw-tour__at{color:var(--info)}
+.sw-tour__row.is-current .sw-tour__name{color:var(--ink)}
+.sw-tour__row.is-current .sw-tour__take{grid-template-rows:1fr}
+.sw-tour__row.is-current .sw-tour__meter{width:calc(var(--p,0) * 100%);z-index:1}
+
+.sw-tour.is-failed .sw-tour__bar,.sw-tour.is-failed .sw-tour__log{display:none}
+
+@media(max-width:1199px){
+.sw-tour__head{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.sw-tour__body{grid-template-columns:1fr}
+.sw-tour__log{display:grid;grid-template-columns:1fr 1fr}
+.sw-tour__row+.sw-tour__row{border-top:0}
+.sw-tour__row{border-top:1px solid var(--soft)}
+.sw-tour__row:nth-child(-n+2){border-top:0}
+.sw-tour__row:nth-child(even){border-left:1px solid var(--soft)}
+}
+@media(max-width:767px){
+.sw-tour{margin-bottom:96px}
+.sw-tour__head{grid-template-columns:1fr;grid-template-areas:"chip" "title" "lede";row-gap:16px;margin-bottom:28px}
+.sw-tour__chip{margin-bottom:0}
+.sw-tour__title{font-size:38px}
+.sw-tour__lede{font-size:14px}
+.sw-tour__start,.sw-tour__fallback{left:10px;top:10px;gap:8px;padding:8px 12px;font-size:12px}
+.sw-tour__bar{flex-wrap:wrap;gap:10px 14px;padding:10px 12px}
+.sw-tour__scrub{order:-1;flex:1 0 100%}
+.sw-tour__time{min-width:0;text-align:left;margin-right:auto}
+.sw-tour__log{grid-template-columns:1fr}
+.sw-tour__row:nth-child(2){border-top:1px solid var(--soft)}
+.sw-tour__row:nth-child(even){border-left:0}
+.sw-tour__row-btn{padding:11px 14px 12px!important}
+.sw-tour__name{font-size:15px}
+}
+@media(prefers-reduced-motion:reduce){
+.sw-tour *,.sw-tour *::before{transition:none!important;animation:none!important}
+}

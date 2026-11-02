@@ -72,6 +72,13 @@ namespace pylorak.TinyWall
             {
                 return;
             }
+#if DEBUG
+            if (PreviewRows != null)
+            {
+                FillPreviewRows(PreviewRows);
+                return;
+            }
+#endif
 
             IconScanner.CancelScan();
             DnsNames.RefreshIfStale();
@@ -510,6 +517,11 @@ namespace pylorak.TinyWall
 
         private void mnuCloseProcess_Click(object sender, EventArgs e)
         {
+#if DEBUG
+            // Sample rows carry made-up PIDs that may belong to real processes.
+            if (PreviewRows != null)
+                return;
+#endif
             foreach (ListViewItem li in list.SelectedItems)
             {
                 var pi = (ProcessInfo)li.Tag;
