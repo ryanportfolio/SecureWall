@@ -5,7 +5,7 @@
 <source media="(max-width: 500px) and (prefers-color-scheme: dark)" srcset="docs/readme/hero-narrow-dark.svg">
 <source media="(max-width: 500px)" srcset="docs/readme/hero-narrow-light.svg">
 <source media="(prefers-color-scheme: dark)" srcset="docs/readme/hero-dark.svg">
-<img alt="Animated illustration: SecureWall lists updater.exe as &quot;Blocked (default deny)&quot; in Network Activity, shows its &quot;SecureWall blocked an outgoing connection&quot; popup in the bottom-right corner, the cursor clicks &quot;Allow outgoing&quot;, and the app's next connection is listed as &quot;Allowed&quot;." src="docs/readme/hero-light.svg" width="100%">
+<img alt="Animated illustration: SecureWall lists updater.exe as &quot;Blocked (default deny)&quot; in Network Activity, shows its &quot;SecureWall blocked an outgoing connection&quot; popup in the corner of the screen, the cursor clicks &quot;Allow outgoing&quot;, and the app's next connection is listed as &quot;Allowed&quot;." src="docs/readme/hero-light.svg" width="100%">
 </picture>
 
 SecureWall is a default-deny firewall for Windows 10 and 11, built on TinyWall. Nothing on the PC reaches the network until a rule allows it. When an app you have not decided on tries to connect out, SecureWall blocks it and asks you in a small window at the bottom right of the screen.
@@ -25,10 +25,10 @@ Download the installer for your PC from the [latest release](https://github.com/
 | `SecureWall_arm64.msi` | Windows on ARM |
 | `SecureWall_x86.msi` | 32-bit Windows only |
 
-Alpha installers are unsigned, so Windows shows an unknown-publisher warning. Compare the file's hash with the release's `SHA256SUMS.txt` before running it:
+Alpha installers are unsigned, so Windows shows an unknown-publisher warning. Before running one, check it against the release's `SHA256SUMS.txt`: paste the file's line from that list into the command below (use your installer's name). It prints `True` when they match.
 
 ```powershell
-Get-FileHash .\SecureWall_x64.msi -Algorithm SHA256
+(Get-FileHash .\SecureWall_x64.msi -Algorithm SHA256).Hash -eq '<hash from SHA256SUMS.txt>'
 ```
 
 Setup refuses to run while TinyWall is installed. To upgrade from v0.5.0 or later, run the newer MSI at the PC's own keyboard and screen; v0.5.2 and later can also fetch and run it from **Check for updates** in the tray menu. Rules, settings and the password are kept, and connections to other computers stay blocked for the minute or so the swap takes. v0.4.2 and older must be uninstalled first.
@@ -40,7 +40,7 @@ Setup refuses to run while TinyWall is installed. To upgrade from v0.5.0 or late
 Normal mode blocks inbound and outbound traffic unless a rule allows it. Only outbound connections stopped by SecureWall's default-block filters raise a prompt. The popup offers:
 
 - **Allow outgoing**: a permanent rule that lets this app, package or service reach any destination and port over TCP and UDP. The destination shown in the popup does not limit the rule.
-- **Always allow**, for programs with a valid embedded signature: the same rule, plus one that allows any file with this name signed by the same publisher, in any folder.
+- **Always allow**, for programs with a valid embedded signature on a local drive: the same rule, plus one that allows any file with this name signed by the same publisher, in any folder.
 - **Ignore**: keep blocking and stop asking. The app goes on the Ignored list under Manage, which adds no filter and lets no traffic through.
 - Closing the popup keeps the app blocked, adds no rule, and pauses prompts for that app for five minutes. A prompt that expires unanswered is listed under **Blocked apps not answered** in the tray menu.
 
@@ -48,18 +48,19 @@ Explicit user blocks, blocklists, inbound drops and shared service hosts that Se
 
 TinyWall's Learning (Autolearn) mode is removed and the prompts replace it. A saved or imported configuration that names Learning starts in Normal mode; exceptions learned by earlier builds stay until you delete them.
 
-The AI **?** lookup in the popup is off by default. Turning it on (SecureWall must be unlocked) lets `SecureWall.exe` make outbound TCP connections to port 443 on any host, not only the AI provider, from signed-in accounts only and never as the LocalSystem service. Other ports, and a system proxy on another port, are not supported. Each lookup sends the provider the executable's file name, its unverified publisher and its identity type (plus service name or package SID when present), never the full path; the destination is sent only if you opt in. Answers are labelled AI-generated, capped in size, and never change policy. Do not add your own exception for `SecureWall.exe`: it would cover the service too.
+The AI **?** lookup in the popup is off by default. Turning it on (SecureWall must be unlocked) lets `SecureWall.exe`, in Normal mode, make outbound TCP connections to port 443 on any host, not only the AI provider, from signed-in accounts only and never as the LocalSystem service. Other ports, and a system proxy on another port, are not supported. Each lookup sends the provider the executable's file name, its unverified publisher and its identity type (plus service name or package SID when present), never the full path; the destination is sent only if you opt in. Answers are labelled AI-generated, capped in size, and never change policy. Do not add your own exception for `SecureWall.exe`: it would cover the service too.
 
 ## Network Activity
 
-**Network Activity** in the tray menu refreshes every second. It lists the connections WFP allowed or blocked, with the reason for each block, the state of each TCP connection, and local listening endpoints. `Listening (local endpoint)` means a program has the port open; it does not claim the port is reachable from outside.
+**Network Activity** in the tray menu refreshes every second. It lists the connections WFP allowed or blocked, with the reason for a block where SecureWall knows it, the state of each TCP connection, and local listening endpoints. `Listening (local endpoint)` means a program has the port open; it does not claim the port is reachable from outside.
 
 ## Build and test
 
-SecureWall targets .NET Framework 4.8. Build it with Visual Studio Build Tools' MSBuild, not `dotnet build`, because the project uses COM references. Run the dependency-free security tests first:
+SecureWall targets .NET Framework 4.8. Build it with Visual Studio Build Tools' MSBuild, not `dotnet build`, because the project uses COM references. Run the dependency-free security tests, restore packages, then build:
 
 ```powershell
 dotnet run --project tests\SecureWall.Core.Tests\SecureWall.Core.Tests.csproj
+dotnet restore TinyWall\TinyWall.csproj
 & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\MSBuild.exe" TinyWall\TinyWall.csproj /t:Build /p:Configuration=Debug /p:RestorePackages=false
 ```
 

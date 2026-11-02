@@ -74,7 +74,7 @@ export function verify(md, files = {}) {
 
   // Every image the README references exists (in this build's output or on disk).
   for (const m of md.matchAll(/(?:src|srcset)="([^"]+)"/g)) {
-    if (!(m[1] in files) && !fs.existsSync(path.join(ROOT, m[1]))) fail(`missing asset ${m[1]}`);
+    if (!(m[1] in files) && !existsExact(m[1])) fail(`missing asset ${m[1]}`);
   }
   if (/<a\b[^>]*>\s*<picture/.test(md)) fail('a <picture> is wrapped in a link');
 
@@ -89,11 +89,22 @@ export function verify(md, files = {}) {
   }
 
   // Local link targets exist. Remote links are checked by meta.mjs --check after merge.
-  for (const m of md.matchAll(/\]\(([^)\s]+)\)/g)) {
+  for (const m of md.matchAll(/\]\(<?([^)\s>]+)>?(?:\s+"[^"]*")?\)/g)) {
     const target = m[1];
     if (/^[a-z]+:/i.test(target) || target.startsWith('#')) continue;
-    const file = target.split('#')[0];
-    if (!fs.existsSync(path.join(ROOT, file))) fail(`broken local link ${target}`);
+    if (!existsExact(target.split('#')[0])) fail(`broken local link ${target}`);
   }
   return bad;
+}
+
+// GitHub paths are case-sensitive; Windows and macOS disks are not, so
+// fs.existsSync alone would pass docs/install.md for docs/INSTALL.md.
+function existsExact(rel) {
+  let dir = ROOT;
+  for (const part of rel.split('/').filter(Boolean)) {
+    if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return false;
+    if (!fs.readdirSync(dir).includes(part)) return false;
+    dir = path.join(dir, part);
+  }
+  return true;
 }

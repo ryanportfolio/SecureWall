@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 370" width="880" height="370" role="img" aria-label="Animated illustration: SecureWall lists updater.exe as &quot;Blocked (default deny)&quot; in Network Activity, shows its &quot;SecureWall blocked an outgoing connection&quot; popup in the bottom-right corner, the cursor clicks &quot;Allow outgoing&quot;, and the app's next connection is listed as &quot;Allowed&quot;.">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 394" width="880" height="394" role="img" aria-label="Animated illustration: SecureWall lists updater.exe as &quot;Blocked (default deny)&quot; in Network Activity, shows its &quot;SecureWall blocked an outgoing connection&quot; popup in the corner of the screen, the cursor clicks &quot;Allow outgoing&quot;, and the app's next connection is listed as &quot;Allowed&quot;.">
 <style>
   .ink{fill:#1f2328} .mute{fill:#59636e} .blk{fill:#cf222e} .alw{fill:#1a7f37}
   .rb{animation:rb 10s linear infinite}

@@ -6,8 +6,9 @@
 //   the bottom-right corner, the cursor clicks Allow outgoing, and the app's next
 //   connection is listed as allowed. Exactly the product's loop, nothing invented.
 // - Every word inside the popup and every status string comes from the C# source
-//   through facts.mjs. Popup geometry and colours are the WinForms designer's,
-//   scaled; the popup stays light in both themes because the real window is.
+//   through facts.mjs, as do the control rectangles and the title bar and button
+//   colours. Font sizes, text inks, the white form and its border are drawn here.
+//   The popup stays light in both themes because the real window is.
 // - Example data uses documentation address ranges (RFC 5737) and a generic
 //   updater.exe. It is illustration, and the alt text says so.
 // - Survives 390px: the narrow variant is its own composition (two columns,
@@ -40,7 +41,7 @@ const ROWS = [
 
 export const ALT =
   `Animated illustration: SecureWall lists ${APP.name} as "${FACTS.status.defaultDeny}" in Network Activity, ` +
-  `shows its "${FACTS.popup.title}" popup in the bottom-right corner, the cursor clicks ` +
+  `shows its "${FACTS.popup.title}" popup in the corner of the screen, the cursor clicks ` +
   `"${FACTS.popup.allow.label}", and the app's next connection is listed as "${FACTS.status.allowed}".`;
 
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -140,13 +141,13 @@ function table(t, { x, y, cols, width }) {
 
 function hero(t, narrow) {
   const W = narrow ? 400 : 880;
-  const H = narrow ? 492 : 370; // narrow: the popup rises over the row the Allowed line later fills
+  const H = narrow ? 516 : 394; // narrow: the popup rises over the row the Allowed line later fills
   const p = FACTS.popup;
   const scale = narrow ? 0.78 : 0.8;
   const pw = p.w * scale;
   const ph = p.h * scale;
   const px = narrow ? Math.round((W - pw) / 2) : W - 20 - pw;
-  const py = H - 18 - ph;
+  const py = H - 42 - ph; // room below for the shadow blur
   const a = p.allow;
   const tip = [px + (a.x + a.w * 0.55) * scale, py + (a.y + a.h * 0.6) * scale];
   const cursorFrom = narrow ? [60, 70] : [150, 90];
