@@ -85,4 +85,4 @@ node tools\readme\build.mjs
 node tools\readme\build.mjs --check
 ```
 
-The About panel (description, website, topics) lives in `tools/readme/repo.json`. `node tools\readme\meta.mjs --apply` pushes it to GitHub; CI lints it on pull requests and compares it with GitHub on pushes to main.
+The About panel (description, website, topics) lives in `tools/readme/repo.json`. `node tools\readme\meta.mjs --apply` pushes it to GitHub; CI lints it on pull requests and compares it with GitHub on pushes to main, so run `--apply` right after a `repo.json` change merges or main CI fails on the drift.
