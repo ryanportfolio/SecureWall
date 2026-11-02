@@ -46,6 +46,12 @@ const BUNDLE_PATCHES = [
     'this.compositePass.name="Final Composite",window.__swComposite=this.compositePass,',
     "window.__swComposite",
   ],
+  // Hero tagline: two lines, no periods (owner copy decision).
+  [
+    'children:"A default-deny firewall for Windows. Decide which apps connect."',
+    'children:["A default-deny firewall for Windows",j.jsx("br",{}),"Decide which apps connect"]',
+    '"Decide which apps connect"]',
+  ],
 ];
 
 class Failure extends Error {}
