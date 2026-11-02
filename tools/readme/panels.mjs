@@ -1,4 +1,4 @@
-// Hero panel for README.md: four SVG variants (wide/narrow x light/dark).
+// Hero panel for README.md: four SVG files (wide/narrow x light/dark page), all the same dark card.
 //
 // Constraint contract. Read before editing the art.
 // - Conceit: the panel is the corner of a Windows screen. A connection lands in
@@ -154,7 +154,7 @@ function hero(t, narrow) {
   const py = H - 42 - ph; // room below for the shadow blur
   const a = p.allow;
   const tip = [px + (a.x + a.w * 0.55) * scale, py + (a.y + a.h * 0.6) * scale];
-  const cursorFrom = narrow ? [60, 70] : [150, 90];
+  const cursorFrom = narrow ? [60, 30] : [120, 40]; // starts inside the card
 
   // No subline: the paragraph under the picture says what SecureWall is.
   const head = narrow ? headline(20, 58, 104, 40) : headline(36, 92, 150, 54);
@@ -207,6 +207,9 @@ export function verify(files) {
     for (const word of wrap(FACTS.popup.notice.text, 1000)[0].split(' ')) {
       if (!svg.includes(esc(word))) { console.error(`FAIL ${file}: notice word "${word}" missing`); bad++; }
     }
+    // The contract: every variant is the same opaque dark card with the same inks.
+    if (!svg.includes(`rx="12" fill="${SCREEN.card}"`)) { console.error(`FAIL ${file}: dark card missing`); bad++; }
+    if (!svg.includes(`.ink{fill:${SCREEN.ink}}`)) { console.error(`FAIL ${file}: ink is not the screen ink`); bad++; }
   }
   return bad;
 }
