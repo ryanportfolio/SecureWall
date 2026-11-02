@@ -102,8 +102,10 @@
 
   function render() {
     const s = segAt(T);
-    P.set({ scene: s.id, t: Math.min(s.dur, Math.max(0, T - s.start)) });
-    if (shown !== s.id) { shown = s.id; $("title").textContent = s.title; $("take").textContent = s.takeaway; }
+    // A scene is mounted only when the film enters it; within it only t changes.
+    const local = Math.min(s.dur, Math.max(0, T - s.start));
+    if (shown !== s.id) { P.set({ scene: s.id, t: local }); shown = s.id; $("title").textContent = s.title; $("take").textContent = s.takeaway; }
+    else P.set({ t: local });
     head.style.left = pct(T); prog.style.width = pct(T);
     const cutMs = cuts.reduce((a, c) => a + (c.b - c.a), 0);
     $("time").textContent = `${fmt(T)} / ${fmt(total)}`;

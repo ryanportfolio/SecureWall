@@ -41,27 +41,26 @@ namespace pylorak.TinyWall
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            // Its constructor loads this build's controller settings; replaced below.
+            // Its constructor uses English sample settings while Active is set (it reads no file).
             using TinyWallController controller = TinyWallController.CreatePreview();
             // Neutral (English) strings and fixed date formats, whatever this machine uses.
             Thread.CurrentThread.CurrentUICulture = CultureInfo.InvariantCulture;
-            Thread.CurrentThread.CurrentCulture = new CultureInfo("en-US");
+            Thread.CurrentThread.CurrentCulture = CultureInfo.GetCultureInfo("en-US");
             Application.CurrentCulture = Thread.CurrentThread.CurrentCulture;
 
             // A Debug build has no profiles.json beside it; "/database <path>" names one, for
-            // example MsiSetup\Sources\CommonAppData\SecureWall\profiles.json.
+            // example MsiSetup\Sources\CommonAppData\SecureWall\profiles.json. Read-only: a
+            // legacy XML database beside it is not migrated over the file.
             try
             {
-                string? database = ValueAfter(args, "/database");
-                GlobalInstances.AppDatabase = database == null
-                    ? DatabaseClasses.AppDatabase.Load()
-                    : SerializationHelper.DeserializeFromFile(database, new DatabaseClasses.AppDatabase(), readOnlySource: true);
+                string database = ValueAfter(args, "/database") ?? DatabaseClasses.AppDatabase.DBPath;
+                GlobalInstances.AppDatabase = SerializationHelper.DeserializeFromFile(database, new DatabaseClasses.AppDatabase(), readOnlySource: true);
             }
             catch
             {
                 GlobalInstances.AppDatabase = new DatabaseClasses.AppDatabase();
             }
-            ActiveConfig.Controller = new ControllerSettings { UiTheme = HasSwitch(args, "/dark") ? "dark" : "light" };
+            ActiveConfig.Controller = new ControllerSettings { Language = "en-US", UiTheme = HasSwitch(args, "/dark") ? "dark" : "light" };
             ActiveConfig.Service = UiPreviewSamples.Configuration(GlobalInstances.AppDatabase);
             GlobalInstances.Controller = new Controller(NoServicePipe);
 
