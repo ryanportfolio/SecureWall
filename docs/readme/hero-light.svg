@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 394" width="880" height="394" role="img" aria-label="Animated illustration: SecureWall lists updater.exe as &quot;Blocked (default deny)&quot; in Network Activity, shows its &quot;SecureWall blocked an outgoing connection&quot; popup in the corner of the screen, the cursor clicks &quot;Allow outgoing&quot;, and the app's next connection is listed as &quot;Allowed&quot;.">
 <style>
-  .ink{fill:#1f2328} .mute{fill:#59636e} .blk{fill:#cf222e} .alw{fill:#1a7f37}
+  .ink{fill:#f0f6fc} .mute{fill:#9198a1} .blk{fill:#ff7b72} .alw{fill:#3fb950}
   .rb{animation:rb 10s linear infinite}
   .ra{opacity:0;animation:ra 10s linear infinite}
   .pop{animation:pop 10s cubic-bezier(.2,.7,.2,1) infinite}
@@ -9,7 +9,7 @@
   @keyframes rb{0%,4%{opacity:0}8%,92%{opacity:1}97%,100%{opacity:0}}
   @keyframes ra{0%,56%{opacity:0}60%,92%{opacity:1}97%,100%{opacity:0}}
   @keyframes pop{0%,10%{opacity:0;transform:translateY(28px)}17%,46%{opacity:1;transform:translateY(0)}52%,100%{opacity:0;transform:translateY(28px)}}
-  @keyframes cur{0%,18%{opacity:0;transform:translate(150px,90px)}22%{opacity:1}36%,46%{opacity:1;transform:translate(0,0)}52%,100%{opacity:0;transform:translate(0,0)}}
+  @keyframes cur{0%,18%{opacity:0;transform:translate(120px,40px)}22%{opacity:1}36%,46%{opacity:1;transform:translate(0,0)}52%,100%{opacity:0;transform:translate(0,0)}}
   @keyframes press{0%,39%{opacity:0}40%,45%{opacity:.28}46%,100%{opacity:0}}
   @media (prefers-reduced-motion:reduce){
     .rb,.ra,.pop,.cur,.press{animation:none!important}
@@ -18,6 +18,7 @@
   }
 </style>
 <defs><filter id="sh" x="-20%" y="-20%" width="140%" height="150%"><feGaussianBlur stdDeviation="10"/></filter></defs>
+<rect x="0.5" y="0.5" width="879" height="393" rx="12" fill="#0d1117" stroke="#0d1117"/>
 <g font-family="ui-monospace,'Cascadia Mono','SF Mono',Menlo,Consolas,'Liberation Mono',monospace" font-size="54" font-weight="700">
   <text class="ink" x="36" y="92">Choose what</text>
   <text x="36" y="157.56" fill="#4aa8ff" opacity="0.9">connects</text><text x="36" y="155.67" fill="#3ddc97" opacity="0.9">connects</text><text x="36" y="153.78" fill="#ffb347" opacity="0.9">connects</text><text x="36" y="151.89" fill="#ff5c7a" opacity="0.9">connects</text>
@@ -27,14 +28,14 @@
 <g font-family="ui-monospace,'Cascadia Mono','SF Mono',Menlo,Consolas,'Liberation Mono',monospace" font-size="12">
   <text class="mute" x="36" y="204" font-size="11" letter-spacing="1.5">NETWORK ACTIVITY</text>
   <text class="mute" x="36" y="226">APP</text><text class="mute" x="156" y="226">REMOTE</text><text class="mute" x="300" y="226">STATUS</text>
-  <line x1="36" x2="466" y1="234" y2="234" stroke="#d1d9e0"/>
-  <text class="ink" x="36" y="254">msedge.exe</text><text class="ink" x="156" y="254">198.51.100.14:443</text><text class="alw" x="300" y="254">Allowed</text><line x1="36" x2="466" y1="262" y2="262" stroke="#d1d9e0"/>
-  <text class="ink" x="36" y="278">svchost.exe</text><text class="ink" x="156" y="278">192.0.2.53:53</text><text class="alw" x="300" y="278">Allowed</text><line x1="36" x2="466" y1="286" y2="286" stroke="#d1d9e0"/>
-  <g class="rb"><text class="ink" x="36" y="302">updater.exe</text><text class="ink" x="156" y="302">203.0.113.20:443</text><text class="blk" x="300" y="302">Blocked (default deny)</text><line x1="36" x2="466" y1="310" y2="310" stroke="#d1d9e0"/></g>
-  <g class="ra"><text class="ink" x="36" y="326">updater.exe</text><text class="ink" x="156" y="326">203.0.113.20:443</text><text class="alw" x="300" y="326">Allowed</text><line x1="36" x2="466" y1="334" y2="334" stroke="#d1d9e0"/></g>
+  <line x1="36" x2="466" y1="234" y2="234" stroke="#3d444d"/>
+  <text class="ink" x="36" y="254">msedge.exe</text><text class="ink" x="156" y="254">198.51.100.14:443</text><text class="alw" x="300" y="254">Allowed</text><line x1="36" x2="466" y1="262" y2="262" stroke="#3d444d"/>
+  <text class="ink" x="36" y="278">svchost.exe</text><text class="ink" x="156" y="278">192.0.2.53:53</text><text class="alw" x="300" y="278">Allowed</text><line x1="36" x2="466" y1="286" y2="286" stroke="#3d444d"/>
+  <g class="rb"><text class="ink" x="36" y="302">updater.exe</text><text class="ink" x="156" y="302">203.0.113.20:443</text><text class="blk" x="300" y="302">Blocked (default deny)</text><line x1="36" x2="466" y1="310" y2="310" stroke="#3d444d"/></g>
+  <g class="ra"><text class="ink" x="36" y="326">updater.exe</text><text class="ink" x="156" y="326">203.0.113.20:443</text><text class="alw" x="300" y="326">Allowed</text><line x1="36" x2="466" y1="334" y2="334" stroke="#3d444d"/></g>
 </g>
 <g class="pop">
-  <rect x="496" y="146" width="368" height="216" fill="#000" opacity="0.18" filter="url(#sh)"/>
+  <rect x="496" y="146" width="368" height="216" fill="#000" opacity="0.55" filter="url(#sh)"/>
   <g transform="translate(492 136) scale(0.8)">
     <rect x="0" y="0" width="460" height="270" fill="#FFFFFF" stroke="#6B7280" stroke-width="1"/>
     <rect x="1" y="1" width="458" height="42" fill="#1F2937"/>
