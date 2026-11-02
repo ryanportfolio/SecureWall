@@ -4,7 +4,7 @@ SecureWall is early development software. Do not install it on a machine you can
 
 ## Installers
 
-Each release attaches three per-machine Windows installers:
+SecureWall needs Windows 10 version 21H2 (build 19044) or newer, or Windows 11; setup refuses older builds. Each release attaches three per-machine Windows installers:
 
 - `SecureWall_x64.msi` for normal Intel/AMD 64-bit Windows PCs.
 - `SecureWall_arm64.msi` for Windows on ARM.

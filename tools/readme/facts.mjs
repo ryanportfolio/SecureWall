@@ -10,8 +10,14 @@ export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
 function pick(rel, re, what) {
-  const m = read(rel).match(re);
+  const src = read(rel);
+  const m = src.match(re);
   if (!m) throw new Error(`facts: ${what} not found in ${rel} (${re})`);
+  // String captures are plain C# literals. An escape (\" or \n) or a "+"
+  // concatenation would be cut short here, so refuse it instead of drawing half.
+  if (/"$/.test(m[0]) && (m[1].includes('\\') || /^\s*\+/.test(src.slice(m.index + m[0].length)))) {
+    throw new Error(`facts: ${what} in ${rel} uses an escape or concatenation; extend facts.mjs to read it`);
+  }
   return m;
 }
 

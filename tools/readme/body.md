@@ -2,7 +2,7 @@
 
 {{hero}}
 
-SecureWall is a default-deny firewall for Windows 10 and 11, built on TinyWall. Nothing on the PC reaches the network until a rule allows it. When an app you have not decided on tries to connect out, SecureWall blocks it and asks you in a small window at the bottom right of the screen.
+SecureWall is a default-deny firewall for Windows 10 (21H2 or newer) and Windows 11, built on TinyWall. Nothing on the PC reaches the network until a rule allows it. When an app you have not decided on tries to connect out, SecureWall blocks it and asks you in a small window at the bottom right of the screen.
 
 [secwall.org](https://secwall.org/) · [Latest release](https://github.com/ryanportfolio/SecureWall/releases) · [Install guide](docs/INSTALL.md) · [Security model](docs/SECURITY.md)
 
@@ -15,7 +15,7 @@ Download the installer for your PC from the [latest release](https://github.com/
 
 {{installers}}
 
-Alpha installers are unsigned, so Windows shows an unknown-publisher warning. Before running one, check it against the release's `SHA256SUMS.txt`: paste the file's line from that list into the command below (use your installer's name). It prints `True` when they match.
+Alpha installers are unsigned, so Windows shows an unknown-publisher warning. Before running one, check it against the release's `SHA256SUMS.txt`: copy your installer's hash from that list (the 64 characters before its file name) into the command below, and use your installer's name. It prints `True` when they match.
 
 ```powershell
 (Get-FileHash .\SecureWall_x64.msi -Algorithm SHA256).Hash -eq '<hash from SHA256SUMS.txt>'

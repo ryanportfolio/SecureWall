@@ -31,7 +31,9 @@ function lint() {
   if (!Array.isArray(meta.topics)) fail('topics must be an array');
   else {
     if (meta.topics.length > 20) fail(`${meta.topics.length} topics (20 max)`);
-    for (const t of meta.topics) if (!/^[a-z0-9][a-z0-9-]{0,49}$/.test(t)) fail(`bad topic "${t}"`);
+    for (const t of meta.topics) {
+      if (typeof t !== 'string' || !/^[a-z0-9][a-z0-9-]{0,49}$/.test(t)) fail(`bad topic ${JSON.stringify(t)}`);
+    }
     if (new Set(meta.topics).size !== meta.topics.length) fail('duplicate topics');
   }
 }
