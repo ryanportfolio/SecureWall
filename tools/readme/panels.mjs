@@ -1,4 +1,4 @@
-// Hero panel for README.md: four SVG variants (wide/narrow x light/dark).
+// Hero panel for README.md: four SVG files (wide/narrow x light/dark page), all the same dark card.
 //
 // Constraint contract. Read before editing the art.
 // - Conceit: the panel is the corner of a Windows screen. A connection lands in
@@ -13,8 +13,11 @@
 //   updater.exe. It is illustration, and the alt text says so.
 // - Survives 390px: the narrow variant is its own composition (two columns,
 //   popup below the list), not the wide one scaled down.
-// - Survives both themes: the background is transparent; ink, rules and status
-//   colours swap per theme. Only the popup keeps fixed colours.
+// - Survives both themes: every variant is the same opaque dark screen card,
+//   so the art never depends on which variant a viewer picks. <picture> chooses
+//   by the OS colour preference, which can disagree with GitHub's own theme
+//   setting, and some viewers ignore it; a transparent panel then put dark ink
+//   on a dark page. The light and dark files differ only in the card's edge.
 // - Survives no scripts, no hover, no external requests: CSS keyframes only, a
 //   10 s loop, system fonts. The authored (unanimated) state is the decision
 //   moment: blocked row, popup up, cursor on Allow outgoing. Reduced motion
@@ -25,9 +28,10 @@ import { FACTS } from './facts.mjs';
 
 export const OUT_DIR = 'docs/readme';
 
+const SCREEN = { card: '#0d1117', ink: '#f0f6fc', mute: '#9198a1', rule: '#3d444d', blocked: '#ff7b72', allowed: '#3fb950', shadow: 0.55 };
 const THEMES = {
-  light: { ink: '#1f2328', mute: '#59636e', rule: '#d1d9e0', blocked: '#cf222e', allowed: '#1a7f37', shadow: 0.18 },
-  dark: { ink: '#f0f6fc', mute: '#9198a1', rule: '#3d444d', blocked: '#ff7b72', allowed: '#3fb950', shadow: 0.55 },
+  light: { ...SCREEN, edge: '#0d1117' }, // on a white page the card needs no visible rim
+  dark: { ...SCREEN, edge: '#3d444d' }, // on GitHub's #0d1117 page the rim marks the card
 };
 const SLICES = ['#4aa8ff', '#3ddc97', '#ffb347', '#ff5c7a'];
 const MONO = "ui-monospace,'Cascadia Mono','SF Mono',Menlo,Consolas,'Liberation Mono',monospace";
@@ -150,7 +154,7 @@ function hero(t, narrow) {
   const py = H - 42 - ph; // room below for the shadow blur
   const a = p.allow;
   const tip = [px + (a.x + a.w * 0.55) * scale, py + (a.y + a.h * 0.6) * scale];
-  const cursorFrom = narrow ? [60, 70] : [150, 90];
+  const cursorFrom = narrow ? [60, 30] : [120, 40]; // starts inside the card
 
   // No subline: the paragraph under the picture says what SecureWall is.
   const head = narrow ? headline(20, 58, 104, 40) : headline(36, 92, 150, 54);
@@ -162,6 +166,7 @@ function hero(t, narrow) {
 <style>${css(t, cursorFrom)}
 </style>
 <defs><filter id="sh" x="-20%" y="-20%" width="140%" height="150%"><feGaussianBlur stdDeviation="10"/></filter></defs>
+<rect x="0.5" y="0.5" width="${W - 1}" height="${H - 1}" rx="12" fill="${t.card}" stroke="${t.edge}"/>
 ${head}
 
 ${list}
@@ -202,6 +207,9 @@ export function verify(files) {
     for (const word of wrap(FACTS.popup.notice.text, 1000)[0].split(' ')) {
       if (!svg.includes(esc(word))) { console.error(`FAIL ${file}: notice word "${word}" missing`); bad++; }
     }
+    // The contract: every variant is the same opaque dark card with the same inks.
+    if (!svg.includes(`rx="12" fill="${SCREEN.card}"`)) { console.error(`FAIL ${file}: dark card missing`); bad++; }
+    if (!svg.includes(`.ink{fill:${SCREEN.ink}}`)) { console.error(`FAIL ${file}: ink is not the screen ink`); bad++; }
   }
   return bad;
 }

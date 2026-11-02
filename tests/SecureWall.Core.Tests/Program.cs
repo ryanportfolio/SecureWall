@@ -89,6 +89,7 @@ internal static class Program
             .Concat(ExceptionMergeTests.Cases)
             .Concat(ControllerActivityTests.Cases)
             .Concat(AiExplainHardeningTests.Cases)
+            .Concat(AiHelpPermitTests.Cases)
             .Concat(InstallerDiagnosticsTests.Cases)
             .Concat(ProfileMergeTests.Cases)
             .Concat(UpdateFeedRemovalTests.Cases)

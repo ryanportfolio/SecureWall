@@ -469,7 +469,7 @@ internal static class ReleaseUpdateTests
         AssertEx.True(permit.Contains("new AppIdFilterCondition(ntImagePath, false, true)"), "SecureWall image only");
         AssertEx.True(permit.Contains("AiExplainEgressPolicy.TcpProtocol") && permit.Contains("AiExplainEgressPolicy.RemotePort, AiExplainEgressPolicy.RemotePort, RemoteOrLocal.Remote"), "TCP 443 only");
         AssertEx.True(permit.Contains("FWP_CONDITION_FLAG_IS_LOOPBACK"), "no loopback");
-        AssertEx.True(permit.Contains("FilterWeights.UserPermit"), "user blocks still win");
+        AssertEx.True(permit.Contains("FilterWeights.OwnImagePermit"), "an inherited block on SecureWall.exe does not hide the permit");
     }
 
     private static void MessagesSitInPrivilegeRanges()

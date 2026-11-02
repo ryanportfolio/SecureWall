@@ -5,19 +5,24 @@ namespace pylorak.TinyWall.Prompting
 {
     internal sealed class AiExplainResult
     {
-        private AiExplainResult(bool success, string? text, string? error)
+        private AiExplainResult(bool success, string? text, string? error, Exception? transportFailure = null)
         {
             Success = success;
             Text = text;
             Error = error;
+            TransportFailure = transportFailure;
         }
 
         internal bool Success { get; }
         internal string? Text { get; }
         internal string? Error { get; }
+        // Set when the request never got an HTTP answer; the popup explains it with AiExplainFailure.
+        internal Exception? TransportFailure { get; }
 
         internal static AiExplainResult Ok(string text) => new AiExplainResult(true, text, null);
         internal static AiExplainResult Fail(string error) => new AiExplainResult(false, null, error);
+        internal static AiExplainResult Unreachable(Exception exception) =>
+            new AiExplainResult(false, null, AiExplainFailure.Describe(exception, null, false), exception);
     }
 
     // Parses an OpenAI-compatible /chat/completions response. Kept pure and separate from the
