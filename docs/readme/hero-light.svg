@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 394" width="880" height="394" role="img" aria-label="Animated illustration: SecureWall lists updater.exe as &quot;Blocked (default deny)&quot; in Network Activity, shows its &quot;SecureWall blocked an outgoing connection&quot; popup in the corner of the screen, the cursor clicks &quot;Allow outgoing&quot;, and the app's next connection is listed as &quot;Allowed&quot;.">
+<style>
+  .ink{fill:#1f2328} .mute{fill:#59636e} .blk{fill:#cf222e} .alw{fill:#1a7f37}
+  .rb{animation:rb 10s linear infinite}
+  .ra{opacity:0;animation:ra 10s linear infinite}
+  .pop{animation:pop 10s cubic-bezier(.2,.7,.2,1) infinite}
+  .cur{animation:cur 10s ease-in-out infinite}
+  .press{animation:press 10s linear infinite}
+  @keyframes rb{0%,4%{opacity:0}8%,92%{opacity:1}97%,100%{opacity:0}}
+  @keyframes ra{0%,56%{opacity:0}60%,92%{opacity:1}97%,100%{opacity:0}}
+  @keyframes pop{0%,10%{opacity:0;transform:translateY(28px)}17%,46%{opacity:1;transform:translateY(0)}52%,100%{opacity:0;transform:translateY(28px)}}
+  @keyframes cur{0%,18%{opacity:0;transform:translate(150px,90px)}22%{opacity:1}36%,46%{opacity:1;transform:translate(0,0)}52%,100%{opacity:0;transform:translate(0,0)}}
+  @keyframes press{0%,39%{opacity:0}40%,45%{opacity:.28}46%,100%{opacity:0}}
+  @media (prefers-reduced-motion:reduce){
+    .rb,.ra,.pop,.cur,.press{animation:none!important}
+    .rb,.pop,.cur{opacity:1;transform:none}
+    .ra,.press{opacity:0}
+  }
+</style>
+<defs><filter id="sh" x="-20%" y="-20%" width="140%" height="150%"><feGaussianBlur stdDeviation="10"/></filter></defs>
+<g font-family="ui-monospace,'Cascadia Mono','SF Mono',Menlo,Consolas,'Liberation Mono',monospace" font-size="54" font-weight="700">
+  <text class="ink" x="36" y="92">Choose what</text>
+  <text x="36" y="157.56" fill="#4aa8ff" opacity="0.9">connects</text><text x="36" y="155.67" fill="#3ddc97" opacity="0.9">connects</text><text x="36" y="153.78" fill="#ffb347" opacity="0.9">connects</text><text x="36" y="151.89" fill="#ff5c7a" opacity="0.9">connects</text>
+  <text class="ink" x="36" y="150">connects</text>
+</g>
+
+<g font-family="ui-monospace,'Cascadia Mono','SF Mono',Menlo,Consolas,'Liberation Mono',monospace" font-size="12">
+  <text class="mute" x="36" y="204" font-size="11" letter-spacing="1.5">NETWORK ACTIVITY</text>
+  <text class="mute" x="36" y="226">APP</text><text class="mute" x="156" y="226">REMOTE</text><text class="mute" x="300" y="226">STATUS</text>
+  <line x1="36" x2="466" y1="234" y2="234" stroke="#d1d9e0"/>
+  <text class="ink" x="36" y="254">msedge.exe</text><text class="ink" x="156" y="254">198.51.100.14:443</text><text class="alw" x="300" y="254">Allowed</text><line x1="36" x2="466" y1="262" y2="262" stroke="#d1d9e0"/>
+  <text class="ink" x="36" y="278">svchost.exe</text><text class="ink" x="156" y="278">192.0.2.53:53</text><text class="alw" x="300" y="278">Allowed</text><line x1="36" x2="466" y1="286" y2="286" stroke="#d1d9e0"/>
+  <g class="rb"><text class="ink" x="36" y="302">updater.exe</text><text class="ink" x="156" y="302">203.0.113.20:443</text><text class="blk" x="300" y="302">Blocked (default deny)</text><line x1="36" x2="466" y1="310" y2="310" stroke="#d1d9e0"/></g>
+  <g class="ra"><text class="ink" x="36" y="326">updater.exe</text><text class="ink" x="156" y="326">203.0.113.20:443</text><text class="alw" x="300" y="326">Allowed</text><line x1="36" x2="466" y1="334" y2="334" stroke="#d1d9e0"/></g>
+</g>
+<g class="pop">
+  <rect x="496" y="146" width="368" height="216" fill="#000" opacity="0.18" filter="url(#sh)"/>
+  <g transform="translate(492 136) scale(0.8)">
+    <rect x="0" y="0" width="460" height="270" fill="#FFFFFF" stroke="#6B7280" stroke-width="1"/>
+    <rect x="1" y="1" width="458" height="42" fill="#1F2937"/>
+    <text x="14" y="28" fill="#FFFFFF" font-family="'Segoe UI',-apple-system,BlinkMacSystemFont,'Noto Sans',Helvetica,Arial,sans-serif" font-size="13.333333333333334" font-weight="600">SecureWall blocked an outgoing connection</text>
+    <path d="M428 16l10 10m0 -10l-10 10" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round"/>
+    <text x="18" y="75" fill="#111827" font-family="'Segoe UI',-apple-system,BlinkMacSystemFont,'Noto Sans',Helvetica,Arial,sans-serif" font-size="14.666666666666666" font-weight="600">updater.exe</text>
+    <text x="18" y="97" fill="#4B5563" font-family="'Segoe UI',-apple-system,BlinkMacSystemFont,'Noto Sans',Helvetica,Arial,sans-serif" font-size="11.333333333333334">C:\Program Files\Updater\updater.exe</text>
+    <text x="18" y="139" fill="#111827" font-family="'Segoe UI',-apple-system,BlinkMacSystemFont,'Noto Sans',Helvetica,Arial,sans-serif" font-size="12" xml:space="preserve">Destination: TCP  203.0.113.20:443</text>
+    <text x="18" y="163" fill="#374151" font-family="'Segoe UI',-apple-system,BlinkMacSystemFont,'Noto Sans',Helvetica,Arial,sans-serif" font-size="11.333333333333334">Allow permanently permits this app, package, or service to reach all</text>
+    <text x="18" y="178" fill="#374151" font-family="'Segoe UI',-apple-system,BlinkMacSystemFont,'Noto Sans',Helvetica,Arial,sans-serif" font-size="11.333333333333334">destinations and ports over TCP/UDP.</text>
+    
+    <rect x="102" y="222" width="116" height="36" fill="#DBEAFE"/>
+    
+    <text x="160" y="244" fill="#1E40AF" font-family="'Segoe UI',-apple-system,BlinkMacSystemFont,'Noto Sans',Helvetica,Arial,sans-serif" font-size="12" font-weight="600" text-anchor="middle">Always allow</text>
+    <rect x="226" y="222" width="132" height="36" fill="#2563EB"/>
+    <rect class="press" x="226" y="222" width="132" height="36" fill="#000" opacity="0"/>
+    <text x="292" y="244" fill="#FFFFFF" font-family="'Segoe UI',-apple-system,BlinkMacSystemFont,'Noto Sans',Helvetica,Arial,sans-serif" font-size="12" font-weight="600" text-anchor="middle">Allow outgoing</text>
+    <rect x="366" y="222" width="76" height="36" fill="#E5E7EB"/>
+    
+    <text x="404" y="244" fill="#1F2937" font-family="'Segoe UI',-apple-system,BlinkMacSystemFont,'Noto Sans',Helvetica,Arial,sans-serif" font-size="12" font-weight="600" text-anchor="middle">Ignore</text>
+  </g>
+</g>
+<g class="cur"><path transform="translate(730.9 330.9)" d="M0 0L0 17L4.6 12.6L7.6 19.4L10.4 18.2L7.5 11.6L13.6 11.6Z" fill="#FFFFFF" stroke="#111827" stroke-width="1.2" stroke-linejoin="round"/></g>
+</svg>
