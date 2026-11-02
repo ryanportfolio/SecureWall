@@ -192,6 +192,11 @@
       T = Math.max(0, Math.min(total, t));
       draw();
     }
+    // To a chapter's start; with reduced motion while paused, to its end
+    // frame, where its result shows.
+    function jump(seg) {
+      seek(reduceQuery.matches && !want ? seg.start + seg.dur - 1 : seg.start);
+    }
 
     function setTheme(id) {
       if (id === theme) return;
@@ -234,10 +239,7 @@
         btn.querySelector(".sw-tour__name").textContent = s.title;
         btn.querySelector(".sw-tour__result").textContent = result;
         btn.querySelector(".sw-tour__take span").textContent = s.takeaway || "";
-        btn.addEventListener("click", () => {
-          // Reduced motion: the chapter's end frame, where its result shows.
-          seek(reduceQuery.matches && !want ? seg.start + seg.dur - 1 : seg.start);
-        });
+        btn.addEventListener("click", () => jump(seg));
         row.append(btn);
         log.append(row);
         seg.row = row;
@@ -253,8 +255,21 @@
       range.max = String(total);
       box.classList.add("is-ready");
       if (theme !== "dark") P.set({ theme });
-      // Click on the picture pauses or plays; keys pressed inside it are not the player's.
+      // Click on the picture pauses or plays. The click focuses the frame, so
+      // keys pressed there come here first and never reach the player's own
+      // shortcuts, which would change its scene or clock behind this script.
       frame.contentDocument.addEventListener("click", () => setWant(!want));
+      frame.contentWindow.addEventListener("keydown", e => {
+        e.stopImmediatePropagation();
+        if (e.key === " ") {
+          e.preventDefault();
+          setWant(!want);
+        } else if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+          e.preventDefault();
+          const next = segs[segs.indexOf(segAt(Math.min(T, total))) + (e.key === "ArrowRight" ? 1 : -1)];
+          if (next) jump(next);
+        }
+      }, true);
       if (!want) {
         const poster = segs.find(s => s.id === POSTER.scene) || segs[0];
         T = poster.start + Math.round(poster.dur * POSTER.at);
@@ -272,26 +287,38 @@
         loading: "eager",
       });
       frameBox.prepend(frame);
-      const deadline = performance.now() + 15000;
+      // The deadline runs from here, so a frame whose load never fires
+      // also falls back.
+      let failed = false;
+      let poll = 0;
+      const fail = () => {
+        if (failed || P) return;
+        failed = true;
+        clearTimeout(poll);
+        fallback();
+      };
+      const deadline = setTimeout(fail, 15000);
       frame.addEventListener("load", () => {
         const wait = () => {
+          if (failed) return;
           let p = null;
           try {
             p = frame.contentWindow.__player;
           } catch {
-            fallback();
+            fail();
             return;
           }
           if (p && p.ready) {
+            clearTimeout(deadline);
             if (p.errors.length || p.missing.length) console.warn("tour:", p.errors, p.missing);
             try {
               ready(p);
             } catch (err) {
               console.error("tour:", err);
-              fallback();
+              P = null;
+              fail();
             }
-          } else if (performance.now() > deadline) fallback();
-          else setTimeout(wait, 50);
+          } else poll = setTimeout(wait, 50);
         };
         wait();
       });
