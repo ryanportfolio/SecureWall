@@ -369,7 +369,9 @@ const add = (src) => new Promise((res) => { const s = document.createElement("sc
   load(j < 0 ? 0 : j);
   if (q.has("t")) { t = +q.get("t"); setPlaying(false); render(); }
   P.ready = true;
-  requestAnimationFrame((n) => { last = n; loop(n); });
+  // fill=1: the host page owns the clock and every frame is drawn by its P.set() calls,
+  // so the player runs no loop of its own (it would redraw the same frame while paused).
+  if (!FILL) requestAnimationFrame((n) => { last = n; loop(n); });
 })();
 })();
 </script></body></html>
