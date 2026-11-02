@@ -38,6 +38,7 @@ namespace pylorak.TinyWall
             Blocklist = 9000000,
             RawSocketPermit = 8000000,
             RawSocketBlock = 7000000,
+            OwnImagePermit = Prompting.AiExplainEgressPolicy.PermitWeight,
             UserBlock = 6000000,
             UserPermit = 5000000,
             DefaultPermit = 4000000,
@@ -988,7 +989,7 @@ namespace pylorak.TinyWall
         // Optional AI assistant egress, full reloads only. SecureWall.exe is also the LocalSystem
         // service image, so the permit carries a user condition that denies the service
         // accounts and allows only interactive tokens, plus outbound TCP to remote port 443.
-        // It sits at user-permit weight, so explicit user blocks and blocklists still win.
+        // It sits above user blocks (see AiExplainEgressPolicy.PermitWeight); blocklists still win.
         private void InstallAiAssistantPermit()
         {
             bool displayOffBlockActive = PolicyConfiguration.ActiveProfile.DisplayOffBlock && !DisplayCurrentlyOn;
@@ -1008,7 +1009,7 @@ namespace pylorak.TinyWall
                 "Outbound TCP 443 for the interactive SecureWall controller only",
                 SECUREWALL_PROVIDER_KEY,
                 FilterActions.FWP_ACTION_PERMIT,
-                (ulong)FilterWeights.UserPermit
+                (ulong)FilterWeights.OwnImagePermit
             );
             f.LayerKey = GetLayerKey(layer);
             f.SublayerKey = GetSublayerKey(layer);
@@ -1041,7 +1042,7 @@ namespace pylorak.TinyWall
                 "Outbound TCP 443 for one user's SecureWall controller while it checks for updates",
                 SECUREWALL_PROVIDER_KEY,
                 FilterActions.FWP_ACTION_PERMIT,
-                (ulong)FilterWeights.UserPermit
+                (ulong)FilterWeights.OwnImagePermit
             );
             f.LayerKey = GetLayerKey(layer);
             f.SublayerKey = GetSublayerKey(layer);

@@ -127,7 +127,9 @@ namespace pylorak.TinyWall.Prompting
 
                 ShowAiResult(result.Success
                     ? AiExplainText.FormatExplanation(result.Text)
-                    : AiExplainText.FormatError(result.Error));
+                    : AiExplainText.FormatError(result.TransportFailure != null
+                        ? DescribeTransportFailure(result.TransportFailure)
+                        : result.Error));
             }
             catch (OperationCanceledException)
             {
@@ -143,6 +145,13 @@ namespace pylorak.TinyWall.Prompting
                 if (!IsDisposed && _aiButton != null)
                     _aiButton.Enabled = true;
             }
+        }
+
+        // Reads the service's flag and mode now, so a firewall drop names the setting to change.
+        private static string DescribeTransportFailure(Exception failure)
+        {
+            AiExplainSettingsForm.TryReadServiceSettings(out ServerConfiguration? live, out ServerState? state, out _);
+            return AiExplainFailure.Describe(failure, live?.AiAssistantEgress, state?.Mode == FirewallMode.BlockAll);
         }
 
         private bool OfferToConfigure()
