@@ -44,4 +44,8 @@ The review scripts (contact sheets, determinism, tap spot checks, ship check) co
 
 ## Embedding
 
-`index.html?embed=1` runs the postMessage protocol for a host page (`ready`, `start`, `theme`, `skip`, `tour-done`). `tour.config.js` accepts messages only from `https://secwall.org`; serve the page with `Content-Security-Policy: frame-ancestors https://secwall.org`. Chapter buttons link to `/#team` (downloads) and `/#public-goods` (guides). The tour is not on the live site yet.
+`index.html?embed=1` runs the postMessage protocol for a host page (`ready`, `start`, `theme`, `skip`, `tour-done`). `tour.config.js` accepts messages only from `https://secwall.org`; serve the page with a `frame-ancestors` policy that admits only the site (the patcher sets `'self'`). Chapter buttons link to `/#team` (downloads) and `/#public-goods` (guides).
+
+## On secwall.org
+
+The site's Tour section (`tools/site/sections/tour.js` and `tour.css`) sits between the download cards and "Before you install". It frames `/walkthrough/index.html?capture=1&fill=1&dev=0` from the same origin and drives it with `__player.set()`, as `film.html` does: one 44-second timeline, a chapter log that also seeks, pause, a scrubber, and a Dark/Light switch for the app theme. It plays while in view, loops, and with `prefers-reduced-motion` waits for Play. `fill=1` makes the stage fill the frame with no page colour, rounding or shadow, and stops the player's own animation loop: every frame comes from the section's `__player.set()` calls. `tools/site/patch-secwall-site.mjs` copies this folder (without this README and `film.html`) to `/walkthrough/` and adds `Content-Security-Policy: frame-ancestors 'self'` and `X-Robots-Tag: noindex` for it in `vercel.json`. Not on production yet.
