@@ -7,7 +7,7 @@ SecureWall is a default-deny firewall for Windows 10 (21H2 or newer) and Windows
 [secwall.org](https://secwall.org/) · [Latest release](https://github.com/ryanportfolio/SecureWall/releases) · [Install guide](docs/INSTALL.md) · [Security model](docs/SECURITY.md)
 
 > [!WARNING]
-> SecureWall is alpha software, and every release so far is an unsigned prerelease. Install it only on a PC you can recover at its own keyboard and screen: a firewall defect can cut off networking or weaken host isolation.
+> SecureWall is alpha software, and every release so far is an unsigned prerelease.
 
 ## Install
 
