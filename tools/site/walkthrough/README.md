@@ -6,7 +6,7 @@ An animated tour of the SecureWall desktop app for secwall.org: eight short chap
 node tools\site\serve-site.mjs tools\site\walkthrough 4318
 ```
 
-Then open `http://127.0.0.1:4318/`, or `film.html` to play the whole tour on one timeline and mark stretches to cut (I and O; Copy cuts gives chapter-local times). Add `?theme=light` for the light app theme, `?scene=ch4-activity` to open a chapter, `?t=3300` to freeze a moment, `?dev=0` to hide the dev bar. Space pauses, the arrow keys change chapter.
+Then open `http://127.0.0.1:4318/`, or `film.html` to play the whole tour on one timeline and mark stretches to cut (I and O; Copy cuts gives times in each scene's beat sheet, its opening trim included). Add `?theme=light` for the light app theme, `?scene=ch4-activity` to open a chapter, `?t=3300` to freeze a moment, `?dev=0` to hide the dev bar. Space pauses, the arrow keys change chapter.
 
 | # | Chapter | Shows |
 |---|---|---|
@@ -48,4 +48,4 @@ The review scripts (contact sheets, determinism, tap spot checks, ship check) co
 
 ## On secwall.org
 
-The site's Tour section (`tools/site/sections/tour.js` and `tour.css`) sits between the download cards and "Before you install". It frames `/walkthrough/index.html?capture=1&fill=1&dev=0` from the same origin and drives it with `__player.set()`, as `film.html` does: one 44-second timeline, a chapter log that also seeks, pause, a scrubber, and a Dark/Light switch for the app theme. It plays while in view, loops, and with `prefers-reduced-motion` waits for Play. `fill=1` makes the stage fill the frame with no page colour, rounding or shadow, and stops the player's own animation loop: every frame comes from the section's `__player.set()` calls. `tools/site/patch-secwall-site.mjs` copies this folder (without this README and `film.html`) to `/walkthrough/` and adds `Content-Security-Policy: frame-ancestors 'self'` and `X-Robots-Tag: noindex` for it in `vercel.json`. Not on production yet.
+The site's Tour section (`tools/site/sections/tour.js` and `tour.css`) sits between the download cards and "Before you install". It frames `/walkthrough/index.html?capture=1&fill=1&dev=0` from the same origin and drives it with `__player.set()`, as `film.html` does: one 44-second timeline, a chapter log that also seeks, pause, a scrubber, and a Dark/Light switch for the app theme. It plays while in view, loops, and with `prefers-reduced-motion` waits for Play. `fill=1` makes the stage fill the frame with no page colour, rounding or shadow, and stops the player's own animation loop: every frame comes from the section's `__player.set()` calls. `tools/site/patch-secwall-site.mjs` copies this folder (without this README and `film.html`) to `/walkthrough/` and adds `Content-Security-Policy: frame-ancestors 'self'` and `X-Robots-Tag: noindex` for it in `vercel.json`.

@@ -18,6 +18,7 @@
     cta: { label: "Read the prompt guide", href: "/#public-goods" },
     alt: "A SecureWall popup reports that telemetry_agent.exe, unsigned and in a user-writable folder, was blocked. The pointer clicks Ignore and the popup closes. The Manage window then shows telemetry_agent.exe on its Ignored tab.",
     duration: T.dur - T.trim,
+    trim: T.trim, // ms cut from the start of the beat sheet (film.html exports beat-sheet times)
     mount(root, ctx) {
       const U = window.SWUI, { OB } = ctx;
       const ph = U.popupHeight(WARN), px = 1200 - 460 - 16, py = 680 - ph - 16;

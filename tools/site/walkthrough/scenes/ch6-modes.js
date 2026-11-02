@@ -4,11 +4,11 @@
 // "The firewall is now blocking all inbound and outbound traffic." (Messages.resx:208, SetMode).
 // Prompts appear only in Normal protection (architecture.md), which the takeaway states.
 // Beat sheet (ms):
-//   0     desktop, green shield in the tray
-//   700   pointer to the shield; 1500 click: the tray menu opens above the taskbar
+//   0     desktop, the SecureWall firewall icon in the tray (Normal protection)
+//   700   pointer to the icon; 1500 click: the tray menu opens above the taskbar
 //   2300  pointer onto Change mode: highlight, submenu opens to the left
 //   3300  pointer into the submenu onto Block all; 3900 click
-//   4050  menus close; the tray shield turns yellow; the notification slides in
+//   4050  menus close; the tray icon turns into the yellow shield; the notification slides in
 //   5121  end (the first 1085 ms are trimmed)
 (function () {
   const T = { move: 700, tapTray: 1500, open: 1600, onMode: 2300, sub: 2450, onBlock: 3300, tap: 3900, close: 4050, toast: 4300, dur: 5121, trim: 1085};
@@ -17,8 +17,9 @@
     title: "Change the firewall mode from the tray",
     takeaway: "Pick a mode from the tray icon; prompts appear only in Normal protection.",
     cta: { label: "Get SecureWall", href: "/#team" },
-    alt: "The pointer clicks the green SecureWall shield in the Windows tray. In the menu it opens Change mode and picks Block all. The shield turns yellow and a notification says the firewall now blocks all inbound and outbound traffic.",
+    alt: "The pointer clicks the SecureWall icon in the Windows tray. In the menu it opens Change mode and picks Block all. The icon turns into a yellow shield and a notification says the firewall now blocks all inbound and outbound traffic.",
     duration: T.dur - T.trim,
+    trim: T.trim, // ms cut from the start of the beat sheet (film.html exports beat-sheet times)
     mount(root, ctx) {
       const U = window.SWUI, { OB } = ctx;
       const stage = OB.h(`<div class="sw-stage"><div class="sw-cam">${U.desktop()}

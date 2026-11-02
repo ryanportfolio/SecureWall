@@ -15,9 +15,10 @@
     svchost: "C:\\Windows\\System32\\svchost.exe",
   };
 
-  // ── desktop with taskbar; tray: icon colour of the SecureWall shield
+  // ── desktop with taskbar. Tray icon by mode (TinyWallController.TrayIcon): the firewall
+  // icon in Normal protection, a coloured shield in the others.
   function desktop(o = {}) {
-    const shield = { normal: "shield_green_small", blockall: "shield_yellow_small", allowout: "shield_red_small", disabled: "shield_grey_small" }[o.mode || "normal"];
+    const shield = { normal: "firewall", blockall: "shield_yellow_small", allowout: "shield_red_small", disabled: "shield_grey_small" }[o.mode || "normal"];
     return `<div class="sw-desktop"></div>
       <div class="sw-taskbar">
         <div class="sw-start"><i><b></b><b></b><b></b><b></b></i></div>
@@ -30,7 +31,7 @@
         </div>
       </div>`;
   }
-  const shieldSrc = (mode) => A({ normal: "shield_green_small", blockall: "shield_yellow_small", allowout: "shield_red_small", disabled: "shield_grey_small" }[mode] + "_16");
+  const shieldSrc = (mode) => A({ normal: "firewall", blockall: "shield_yellow_small", allowout: "shield_red_small", disabled: "shield_grey_small" }[mode] + "_16");
 
   // ── window frame. w/h = client size; the frame adds 2 px and 32 px.
   function frame(o) {
@@ -73,7 +74,7 @@
     { id: "na-system", icon: "windows_small", cells: ["System (4)", "", "TCP", "  445", "192.168.1.20", "    0", "0.0.0.0", "Listening (local endpoint)", "", "2026/11/01 10:24:30"] },
     { id: "na-photodrop", cells: ["PhotoDrop.exe (8816)", "", "TCP", "51610", "192.168.1.20", "  443", "198.51.100.23 (upload.photodrop.example)", "Blocked (default deny)", "Out", "2026/11/01 10:24:28"] },
     { id: "na-inkwell", cells: ["Inkwell.exe (7408)", "", "TCP", "51598", "192.168.1.20", "  443", "203.0.113.45 (sync.inkwell.example)", "Allowed", "Out", "2026/11/01 10:24:26"] },
-    { id: "na-dns", cells: ["svchost.exe (1432)", "Dnscache", "UDP", "55012", "192.168.1.20", "   53", "1.1.1.1", "Allowed", "Out", "2026/11/01 10:24:24"] },
+    { id: "na-dns", cells: ["svchost.exe (1432)", "Dnscache", "UDP", "55012", "192.168.1.20", "   53", "192.0.2.53", "Allowed", "Out", "2026/11/01 10:24:24"] },
     { id: "na-telemetry", cells: ["telemetry_agent.exe", "", "TCP", "51633", "192.168.1.20", "  443", "198.51.100.7", "Blocked (ignored)", "Out", "2026/11/01 10:24:21"] },
     { id: "na-notesync", cells: ["NoteSync.exe (5236)", "", "TCP", "51587", "192.168.1.20", "  443", "192.0.2.80 (api.notesync.example)", "Blocked, then allowed by Always allow", "Out", "2026/11/01 10:24:09"] },
   ];
@@ -143,6 +144,7 @@
       <div class="sw-pop-dest">Destination: ${esc(o.dest || "TCP  203.0.113.20:443")}</div>
       <div class="sw-pop-notice">Allow permanently permits this app, package, or service to reach all destinations and ports over TCP/UDP.</div>
       ${warns.length ? `<div class="sw-pop-warn">${warns.map(esc).join("<br>")}</div>` : ""}
+      ${o.status ? `<div class="sw-pop-status" data-sw="pop-status">${esc(o.status)}</div>` : ""}
       ${o.alwaysAllow ? `<div class="sw-pop-btn sw-pop-always ${allowCls}" data-sw="pop-always" style="left:102px;top:${by}px">Always allow</div>` : ""}
       <div class="sw-pop-btn sw-pop-allow ${allowCls}" data-sw="pop-allow" style="left:226px;top:${by}px">Allow outgoing</div>
       <div class="sw-pop-btn sw-pop-ignore" data-sw="pop-ignore" style="left:366px;top:${by}px">Ignore</div>
@@ -199,28 +201,32 @@
   // ── update window (UpdateDialog.cs, laid out in code; positions measured from update.png). Light always.
   function update(o) {
     const seg = "font-family:'Segoe UI',system-ui,sans-serif;font-size:12px;letter-spacing:0.2px";
-    let body;
-    if (o.state === "downloading") {
-      body = `<div style="position:absolute;left:12px;top:12px;font-weight:bold;font-size:15.6px;${seg};font-size:15.6px">Downloading SecureWall 0.5.2</div>
-        <div style="position:absolute;left:12px;top:42px;width:576px;${seg}">The installer is checked against the release's SHA256SUMS.txt before anything is installed.</div>
-        <div class="sw-progress" style="left:12px;top:400px;width:576px"><i data-sw="progress" style="width:${Math.round(576 * (o.progress || 0))}px"></i></div>
-        ${btn(511, 430, 75, 23, "Cancel", { style: seg })}`;
-    } else {
-      body = `<div style="position:absolute;left:12px;top:12px;font-weight:bold;${seg};font-size:15.6px">SecureWall 0.5.2 is available</div>
-        <div style="position:absolute;left:12px;top:42px;width:576px;line-height:16px;${seg}">Published 11/1/2026 as a prerelease. You have 0.5.1. The installer is checked against the release's SHA256SUMS.txt after download.</div>
-        <div style="position:absolute;left:12px;top:94px;${seg}">Release notes from GitHub:</div>
-        <div class="sw-text" style="left:12px;top:116px;width:576px;height:236px;white-space:pre-wrap;line-height:15px;padding:3px 22px 3px 4px;background:#f0f0f0;border-color:#adadad;${seg}"><div class="sw-vscroll"></div>This is an unsigned alpha prerelease. SecureWall can now check GitHub for a newer release and install it, and the Network Activity list no longer moves while it refreshes.
+    // Notes fill the space between the details and the notice; while downloading, the
+    // progress bar docks above the buttons and pushes the notice up by its 18 px.
+    const dl = o.state === "downloading", lift = dl ? 18 : 0;
+    const notes = `<div style="position:absolute;left:12px;top:94px;${seg}">Release notes from GitHub:</div>
+        <div class="sw-text" style="left:12px;top:116px;width:576px;height:${236 - lift}px;white-space:pre-wrap;line-height:15px;padding:3px 22px 3px 4px;background:#f0f0f0;border-color:#adadad;${seg}"><div class="sw-vscroll"></div>This is an unsigned alpha prerelease. SecureWall can now check GitHub for a newer release and install it, and the Network Activity list no longer moves while it refreshes.
 
 ## Changes
 
 ### Check for updates
 
 - **Where.** **Check for updates** is in the tray menu and on the Maintenance tab in Manage. It runs only when you choose it; SecureWall never checks on its own. If SecureWall is locked, it asks for the password first.</div>
-        <div style="position:absolute;left:12px;top:356px;width:576px;line-height:16px;${seg}">Installing stops SecureWall and blocks all connections to other computers until the new version starts, usually under a minute. Open connections drop. Windows asks for administrator permission, then setup shows its own window.</div>
+        <div style="position:absolute;left:12px;top:${356 - lift}px;width:576px;line-height:16px;${seg}">Installing stops SecureWall and blocks all connections to other computers until the new version starts, usually under a minute. Open connections drop. Windows asks for administrator permission, then setup shows its own window.</div>`;
+    // ShowBusy after ShowAvailable (InstallUpdate): new heading and details, the notes and
+    // notice stay, Install and Skip hide, Later becomes Cancel.
+    const body = dl
+      ? `<div style="position:absolute;left:12px;top:12px;font-weight:bold;${seg};font-size:15.6px">Downloading SecureWall 0.5.2</div>
+        <div style="position:absolute;left:12px;top:42px;width:576px;line-height:16px;${seg}">The installer is checked against the release's SHA256SUMS.txt before anything is installed.</div>
+        ${notes}
+        <div class="sw-progress" style="left:12px;top:402px;width:576px"><i data-sw="progress" style="width:${Math.round(576 * (o.progress || 0))}px"></i></div>
+        ${btn(511, 430, 75, 23, "Cancel", { style: seg })}`
+      : `<div style="position:absolute;left:12px;top:12px;font-weight:bold;${seg};font-size:15.6px">SecureWall 0.5.2 is available</div>
+        <div style="position:absolute;left:12px;top:42px;width:576px;line-height:16px;${seg}">Published 11/1/2026 as a prerelease. You have 0.5.1. The installer is checked against the release's SHA256SUMS.txt after download.</div>
+        ${notes}
         ${btn(322, 430, 75, 23, "Install", { id: "up-install", cls: "sw-default " + (o.installCls || ""), style: seg })}
         ${btn(404, 430, 99, 23, "Skip this version", { style: seg })}
         ${btn(511, 430, 75, 23, "Later", { style: seg })}`;
-    }
     return frame({ id: o.id || "update", x: o.x, y: o.y, w: 600, h: 470, title: "SecureWall update", themed: false, caps: "close", body });
   }
 

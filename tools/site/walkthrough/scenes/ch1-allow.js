@@ -18,6 +18,7 @@
     cta: { label: "Get SecureWall", href: "/#team" },
     alt: "On a Windows desktop, a SecureWall popup reports that Inkwell.exe was blocked connecting out. After a second its Allow outgoing button enables, the pointer clicks it, and the popup closes.",
     duration: T.dur - T.trim,
+    trim: T.trim, // ms cut from the start of the beat sheet (film.html exports beat-sheet times)
     mount(root, ctx) {
       const U = window.SWUI, { OB } = ctx;
       const px = 1200 - 460 - 16, py = 680 - U.popupHeight() - 16;

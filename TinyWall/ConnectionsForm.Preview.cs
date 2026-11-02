@@ -12,8 +12,14 @@ namespace pylorak.TinyWall
     {
         internal IReadOnlyList<UiPreviewSamples.ActivityRow>? PreviewRows { get; set; }
 
+        private bool PreviewFilled;
+
+        // Filled once: the 1 s refresh would otherwise drop the selection and scroll to the top.
         private void FillPreviewRows(IReadOnlyList<UiPreviewSamples.ActivityRow> rows)
         {
+            if (PreviewFilled)
+                return;
+            PreviewFilled = true;
             IconScanner.CancelScan();
             var itemColl = new List<ListViewItem>();
             foreach (UiPreviewSamples.ActivityRow row in rows)

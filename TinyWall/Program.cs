@@ -101,7 +101,7 @@ namespace pylorak.TinyWall
                 UiPreview.CaptureWhenReady(popup, capture);
             popup.ShowPrompt(PromptPreviewSamples.Create(args, DateTimeOffset.UtcNow));
             System.Windows.Forms.Application.Run();
-            return 0;
+            return UiPreview.Result(UiPreview.CapturePath(args));
         }
 
         private static int RunProtocolSelfTest()

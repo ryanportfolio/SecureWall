@@ -18,6 +18,7 @@
     cta: { label: "Get SecureWall", href: "/#team" },
     alt: "From the SecureWall tray menu the pointer clicks Check for updates. A window says SecureWall 0.5.2 is available, with its release notes. The pointer clicks Install and the window shows the download progressing.",
     duration: T.dur - T.trim,
+    trim: T.trim, // ms cut from the start of the beat sheet (film.html exports beat-sheet times)
     mount(root, ctx) {
       const U = window.SWUI, { OB } = ctx;
       const wx = 299, wy = 100;

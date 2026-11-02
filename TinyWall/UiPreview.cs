@@ -55,7 +55,7 @@ namespace pylorak.TinyWall
                 string? database = ValueAfter(args, "/database");
                 GlobalInstances.AppDatabase = database == null
                     ? DatabaseClasses.AppDatabase.Load()
-                    : SerializationHelper.DeserializeFromFile(database, new DatabaseClasses.AppDatabase());
+                    : SerializationHelper.DeserializeFromFile(database, new DatabaseClasses.AppDatabase(), readOnlySource: true);
             }
             catch
             {
@@ -118,7 +118,7 @@ namespace pylorak.TinyWall
                 });
             }
             Application.Run();
-            return 0;
+            return Result(capture);
         }
 
         private static int RunConnections(TinyWallController controller, string[] args, string? capture)
@@ -149,7 +149,7 @@ namespace pylorak.TinyWall
                 }
             };
             Application.Run(form);
-            return 0;
+            return Result(capture);
         }
 
         private static int RunManage(string[] args, string? capture)
@@ -162,7 +162,7 @@ namespace pylorak.TinyWall
                 StartPosition = FormStartPosition.CenterScreen,
             };
             ShowForm(form, capture);
-            return 0;
+            return Result(capture);
         }
 
         private static int RunUpdate(string[] args, string? capture)
@@ -173,24 +173,23 @@ namespace pylorak.TinyWall
             dialog.Shown += (_, _) =>
             {
                 // The texts CheckForUpdatesCore and InstallUpdate show at each step.
+                dialog.ShowAvailable(release, manifest, UiPreviewSamples.UpdateInstalled);
                 if (!downloading)
-                {
-                    dialog.ShowAvailable(release, manifest, UiPreviewSamples.UpdateInstalled);
                     return;
-                }
+                // As InstallUpdate does: the offer's notes and notice stay under the progress.
                 dialog.ShowBusy("Downloading SecureWall " + ReleaseVersion.Format(manifest.Version),
                     "The installer is checked against the release's SHA256SUMS.txt before anything is installed.");
                 dialog.ShowDownloadProgress(4_300_000, 9_800_000);
             };
             ShowForm(dialog, capture);
-            return 0;
+            return Result(capture);
         }
 
         private static int RunPassword(string? capture)
         {
             using var form = new PasswordForm { StartPosition = FormStartPosition.CenterScreen };
             ShowForm(form, capture);
-            return 0;
+            return Result(capture);
         }
 
         private static void ShowForm(Form form, string? capture)
@@ -219,6 +218,12 @@ namespace pylorak.TinyWall
         // visible on the desktop. Windows created off-screen capture half white instead.
         private const double FadedOpacity = 1.0 / 255;
 
+        // Set once a capture is written. Without it a /capture run exits 1: the save failed
+        // (bad path, window gone) or the window closed before the capture was taken.
+        private static bool Captured;
+
+        internal static int Result(string? capture) => capture == null || Captured ? 0 : 1;
+
         private static void After(string path, Action save)
         {
             var timer = new System.Windows.Forms.Timer { Interval = 1500 };
@@ -226,8 +231,16 @@ namespace pylorak.TinyWall
             {
                 timer.Stop();
                 timer.Dispose();
-                Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
-                save();
+                try
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
+                    save();
+                    Captured = true;
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or System.Runtime.InteropServices.ExternalException or InvalidOperationException)
+                {
+                    // Result() reports it; no exception dialog to block a scripted run.
+                }
                 Application.ExitThread();
             };
             timer.Start();

@@ -18,6 +18,7 @@
     cta: { label: "Get SecureWall", href: "/#team" },
     alt: "The Manage window lists three application exceptions. The pointer clicks the Filter box and types note; the list narrows to NoteSync.exe, which the pointer then selects.",
     duration: T.dur - T.trim,
+    trim: T.trim, // ms cut from the start of the beat sheet (film.html exports beat-sheet times)
     mount(root, ctx) {
       const U = window.SWUI, { OB } = ctx;
       const mx = 225, my = 112;

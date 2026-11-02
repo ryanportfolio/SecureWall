@@ -75,7 +75,8 @@
 <script>
 // Review page: every chapter back to back on one timeline, driving index.html in capture
 // mode through window.__player.set(). Mark stretches to cut; they are saved in this
-// browser (localStorage) and copied as JSON in chapter-local times. ?theme=light
+// browser (localStorage) and copied as JSON in beat-sheet times: each scene's T values, which
+// count from before its trimmed opening (scene.trim). ?theme=light
 (function () {
   const q = new URLSearchParams(location.search);
   const theme = q.get("theme") || "dark";
@@ -153,7 +154,8 @@
     requestAnimationFrame(loop);
   }
 
-  // Export: each cut split into chapter-local parts, so the scenes can be retimed.
+  // Export: each cut split into chapter-local parts in beat-sheet time (local + the scene's
+  // trim), so they line up with the T values the scenes are retimed in.
   function exportCuts() {
     const out = cuts.map((c, i) => {
       const parts = [];
@@ -161,12 +163,12 @@
         const a = Math.max(c.a, s.start), b = Math.min(c.b, s.start + s.dur + GAP);
         if (b <= a) continue;
         const la = a - s.start, lb = b - s.start;
-        if (la < s.dur) parts.push({ scene: s.id, fromMs: Math.round(la), toMs: Math.round(Math.min(lb, s.dur)) });
+        if (la < s.dur) parts.push({ scene: s.id, fromMs: Math.round(la + s.trim), toMs: Math.round(Math.min(lb, s.dur) + s.trim) });
         if (lb > s.dur) parts.push({ scene: s.id, holdAfterMs: Math.round(lb - Math.max(la, s.dur)) });
       }
       return { n: i + 1, note: c.note || undefined, parts };
     });
-    return JSON.stringify({ tour: "SecureWall", theme, totalMs: total, holdMs: GAP, cuts: out }, null, 1);
+    return JSON.stringify({ tour: "SecureWall", theme, totalMs: total, holdMs: GAP, times: "beat sheet (trim included)", cuts: out }, null, 1);
   }
 
   frame.addEventListener("load", () => {
@@ -177,7 +179,7 @@
       P = frame.contentWindow.__player;
       if (!P || !P.ready) { setTimeout(wait, 50); return; }
       let start = 0;
-      segs = P.scenes().map((s) => { const seg = { id: s.id, title: s.title, takeaway: s.takeaway, dur: s.duration, start }; start += s.duration + GAP; return seg; });
+      segs = P.scenes().map((s) => { const seg = { id: s.id, title: s.title, takeaway: s.takeaway, dur: s.duration, trim: s.trim || 0, start }; start += s.duration + GAP; return seg; });
       total = start - GAP;
       try { cuts = JSON.parse(localStorage.getItem(KEY + ":" + total) || "[]"); } catch { cuts = []; }
       drawMarks(); render();
@@ -222,6 +224,7 @@
   });
 
   function onKey(e) {
+    if (!segs.length) return; // the player is still loading
     if (e.target.matches && e.target.matches("input")) return;
     const k = e.key.toLowerCase();
     if (e.code === "Space") { e.preventDefault(); setPlaying(!playing); }

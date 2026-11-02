@@ -21,6 +21,7 @@
     cta: { label: "Read the prompt guide", href: "/#public-goods" },
     alt: "A SecureWall popup for NoteSync.exe offers Always allow. Its tooltip says any file named NoteSync.exe signed by NoteSync Labs Inc. is allowed in any folder, outbound TCP/UDP only. The pointer clicks Always allow, and the Manage window lists the rule on its Always allow tab.",
     duration: T.dur - T.trim,
+    trim: T.trim, // ms cut from the start of the beat sheet (film.html exports beat-sheet times)
     mount(root, ctx) {
       const U = window.SWUI, { OB } = ctx;
       const ph = U.popupHeight(WARN), px = 1200 - 460 - 16, py = 680 - ph - 16;

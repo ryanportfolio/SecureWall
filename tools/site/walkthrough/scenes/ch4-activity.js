@@ -20,6 +20,7 @@
     cta: { label: "Get SecureWall", href: "/#team" },
     alt: "The Network Activity window lists connections with their state. The pointer right-clicks PhotoDrop.exe, marked Blocked (default deny), and chooses Unblock. A Windows notification says PhotoDrop.exe's firewall rules changed.",
     duration: T.dur - T.trim,
+    trim: T.trim, // ms cut from the start of the beat sheet (film.html exports beat-sheet times)
     mount(root, ctx) {
       const U = window.SWUI, { OB } = ctx;
       const wx = 12, wy = 30;

@@ -1,6 +1,7 @@
 #if DEBUG
 using System.Drawing;
 using System.Globalization;
+using System.Threading;
 using System.Windows.Forms;
 
 namespace pylorak.TinyWall
@@ -22,9 +23,12 @@ namespace pylorak.TinyWall
         // The menu as the tray shows it after InitController and a successful settings read.
         internal void ShowPreviewTrayMenu(FirewallMode mode, bool hasPassword, Point screenLocation)
         {
-            mnuTrafficRate.Text = string.Format(CultureInfo.CurrentCulture, "{0}: {1}   {2}: {3}",
+            string traffic = string.Format(CultureInfo.CurrentCulture, "{0}: {1}   {2}: {3}",
                 Resources.Messages.TrafficIn, "12.4 KiB/s", Resources.Messages.TrafficOut, "3.1 KiB/s");
+            mnuTrafficRate.Text = traffic;
             mnuElevate.Visible = !Utils.RunningAsAdmin();
+            // Shown, but it would start the real, elevated controller.
+            mnuElevate.Click -= mnuElevate_Click;
             mnuModeDisabled.Image = Utils.LoadSmallIconBitmap(Resources.Icons.shield_grey_small);
             mnuModeAllowOutgoing.Image = Utils.LoadSmallIconBitmap(Resources.Icons.shield_red_small);
             mnuModeBlockAll.Image = Utils.LoadSmallIconBitmap(Resources.Icons.shield_yellow_small);
@@ -38,6 +42,9 @@ namespace pylorak.TinyWall
             FirewallState.Locked = false;
             UpdateDisplay();
             TrayMenu.Show(screenLocation, ToolStripDropDownDirection.AboveLeft);
+            // Opening the menu starts the traffic timer, which reads this machine's real rates.
+            TrafficTimer.Change(Timeout.Infinite, Timeout.Infinite);
+            mnuTrafficRate.Text = traffic;
         }
     }
 }

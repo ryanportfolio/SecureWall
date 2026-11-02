@@ -157,7 +157,8 @@ function patch(from, out) {
     if (!/^[A-Za-z0-9_-]+$/.test(base)) fail(`${src}: script names may use only letters, digits, "_" and "-"`);
     if (seen.has(base)) fail(`two scripts are named ${base}.js`);
     seen.add(base);
-    const bytes = fs.readFileSync(src);
+    // LF, as the CSS below: a Windows checkout's CRLF would rename unchanged scripts.
+    const bytes = fs.readFileSync(src, "utf8").replace(/\r\n/g, "\n");
     const name = `sw-${base}-${hash8(bytes)}.js`;
     write(`build/${name}`, bytes);
     tags.push(`<script src="/build/${name}"></script>`);

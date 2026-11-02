@@ -4,7 +4,7 @@
 <script src="tour.config.js"></script>
 <script>
   // Product CSS first; the player chrome below only styles its own #wt-* elements.
-  for (const href of (window.TOUR && window.TOUR.css) || []) document.write('<link rel="stylesheet" href="' + href + '">');
+  for (const href of (window.TOUR && window.TOUR.css) || []) document.write('<link rel="stylesheet" href="' + href + '" onerror="(window.__wtMissingCss=window.__wtMissingCss||[]).push(this.getAttribute(\'href\'))">');
 </script>
 <style>
   :root{--wt-accent:#6d5efc}
@@ -17,8 +17,8 @@
   #wt-actor{position:absolute;left:0;top:0;pointer-events:none;z-index:50;will-change:transform,opacity;transform-origin:50% 50%}
   #wt-actor-host{position:relative;overflow:visible}
   #wt-ripple{position:absolute;left:0;top:0;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;border:2px solid var(--wt-accent);pointer-events:none;z-index:51;opacity:0}
-  #wt-caption{display:flex;align-items:center;gap:22px;max-width:94vw;flex:none;color:var(--wt-ink,inherit)}
-  #wt-text{flex:1;min-width:0}
+  #wt-caption{display:flex;flex-wrap:wrap;align-items:center;gap:12px 22px;max-width:94vw;flex:none;color:var(--wt-ink,inherit)}
+  #wt-text{flex:1 1 260px;min-width:0}
   #wt-num{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--wt-accent);font-weight:600}
   #wt-title{font-size:24px;line-height:1.15;margin-top:4px;font-weight:700}
   #wt-take{opacity:.75;font-size:15px;margin-top:6px}
@@ -97,7 +97,7 @@ const root = $("root"); root.className = C.rootClass; $("fit").style.width = W +
 $("dots").setAttribute("aria-label", STR.chapters);
 
 // Errors any scene, actor or the player throws. Checks read this.
-const errors = [], missing = [];
+const errors = [], missing = window.__wtMissingCss || (window.__wtMissingCss = []);
 const P = window.__player = { errors, missing, ready: false, themes: THEMES };
 addEventListener("error", (e) => errors.push(String(e.message || e)));
 addEventListener("unhandledrejection", (e) => errors.push(String(e.reason)));
@@ -186,7 +186,7 @@ function applyTheme(id) {
 
 // ── chapters
 // started: embed mode plays only after the host's "start" (arrow keys must not autoplay).
-let idx = 0, inst = null, t = 0, started = !EMBED, playing = !EMBED && !q.has("t") && !REDUCED, speed = +(q.get("speed") || 1), auto = q.get("auto") !== "0";
+let idx = 0, inst = null, t = 0, started = !EMBED, playing = !EMBED && !FILL && !q.has("t") && !REDUCED, speed = +(q.get("speed") || 1), auto = q.get("auto") !== "0";
 let last = performance.now(), lastDt = 16, needReady = EMBED, actorFade = EMBED ? 0 : 1, fadeTo = actorFade;
 const rank = (sc) => { const i = C.chapters.indexOf(sc.id); return i < 0 ? 1000 + (sc.order || 0) : i; };
 const scenes = () => (window.SCENES || []).slice().sort((a, b) => rank(a) - rank(b));
@@ -207,8 +207,11 @@ function load(i) {
   const alt = sc.alt || [sc.title, sc.takeaway].filter(Boolean).join(". ");
   $("alt").textContent = sc.alt || ""; $("fit").setAttribute("aria-label", alt);
   const cta = $("cta"); cta.textContent = (sc.cta && sc.cta.label) || STR.cta; cta.href = (sc.cta && sc.cta.href) || "#";
+  const dotFocus = !!(document.activeElement && document.activeElement.closest && document.activeElement.closest("#wt-dots"));
   const dots = $("dots"); dots.innerHTML = L.map((s, j) => `<button type="button" aria-label="${(s.title || s.id).replace(/"/g, "&quot;")}"${j === idx ? ' aria-current="step"' : ""} data-j="${j}"><b></b></button>`).join("");
   dots.querySelectorAll("button").forEach((b) => b.onclick = () => go(+b.dataset.j));
+  // Rebuilt for each chapter: keep keyboard focus on the dots.
+  if (dotFocus) dots.children[idx].focus({ preventScroll: true });
   $("scrub").max = sc.duration;
   $("back").disabled = idx === 0;
   $("next").textContent = idx === L.length - 1 ? STR.finish : STR.next;
@@ -238,7 +241,7 @@ if (EMBED) {
     if (d.type === "theme" && C.themes[d.theme] && d.theme !== theme) { const keep = t, pl = playing; applyTheme(d.theme); load(idx); t = keep; setPlaying(pl); render(); }
     else if (d.type === "reset") { if (C.themes[d.theme]) applyTheme(d.theme); started = false; load(0); setPlaying(false); actorFade = fadeTo = 0; }
     else if (d.type === "start") { started = true; setPlaying(!REDUCED); fadeTo = 1; $("next").focus({ preventScroll: true }); }
-    else if (d.type === "goto" && Number.isInteger(d.index)) go(d.index);
+    else if (d.type === "goto" && Number.isInteger(d.index) && d.index >= 0 && d.index < scenes().length) go(d.index);
     else if (d.type === "skip") done(true);
   });
 }
@@ -268,10 +271,16 @@ function fit() {
   // Capture mode keeps the normal fit (caption hidden): scaling the stage to fill the
   // viewport made Element Capture deliver no frames at all. fill=1 is the exception; it
   // is for the site's Tour section, not for export.
-  const cap = $("caption"), s = FILL ? Math.min(innerWidth / W, innerHeight / H)
-    : Math.min((innerWidth - 40) / W, (innerHeight - cap.offsetHeight - 60 - dev * 2) / H, C.maxScale);
-  const f = $("fit"); f.style.transform = `scale(${s})`; f.style.margin = `${(H * s - H) / 2}px ${(W * s - W) / 2}px`;
+  const cap = $("caption");
+  const scale = () => FILL ? Math.min(innerWidth / W, innerHeight / H)
+    : Math.max(.05, Math.min((innerWidth - 40) / W, (innerHeight - cap.offsetHeight - 60 - dev * 2) / H, C.maxScale));
+  // The caption is as wide as the stage and its height depends on that width: size it, then
+  // measure again with the caption at its new height.
+  let s = scale();
   cap.style.width = Math.min(W * s, innerWidth * .94) + "px";
+  s = scale();
+  cap.style.width = Math.min(W * s, innerWidth * .94) + "px";
+  const f = $("fit"); f.style.transform = `scale(${s})`; f.style.margin = `${(H * s - H) / 2}px ${(W * s - W) / 2}px`;
 }
 addEventListener("resize", () => { fit(); needReady = EMBED; });
 
@@ -315,7 +324,7 @@ function loop(now) {
 
 // ── controls
 function togglePlay() {
-  const sc = cur(); if (!sc) return;
+  const sc = cur(); if (!sc || (EMBED && !started)) return; // embed plays only after the host's "start"
   if (!playing && t >= sc.duration) t = 0; // Play at the end (or in reduced-motion mode) replays the chapter
   setPlaying(!playing);
 }
@@ -341,11 +350,11 @@ $("auto").onclick = (e) => { auto = !auto; e.target.textContent = "auto: " + (au
 $("replay").onclick = () => { t = 0; setPlaying(true); };
 
 // ── API for check scripts: set({scene, t, theme}) renders synchronously
-P.scenes = () => scenes().map((s) => ({ id: s.id, title: s.title, takeaway: s.takeaway, alt: s.alt, cta: s.cta, duration: s.duration }));
+P.scenes = () => scenes().map((s) => ({ id: s.id, title: s.title, takeaway: s.takeaway, alt: s.alt, cta: s.cta, duration: s.duration, trim: s.trim || 0 }));
 P.state = () => ({ scene: cur() && cur().id, index: idx, t, theme, playing, started, reduced: REDUCED });
 P.play = () => setPlaying(true); P.pause = () => setPlaying(false);
 P.set = (o) => {
-  if (o.theme && C.themes[o.theme] && o.theme !== theme) { applyTheme(o.theme); if (!o.scene) load(idx); }
+  if (o.theme && C.themes[o.theme] && o.theme !== theme) { applyTheme(o.theme); if (!o.scene) { const keep = t; load(idx); t = keep; } }
   if (o.scene) { const j = scenes().findIndex((s) => s.id === o.scene); if (j < 0) throw new Error("no scene " + o.scene); load(j); }
   if (o.t !== undefined) { t = o.t; setPlaying(false); }
   render(); return P.state();

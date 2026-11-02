@@ -63,7 +63,7 @@ namespace pylorak.TinyWall
             {
                 Row(7408, InkwellPath, "TCP", 51544, "203.0.113.45", 443, "sync.inkwell.example", NetworkActivityStatus.Allowed, RuleDirection.Invalid, 0, "Established"),
                 Row(7408, InkwellPath, "TCP", 51598, "203.0.113.45", 443, "sync.inkwell.example", NetworkActivityStatus.Allowed, RuleDirection.Out, 4),
-                Row(1432, SvchostPath, "UDP", 55012, "1.1.1.1", 53, null, NetworkActivityStatus.Allowed, RuleDirection.Out, 6, null, "Dnscache"),
+                Row(1432, SvchostPath, "UDP", 55012, "192.0.2.53", 53, null, NetworkActivityStatus.Allowed, RuleDirection.Out, 6, null, "Dnscache"),
                 Row(8816, PhotoDropPath, "TCP", 51610, "198.51.100.23", 443, "upload.photodrop.example", NetworkActivityStatus.Blocked, RuleDirection.Out, 2,
                     NetworkActivityStatusClassifier.ToDisplayText(NetworkActivityStatus.Blocked, FilterGroup.DefaultAction)),
                 Row(0, TelemetryPath, "TCP", 51633, "198.51.100.7", 443, null, NetworkActivityStatus.Blocked, RuleDirection.Out, 9,
