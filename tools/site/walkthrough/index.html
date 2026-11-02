@@ -44,6 +44,9 @@
   /* capture mode: Element Capture needs the captured element isolated and flat */
   html.wt-capture #wt-caption{display:none}
   html.wt-capture #wt-fit{isolation:isolate;transform-style:flat}
+  /* fill mode (?capture=1&fill=1): the stage fills the frame; the host page draws its border */
+  html.wt-fill,html.wt-fill body{background:transparent!important}
+  html.wt-fill #wt-root{border-radius:0;box-shadow:none}
 </style></head>
 <body>
 <div id="wt-wrap">
@@ -82,6 +85,10 @@ if (EMBED) html.classList.add("wt-embed");
 const CAPTURE = q.get("capture") === "1";
 if (q.get("dev") === "0" || CAPTURE) html.classList.add("wt-nodev");
 if (CAPTURE) html.classList.add("wt-capture");
+// fill=1 (with capture=1): the stage fills the frame edge to edge, for the secwall.org section
+// (tools/site/sections/tour.js) that drives it with __player.set().
+const FILL = CAPTURE && q.get("fill") === "1";
+if (FILL) html.classList.add("wt-fill");
 // Reduced motion: each chapter opens on its end frame, paused; Play still works.
 const REDUCED = !CAPTURE && C.reducedMotion !== "ignore" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 html.style.setProperty("--wt-accent", C.accent);
@@ -260,7 +267,8 @@ function fit() {
   const dev = EMBED || html.classList.contains("wt-nodev") ? 0 : 40; // keep the dev bar clear of the caption
   // Capture mode keeps the normal fit (caption hidden): scaling the stage to fill the
   // viewport made Element Capture deliver no frames at all.
-  const cap = $("caption"), s = Math.min((innerWidth - 40) / W, (innerHeight - cap.offsetHeight - 60 - dev * 2) / H, C.maxScale);
+  const cap = $("caption"), s = FILL ? Math.min(innerWidth / W, innerHeight / H)
+    : Math.min((innerWidth - 40) / W, (innerHeight - cap.offsetHeight - 60 - dev * 2) / H, C.maxScale);
   const f = $("fit"); f.style.transform = `scale(${s})`; f.style.margin = `${(H * s - H) / 2}px ${(W * s - W) / 2}px`;
   cap.style.width = Math.min(W * s, innerWidth * .94) + "px";
 }

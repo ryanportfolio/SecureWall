@@ -31,6 +31,24 @@ const types = {
   ".xml": "application/xml",
 };
 
+// The site's vercel.json headers (other than caching), so the walkthrough's
+// frame-ancestors applies locally too. Sources are exact paths or a prefix
+// followed by "(.*)", which is all the site's vercel.json uses.
+let headerRules = [];
+try {
+  headerRules = JSON.parse(fs.readFileSync(path.join(root, "vercel.json"), "utf8")).headers ?? [];
+} catch {}
+function siteHeaders(rel) {
+  const out = {};
+  for (const rule of headerRules) {
+    const src = rule.source ?? "";
+    const hit = src.endsWith("(.*)") ? rel.startsWith(src.slice(0, -4)) : rel === src;
+    if (!hit) continue;
+    for (const { key, value } of rule.headers ?? []) if (key.toLowerCase() !== "cache-control") out[key] = value;
+  }
+  return out;
+}
+
 http.createServer((req, res) => {
   // A malformed path (for example "/%") gets a 400 instead of throwing out
   // of this callback, which would stop the server.
@@ -55,6 +73,7 @@ http.createServer((req, res) => {
     return;
   }
   res.writeHead(200, {
+    ...siteHeaders(rel),
     "Content-Type": types[path.extname(file)] ?? "application/octet-stream",
     "Cache-Control": "no-store",
   });
