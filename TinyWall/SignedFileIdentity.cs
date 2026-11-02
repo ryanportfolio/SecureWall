@@ -22,6 +22,12 @@ namespace pylorak.TinyWall
         // The subject's common name, for display.
         public string Name { get; }
 
+#if DEBUG
+        // A made-up signer for the Debug-only preview switches; never read from a file.
+        internal static SignedFileIdentity ForPreview(string name) =>
+            new SignedFileIdentity($"CN={name}, O={name}", name);
+#endif
+
         // Only drive-letter paths on local fixed drives are read: opening a UNC or WebDAV path
         // from the LocalSystem service would authenticate to whatever host the path names. No
         // folder or file along the path may be a reparse point either, since a symbolic link

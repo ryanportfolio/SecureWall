@@ -11,6 +11,7 @@ namespace pylorak.TinyWall
         Install,
         Uninstall,
         PromptPreview,
+        UiPreview,
         ProtocolSelfTest,
         PipeIntegrationSelfTest
     }

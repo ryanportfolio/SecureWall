@@ -72,6 +72,13 @@ namespace pylorak.TinyWall
             {
                 return;
             }
+#if DEBUG
+            if (PreviewRows != null)
+            {
+                FillPreviewRows(PreviewRows);
+                return;
+            }
+#endif
 
             IconScanner.CancelScan();
             DnsNames.RefreshIfStale();

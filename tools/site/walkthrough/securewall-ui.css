@@ -1,0 +1,173 @@
+/* SecureWall desktop UI, rebuilt for the walkthrough.
+   SecureWall is a WinForms app, so there is no product stylesheet to copy. Geometry comes
+   from the Designer.cs / .resx files (96 dpi pixels, client coordinates) and colours were
+   sampled from the Debug /uipreview captures (D:\screenshots\SecureWall\walkthrough\refs).
+   Windows that follow the app theme carry .sw-themed; html.dark switches them. The popup,
+   tray menu and update window are light in both themes, as in the product. */
+
+.sw-stage { position: absolute; inset: 0; overflow: hidden; font-family: "Segoe UI", system-ui, sans-serif; font-size: 12px; color: #000;
+  -webkit-font-smoothing: auto; user-select: none; }
+.sw-stage * { box-sizing: border-box; transition: none !important; }
+
+.sw-cam { position: absolute; left: 0; top: 0; width: 1200px; height: 720px; transform-origin: 0 0; }
+
+/* ── desktop and taskbar (Windows 10, system theme dark) */
+.sw-desktop { position: absolute; inset: 0; background: radial-gradient(120% 90% at 30% 20%, #1f5f9e 0%, #123a66 45%, #0a2241 100%); }
+html.dark .sw-desktop { background: radial-gradient(120% 90% at 30% 20%, #18324f 0%, #0f2238 50%, #08121f 100%); }
+.sw-taskbar { position: absolute; left: 0; right: 0; bottom: 0; height: 40px; background: #101010; display: flex; align-items: center; }
+.sw-start { width: 48px; height: 40px; display: flex; align-items: center; justify-content: center; }
+.sw-start i { display: grid; grid-template-columns: 7px 7px; gap: 1px; }
+.sw-start i b { width: 7px; height: 7px; background: #fff; display: block; }
+.sw-search { width: 344px; height: 40px; background: #f3f3f3; color: #444; display: flex; align-items: center; padding-left: 40px; font-size: 12px; }
+.sw-tray { position: absolute; right: 0; top: 0; height: 40px; display: flex; align-items: center; color: #fff; font-size: 12px; }
+.sw-tray-icon { width: 24px; height: 40px; display: flex; align-items: center; justify-content: center; }
+.sw-tray-icon img { width: 16px; height: 16px; display: block; }
+.sw-tray-icon.sw-hot { background: rgba(255, 255, 255, .12); }
+.sw-tray-glyph { width: 16px; height: 16px; border: 1.5px solid #fff; border-radius: 2px; opacity: .85; }
+.sw-clock { width: 78px; text-align: center; line-height: 15px; font-size: 12px; }
+.sw-shownotif { width: 6px; height: 40px; border-left: 1px solid #555; margin-left: 4px; }
+
+/* ── window frame (Windows 10). Outer = client + 2 px wide, client + 32 px tall. */
+.sw-win { position: absolute; background: #f0f0f0; border: 1px solid #aaa; box-shadow: 0 8px 28px rgba(0, 0, 0, .45), 0 0 0 1px rgba(0, 0, 0, .06); }
+.sw-title { position: absolute; left: 0; right: 0; top: 0; height: 30px; background: #fff; color: #000; }
+.sw-title-icon { position: absolute; left: 7px; top: 7px; width: 16px; height: 16px; }
+.sw-title-text { position: absolute; left: 30px; top: 0; line-height: 30px; font-size: 12px; white-space: nowrap; }
+.sw-caps { position: absolute; right: 0; top: 0; height: 30px; display: flex; }
+.sw-cap { width: 46px; height: 30px; position: relative; }
+.sw-cap::before, .sw-cap::after { content: ""; position: absolute; left: 18px; top: 15px; width: 10px; height: 1px; background: currentColor; }
+.sw-cap.sw-max::before { top: 10px; height: 10px; background: none; border: 1px solid currentColor; }
+.sw-cap.sw-max::after { display: none; }
+.sw-cap.sw-min::after { display: none; }
+.sw-cap.sw-close::before { transform: rotate(45deg); left: 17px; width: 12px; top: 15px; }
+.sw-cap.sw-close::after { transform: rotate(-45deg); left: 17px; width: 12px; top: 15px; }
+.sw-client { position: absolute; left: 0; top: 30px; right: 0; bottom: 0; font-family: "Microsoft Sans Serif", Arial, sans-serif; font-size: 11px; letter-spacing: -0.25px; color: #000; }
+/* Chrome draws Microsoft Sans Serif 8.25 pt about 4 % wider than GDI; the spacing matches the captures' text widths. */
+html.dark .sw-themed.sw-win { background: #202020; border-color: #555; }
+html.dark .sw-themed .sw-title { background: #202020; color: #fff; }
+html.dark .sw-themed .sw-client { color: #fff; }
+
+/* ── controls */
+.sw-btn { position: absolute; background: #e1e1e1; border: 1px solid #adadad; color: #000; display: flex; align-items: center; justify-content: center; gap: 6px; font: inherit; white-space: nowrap; }
+.sw-btn img { width: 16px; height: 16px; }
+.sw-btn.sw-default { border: 1px solid #0078d7; box-shadow: inset 0 0 0 1px #0078d7; }
+.sw-btn.sw-hover { background: #e5f1fb; border-color: #0078d7; }
+.sw-btn.sw-press { background: #cce4f7; border-color: #005499; }
+.sw-btn.sw-disabled { color: #a0a0a0; background: #ccc; border-color: #bfbfbf; }
+.sw-btn.sw-disabled img { opacity: .4; }
+.sw-btn.sw-flat { background: #fff; border: 1px solid #000; }
+html.dark .sw-themed .sw-btn { background: #373737; border-color: #373737; color: #fff; }
+html.dark .sw-themed .sw-btn.sw-hover { background: #434343; border-color: #434343; }
+html.dark .sw-themed .sw-btn.sw-press { background: #2b2b2b; }
+html.dark .sw-themed .sw-btn.sw-disabled { color: #8a8a8a; }
+html.dark .sw-themed .sw-btn.sw-default { border-color: #5a6ad0; box-shadow: none; }
+
+.sw-check { position: absolute; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+.sw-check i { width: 13px; height: 13px; border: 1px solid #333; background: #fff; position: relative; display: block; flex: none; }
+.sw-check i::after { content: ""; position: absolute; left: 3px; top: 0; width: 4px; height: 8px; border: solid #333; border-width: 0 1.5px 1.5px 0; transform: rotate(40deg); }
+html.dark .sw-themed .sw-check i { background: #202020; border-color: #fff; }
+html.dark .sw-themed .sw-check i::after { border-color: #fff; }
+
+.sw-text { position: absolute; background: #fff; border: 1px solid #7a7a7a; padding: 2px 3px; height: 20px; line-height: 14px; white-space: nowrap; overflow: hidden; }
+.sw-text.sw-focus { border-color: #0078d7; }
+.sw-caret { display: inline-block; width: 1px; height: 13px; background: currentColor; vertical-align: -2px; }
+html.dark .sw-themed .sw-text { background: #373737; border-color: #646464; color: #fff; }
+
+.sw-label { position: absolute; line-height: 13px; }
+.sw-vscroll { position: absolute; right: 0; top: 0; bottom: 0; width: 17px; background: #f0f0f0; border-left: 1px solid #f0f0f0; }
+
+/* ── list view, details mode with grid lines */
+.sw-list { position: absolute; background: #fff; border: 1px solid #828790; overflow: hidden; }
+.sw-lhead { position: relative; z-index: 1; display: flex; height: 26px; border-bottom: 1px solid #e5e5e5; background: #fff; }
+.sw-lhead > div { flex: none; padding: 0 6px; line-height: 25px; border-right: 1px solid #e5e5e5; white-space: nowrap; overflow: hidden; }
+.sw-lrows { position: relative; }
+.sw-lrow { display: flex; height: 17px; border-bottom: 1px solid #f0f0f0; }
+.sw-lrow > div { flex: none; padding: 0 6px; line-height: 16px; border-right: 1px solid #f0f0f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sw-lrow > div:first-child { padding-left: 4px; display: flex; gap: 3px; align-items: center; }
+.sw-lrow > div:first-child img { width: 16px; height: 16px; flex: none; }
+.sw-lrow > div:first-child span { overflow: hidden; text-overflow: ellipsis; line-height: 16px; padding: 0 2px; }
+.sw-lrow.sw-sel > div { background: #0078d7; color: #fff; }
+.sw-lrow.sw-sel > div:first-child { background: none; color: inherit; }
+.sw-lrow.sw-sel > div:first-child span { background: #0078d7; color: #fff; flex: 1; }
+.sw-lrow.sw-missing > div { background: #d3d3d3; }
+.sw-lfill { position: absolute; left: 0; right: 0; top: 26px; bottom: 0; background-image: linear-gradient(transparent 16px, #f0f0f0 16px); background-size: 100% 17px; }
+.sw-lcol { position: absolute; top: 26px; bottom: 0; width: 1px; background: #f0f0f0; }
+.sw-hscroll { position: absolute; left: 0; right: 0; bottom: 0; height: 17px; background: #f0f0f0; }
+.sw-hscroll::before { content: ""; position: absolute; left: 17px; top: 1px; bottom: 1px; width: var(--thumb, 86%); background: #cdcdcd; }
+.sw-hscroll i { position: absolute; top: 5px; border: 4px solid transparent; }
+.sw-hscroll i.sw-l { left: 5px; border-right: 4px solid #606060; border-left: 0; }
+.sw-hscroll i.sw-r { right: 5px; border-left: 4px solid #606060; border-right: 0; }
+html.dark .sw-themed .sw-list { background: #373737; }
+html.dark .sw-themed .sw-lhead { background: #202020; border-bottom-color: #696969; }
+html.dark .sw-themed .sw-lhead > div { border-right-color: #696969; }
+html.dark .sw-themed .sw-lrow { border-bottom-color: #373737; }
+html.dark .sw-themed .sw-lrow > div { border-right-color: #696969; }
+html.dark .sw-themed .sw-lrow.sw-sel > div { background: #4f60bd; }
+html.dark .sw-themed .sw-lrow.sw-sel > div:first-child { background: none; }
+html.dark .sw-themed .sw-lrow.sw-sel > div:first-child span { background: #4f60bd; }
+html.dark .sw-themed .sw-lrow.sw-missing > div { background: #000; }
+html.dark .sw-themed .sw-lfill { background-image: none; }
+html.dark .sw-themed .sw-lcol { background: #696969; }
+html.dark .sw-themed .sw-hscroll { background: #373737; }
+html.dark .sw-themed .sw-hscroll::before { background: #4d4d4d; }
+html.dark .sw-themed .sw-hscroll i.sw-l { border-right-color: #8a8a8a; }
+html.dark .sw-themed .sw-hscroll i.sw-r { border-left-color: #8a8a8a; }
+
+/* ── tab control */
+.sw-tabs { position: absolute; }
+.sw-tabstrip { position: absolute; left: 2px; top: 0; height: 22px; display: flex; }
+.sw-tab { height: 20px; margin-top: 2px; padding: 0 5px; line-height: 18px; border: 1px solid #d9d9d9; border-bottom: 0; background: #f0f0f0; margin-right: -1px; white-space: nowrap; }
+.sw-tab.sw-on { height: 22px; margin-top: 0; line-height: 20px; background: #fff; position: relative; z-index: 2; margin-left: -2px; margin-right: -3px; padding: 0 7px; }
+.sw-tabpage { position: absolute; left: 0; right: 0; top: 21px; bottom: 0; background: #fff; border: 1px solid #d9d9d9; }
+html.dark .sw-themed .sw-tab { border-color: transparent; background: #202020; color: #b0b0b0; }
+html.dark .sw-themed .sw-tab.sw-on { background: #1d1d1d; color: #fff; border: 1px solid #fff; border-bottom: 0; }
+html.dark .sw-themed .sw-tabpage { background: #202020; border-color: #4a4a4a; }
+
+/* ── menus (ToolStrip). The tray menu is light always; .sw-themed menus follow the theme. */
+.sw-menu { position: absolute; background: #fdfdfd; border: 1px solid #808080; padding: 2px 0; font-family: "Segoe UI", system-ui, sans-serif; font-size: 12px; color: #000;
+  box-shadow: 2px 2px 3px rgba(0, 0, 0, .25); }
+.sw-menu::before { content: ""; position: absolute; left: 2px; top: 2px; bottom: 2px; width: 24px; background: linear-gradient(90deg, #f9f9f9, #f1f1f1); }
+.sw-mi { position: relative; height: 22px; margin: 0 2px; padding-left: 35px; padding-right: 30px; line-height: 21px; white-space: pre; border: 1px solid transparent; }
+.sw-mi img { position: absolute; left: 4px; top: 2px; width: 16px; height: 16px; }
+.sw-mi.sw-sub::after { content: ""; position: absolute; right: 9px; top: 7px; border: 4px solid transparent; border-left: 4px solid #000; border-right: 0; }
+.sw-mi.sw-hover { background: #b5d7f3; border-color: #0078d7; }
+.sw-mi.sw-dis { color: #6d6d6d; }
+.sw-msep { height: 1px; margin: 3px 2px 2px 33px; background: #d7d7d7; position: relative; }
+html.dark .sw-themed.sw-menu { background: #202020; border-color: #373737; color: #fff; }
+html.dark .sw-themed.sw-menu::before { background: #2b2b2b; }
+html.dark .sw-themed .sw-mi.sw-hover { background: #2b335c; border-color: #2b335c; }
+html.dark .sw-themed .sw-mi.sw-sub::after { border-left-color: #fff; }
+html.dark .sw-themed .sw-msep { background: #4a4a4a; }
+
+/* ── the blocked-connection popup (BlockedConnectionPopup.Designer.cs), light always */
+.sw-popup { position: absolute; width: 460px; background: #fff; box-shadow: 0 10px 30px rgba(0, 0, 0, .45), 0 0 0 1px rgba(0, 0, 0, .18); font-family: "Segoe UI", system-ui, sans-serif; color: #000; }
+.sw-pop-title { position: absolute; left: 1px; top: 1px; width: 458px; height: 42px; background: #1f2937; }
+.sw-pop-title b { position: absolute; left: 14px; top: 10px; width: 392px; height: 23px; color: #fff; font-weight: 600; font-size: 13.33px; line-height: 23px; white-space: nowrap; }
+.sw-pop-close { position: absolute; left: 414px; top: 4px; width: 38px; height: 34px; color: #fff; font-size: 16px; text-align: center; line-height: 32px; }
+.sw-pop-ai { position: absolute; left: 426px; top: 8px; width: 26px; height: 24px; background: #fff; border: 1px solid #adadad; color: #000; text-align: center; line-height: 21px; font-size: 12px; }
+.sw-pop-id { position: absolute; left: 18px; top: 57px; width: 424px; height: 25px; font-weight: 600; font-size: 14.67px; line-height: 25px; white-space: nowrap; }
+.sw-pop-path { position: absolute; left: 18px; top: 84px; width: 424px; height: 36px; color: #4b5563; font-size: 11.33px; line-height: 15px; overflow: hidden; }
+.sw-pop-dest { position: absolute; left: 18px; top: 124px; width: 424px; height: 22px; font-size: 12px; line-height: 22px; white-space: pre; }
+.sw-pop-notice { position: absolute; left: 18px; top: 150px; width: 424px; height: 38px; color: #374151; font-size: 11.33px; line-height: 15px; letter-spacing: 0.1px; }
+.sw-pop-warn { position: absolute; left: 18px; top: 190px; width: 424px; color: #b45309; font-weight: 600; font-size: 11.33px; line-height: 15px; }
+.sw-pop-btn { position: absolute; height: 36px; font-weight: 600; font-size: 12px; line-height: 36px; text-align: center; }
+.sw-pop-allow { width: 132px; background: #2563eb; color: #fff; }
+.sw-pop-always { width: 116px; background: #dbeafe; color: #1e40af; }
+.sw-pop-ignore { width: 76px; background: #e5e7eb; color: #1f2937; }
+.sw-pop-btn.sw-disabled { background: #e5e5e5; color: #a0a0a0; }
+.sw-pop-btn.sw-hover { filter: brightness(1.08); }
+.sw-pop-btn.sw-press { filter: brightness(.9); }
+
+/* ── tooltip (light) */
+.sw-tip { position: absolute; max-width: 360px; background: #fff; border: 1px solid #767676; padding: 3px 6px 4px; font-family: "Segoe UI", system-ui, sans-serif; font-size: 12px; line-height: 15px; color: #575757;
+  box-shadow: 2px 2px 3px rgba(0, 0, 0, .2); }
+
+/* ── Windows 10 notification (a NotifyIcon balloon), system theme dark */
+.sw-toast { position: absolute; width: 364px; background: #1f1f1f; color: #fff; padding: 14px 16px 16px 60px; font-family: "Segoe UI", system-ui, sans-serif; box-shadow: 0 4px 16px rgba(0, 0, 0, .45); }
+.sw-toast img { position: absolute; left: 16px; top: 16px; width: 32px; height: 32px; }
+.sw-toast b { display: block; font-size: 15px; font-weight: 600; line-height: 20px; margin-bottom: 2px; }
+.sw-toast p { margin: 0; font-size: 13px; line-height: 18px; color: #cfcfcf; }
+.sw-toast small { display: block; margin-top: 6px; font-size: 11px; color: #9a9a9a; }
+
+/* ── progress bar */
+.sw-progress { position: absolute; height: 18px; background: #e6e6e6; border: 1px solid #bcbcbc; overflow: hidden; }
+.sw-progress i { position: absolute; left: 0; top: 0; bottom: 0; background: #06b025; display: block; }

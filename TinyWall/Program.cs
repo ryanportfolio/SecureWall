@@ -94,6 +94,11 @@ namespace pylorak.TinyWall
             popup.PromptTimedOut += ExitPreview;
             // Sample warning lines regardless of what the executable looks like on disk.
             popup.RiskProbe = _ => PromptPreviewSamples.RiskFlags(args);
+            SignedFileIdentity? signer = UiPreview.Signer(args);
+            if (signer != null)
+                popup.SignerProbe = _ => signer;
+            if (UiPreview.CapturePath(args) is string capture)
+                UiPreview.CaptureWhenReady(popup, capture);
             popup.ShowPrompt(PromptPreviewSamples.Create(args, DateTimeOffset.UtcNow));
             System.Windows.Forms.Application.Run();
             return 0;
@@ -426,6 +431,8 @@ namespace pylorak.TinyWall
 #if DEBUG
             if (Utils.StringArrayContains(args, "/promptpreview"))
                 opts.ProgramMode = StartUpMode.PromptPreview;
+            if (Utils.StringArrayContains(args, UiPreview.Switch))
+                opts.ProgramMode = StartUpMode.UiPreview;
             if (Utils.StringArrayContains(args, "/protocolselftest"))
                 opts.ProgramMode = StartUpMode.ProtocolSelfTest;
             if (Utils.StringArrayContains(args, "/pipeintegrationtest"))
@@ -490,6 +497,8 @@ namespace pylorak.TinyWall
 #if DEBUG
                 case StartUpMode.PromptPreview:
                     return StartPromptPreview(args);
+                case StartUpMode.UiPreview:
+                    return UiPreview.Run(args);
                 case StartUpMode.ProtocolSelfTest:
                     return RunProtocolSelfTest();
                 case StartUpMode.PipeIntegrationSelfTest:

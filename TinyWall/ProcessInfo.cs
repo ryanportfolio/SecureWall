@@ -18,6 +18,14 @@ namespace pylorak.TinyWall
             Services = services;
         }
 
+#if DEBUG
+        // Sample rows for the Debug-only /uipreview switch: no process or service lookup.
+        internal static ProcessInfo CreatePreview(uint pid, string path, params string[] services)
+        {
+            return new ProcessInfo(pid, path, null, new HashSet<string>(services));
+        }
+#endif
+
         public static ProcessInfo Create(uint pid, UwpPackageList uwp, ServicePidMap servicePids)
         {
             return new ProcessInfo(
