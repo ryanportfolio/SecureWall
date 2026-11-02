@@ -14,10 +14,11 @@
 // entry bundle, so window.__swLayers is watched before the terrain is built.
 // CSS: every tools/site/sections/*.css, alphabetical, concatenated into one
 // marked block at the end of securewall.css.
-// Walkthrough: tools/site/walkthrough (the player the Tour section frames),
-// without its README and review page, replaces /walkthrough/. vercel.json gets
-// one headers entry for it: frame-ancestors 'self', so only the site itself
-// can frame it, and noindex, so the bare player stays out of search results.
+// Walkthrough: the files git tracks under tools/site/walkthrough (the player
+// the Tour section frames), without its README and review page, replace
+// /walkthrough/. vercel.json gets headers for /walkthrough and everything
+// under it: frame-ancestors 'self', so only the site itself can frame it, and
+// noindex, so the bare player stays out of search results.
 //
 //   node tools/release/update-secwall-site.mjs --download .tmp/site-live
 //   node tools/site/patch-secwall-site.mjs --from .tmp/site-live --out .tmp/site-patched
@@ -25,6 +26,7 @@
 // --out is deleted and rebuilt; a non-empty --out without an index.html is
 // refused. Deploying is left to the caller. A preview: vercel deploy .tmp/site-patched
 
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -39,13 +41,14 @@ const ADDED_FILE = /^build\/sw-[A-Za-z0-9_-]+-[A-Za-z0-9_-]{8}\.js$/;
 const ADDED_TAG = /<script src="\/build\/sw-[A-Za-z0-9_-]+-[A-Za-z0-9_-]{8}\.js"><\/script>/g;
 const WALKTHROUGH = path.join(HERE, "walkthrough");
 const WALKTHROUGH_SKIP = new Set(["README.md", "film.html"]);
-const WALKTHROUGH_HEADERS = {
-  source: "/walkthrough/(.*)",
+// "/walkthrough/(.*)" does not match "/walkthrough" itself, so it gets its own entry.
+const WALKTHROUGH_HEADERS = ["/walkthrough", "/walkthrough/(.*)"].map(source => ({
+  source,
   headers: [
     { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
     { key: "X-Robots-Tag", value: "noindex" },
   ],
-};
+}));
 
 // Anchored bundle patches: [anchor, replacement, already-applied marker].
 const BUNDLE_PATCHES = [
@@ -80,6 +83,15 @@ function listFiles(dir) {
   return fs.readdirSync(dir, { recursive: true, withFileTypes: true })
     .filter(e => e.isFile())
     .map(e => path.relative(dir, path.join(e.parentPath, e.name)).split(path.sep).join("/"));
+}
+
+// Files git tracks under dir, relative to it, so scratch files never ship.
+function trackedFiles(dir) {
+  const out = execFileSync("git", ["ls-files", "-z", "--", "."], { cwd: dir, encoding: "utf8" });
+  const files = out.split("\0").filter(Boolean);
+  const missing = files.filter(f => !fs.existsSync(path.join(dir, f)));
+  if (missing.length) fail(`${dir}: tracked but missing on disk: ${missing.join(", ")}`);
+  return files;
 }
 
 // Section files with this extension, sorted by name.
@@ -189,7 +201,7 @@ function patch(from, out) {
 
   // The walkthrough player, replacing any earlier copy.
   fs.rmSync(path.join(out, "walkthrough"), { recursive: true, force: true });
-  const players = listFiles(WALKTHROUGH).filter(f => !WALKTHROUGH_SKIP.has(f));
+  const players = trackedFiles(WALKTHROUGH).filter(f => !WALKTHROUGH_SKIP.has(f));
   if (!players.includes("index.html")) fail(`${WALKTHROUGH} has no index.html`);
   for (const rel of players) {
     fs.mkdirSync(path.dirname(path.join(out, "walkthrough", rel)), { recursive: true });
@@ -198,8 +210,9 @@ function patch(from, out) {
   console.log(`added walkthrough/ (${players.length} files)`);
   const vercel = JSON.parse(read("vercel.json"));
   if (!Array.isArray(vercel.headers)) fail("vercel.json: no headers list");
-  vercel.headers = vercel.headers.filter(h => h.source !== WALKTHROUGH_HEADERS.source);
-  vercel.headers.push(WALKTHROUGH_HEADERS);
+  const ours = new Set(WALKTHROUGH_HEADERS.map(h => h.source));
+  vercel.headers = vercel.headers.filter(h => !ours.has(h.source));
+  vercel.headers.push(...WALKTHROUGH_HEADERS);
   write("vercel.json", `${JSON.stringify(vercel, null, 2)}\n`);
   console.log("updated vercel.json (walkthrough headers)");
 
