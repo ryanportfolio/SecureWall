@@ -51,7 +51,7 @@ This changes how cheaply concept 01 can be built: anything added to the height t
 
 **Headings stay real.** The `h1` and `h2` stay in the DOM as real headings, visually hidden (the existing `.sw-static` pattern) only while the WebGL text is drawn. With reduced motion, no WebGL, or a failed font load, the current DOM text shows as it does today. Remove the heavy `text-shadow` from the DOM fallback only if it stays legible on the terrain without it.
 
-**Hero tagline.** "A default-deny firewall for Windows. Decide which apps connect." moves into its own space at bottom left, as in concept 01, with no overlap at any width.
+**Hero tagline.** "A default-deny firewall for Windows. Decide which apps connect." moves into its own space at bottom left, as in concept 01, with no overlap at any width. The owner later set it in two lines with no periods ("A default-deny firewall for Windows" / "Decide which apps connect"), a bundle patch; below 600 px its size follows the width so the first line never wraps. The hidden crawler copy in `index.html` keeps the sentence punctuation.
 
 ## What the hero build showed
 
