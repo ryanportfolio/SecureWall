@@ -32,8 +32,12 @@ namespace pylorak.TinyWall
         // Never the real pipe: preview actions must not reach an installed service.
         private const string NoServicePipe = "SecureWall-UiPreview-NoService";
 
+        // Set for the whole preview: ControllerSettings.Save does nothing while it is.
+        internal static bool Active { get; private set; }
+
         internal static int Run(string[] args)
         {
+            Active = true;
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
