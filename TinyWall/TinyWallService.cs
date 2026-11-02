@@ -78,6 +78,7 @@ namespace pylorak.TinyWall
         // Context for auto rule inheritance
         private readonly object InheritanceGuard = new();
         private HashSet<string> UserSubjectExes = new(StringComparer.OrdinalIgnoreCase);        // All executables with pre-configured rules.
+        private HashSet<string> UserSubjectPackages = new(StringComparer.OrdinalIgnoreCase);    // All AppContainer package SIDs with pre-configured rules.
         // UserSubjectExes as last committed (app and special-profile rules); never changed after
         // publication, so the prompt timer thread reads it without InheritanceGuard.
         private volatile HashSet<string> CommittedRuleExecutables = new(StringComparer.OrdinalIgnoreCase);
@@ -122,6 +123,78 @@ namespace pylorak.TinyWall
         private readonly FilterConditionList LocalSubnetFilterConditions = new();
         private readonly FilterConditionList GatewayFilterConditions = new();
         private readonly FilterConditionList DnsFilterConditions = new();
+
+        private static string? GetPackageSid(uint processId)
+        {
+            try
+            {
+                return ProcessManager.GetAppContainerSid(processId);
+            }
+            catch
+            {
+                // A process we cannot inspect counts as having no package
+                return null;
+            }
+        }
+
+        // Ancestors of a snapshot process, nearest first, for RuleInheritance.
+        private static IEnumerable<(string? Path, string? PackageSid)> SnapshotAncestors(
+            Dictionary<uint, ProcessSnapshotEntry> procTree, ProcessSnapshotEntry child, HashSet<uint> pidsChecked, Func<uint, string?> packageOf)
+        {
+            for (var parentEntry = child; ;)
+            {
+                long childCreationTime = parentEntry.CreationTime;
+                if (procTree.TryGetValue(parentEntry.ParentProcessId, out var val))
+                    parentEntry = val;
+                else
+                    // We reached top of process tree (with non-existing parent)
+                    yield break;
+
+                // Check if what we have is really the parent, or just a reused PID
+                if (parentEntry.CreationTime > childCreationTime)
+                    // We reached the top of the process tree (with non-existing parent)
+                    yield break;
+
+                if (parentEntry.ProcessId == 0)
+                    // We reached top of process tree (with idle process)
+                    yield break;
+
+                if (pidsChecked.Contains(parentEntry.ProcessId))
+                    // We've been here before, damn it. Avoid looping eternally...
+                    yield break;
+
+                pidsChecked.Add(parentEntry.ProcessId);
+
+                yield return (parentEntry.ImagePath, packageOf(parentEntry.ProcessId));
+            }
+        }
+
+        // Ancestors of a running process, nearest first, for RuleInheritance.
+        private IEnumerable<(string? Path, string? PackageSid)> RunningAncestors(uint pid, Func<uint, string?> packageOf)
+        {
+            // This list will hold parents that we already checked for a process.
+            // Used to avoid infinite loop when parent-PID info is unreliable.
+            var pidsChecked = new HashSet<uint>();
+
+            for (var parentPid = pid; ;)
+            {
+                if (!ProcessManager.GetParentProcess(parentPid, ref parentPid))
+                    // We reached the top of the process tree (with non-existent parent)
+                    yield break;
+
+                if (parentPid == 0)
+                    // We reached top of process tree (with idle process)
+                    yield break;
+
+                if (pidsChecked.Contains(parentPid))
+                    // We've been here before, damn it. Avoid looping eternally...
+                    yield break;
+
+                pidsChecked.Add(parentPid);
+
+                yield return (ProcessManager.GetProcessPath(parentPid, ref ProcessStartWatcher_Sbuilder), packageOf(parentPid));
+            }
+        }
 
         private List<RuleDef> AssembleActiveRules(List<RuleDef> rawSocketExceptions)
         {
@@ -222,6 +295,10 @@ namespace pylorak.TinyWall
                             ChildInheritance[exePath].Add(ex);
                         }
                     }
+                    else if (ex.Subject is AppContainerSubject uwp)
+                    {
+                        UserSubjectPackages.Add(uwp.Sid);
+                    }
 
                     GetRulesForException(ex, rules, rawSocketExceptions, (ulong)FilterWeights.UserPermit, (ulong)FilterWeights.UserBlock);
                 }
@@ -239,6 +316,20 @@ namespace pylorak.TinyWall
                     // Used to avoid inf. loop when parent-PID info is unreliable.
                     var pidsChecked = new HashSet<uint>();
 
+                    // Package SIDs, looked up at most once per process and only if a package has a rule
+                    var packageSids = new Dictionary<uint, string?>();
+                    string? PackageOf(uint processId)
+                    {
+                        if (UserSubjectPackages.Count == 0)
+                            return null;
+                        if (!packageSids.TryGetValue(processId, out string? sid))
+                        {
+                            sid = GetPackageSid(processId);
+                            packageSids.Add(processId, sid);
+                        }
+                        return sid;
+                    }
+
                     foreach (var pair in procTree)
                     {
                         pidsChecked.Clear();
@@ -249,58 +340,21 @@ namespace pylorak.TinyWall
                         if (string.IsNullOrEmpty(procPath))
                             continue;
 
-                        // Skip if we have a user-defined rule for this path
-                        if (UserSubjectExes.Contains(procPath))
-                            continue;
+                        string? parentPath = RuleInheritance.FindInheritedParent(procPath, PackageOf(pair.Key),
+                            SnapshotAncestors(procTree, pair.Value, pidsChecked, PackageOf),
+                            UserSubjectExes, UserSubjectPackages, ChildInheritance.ContainsKey,
+                            p => ChildInheritedSubjectExes.TryGetValue(procPath, out var childVal) && childVal.Contains(p));
 
-                        // Start walking up the process tree
-                        for (var parentEntry = procTree[pair.Key]; ;)
+                        if (parentPath != null)
                         {
-                            long childCreationTime = parentEntry.CreationTime;
-                            if (procTree.TryGetValue(parentEntry.ParentProcessId, out var val))
-                                parentEntry = val;
-                            else
-                                // We reached top of process tree (with non-existing parent)
-                                break;
+                            var subj = new ExecutableSubject(procPath);
+                            foreach (var userEx in ChildInheritance[parentPath])
+                                if (!EnforcementPolicy.IsExpired(userEx.CreationDate, (int)userEx.Timer, DateTime.Now))
+                                    GetRulesForException(new FirewallExceptionV3(subj, userEx.Policy), rules, rawSocketExceptions, (ulong)FilterWeights.UserPermit, (ulong)FilterWeights.UserBlock);
 
-                            // Check if what we have is really the parent, or just a reused PID
-                            if (parentEntry.CreationTime > childCreationTime)
-                                // We reached the top of the process tree (with non-existing parent)
-                                break;
-
-                            if (parentEntry.ProcessId == 0)
-                                // We reached top of process tree (with idle process)
-                                break;
-
-                            if (pidsChecked.Contains(parentEntry.ProcessId))
-                                // We've been here before, damn it. Avoid looping eternally...
-                                break;
-
-                            pidsChecked.Add(parentEntry.ProcessId);
-
-                            if (string.IsNullOrEmpty(parentEntry.ImagePath))
-                                // We cannot get the path, so let's skip this parent
-                                continue;
-
-                            if (ChildInheritedSubjectExes.TryGetValue(procPath, out var childVal))
-                            {
-                                if (childVal.Contains(parentEntry.ImagePath))
-                                    // We have already processed this parent-child combination
-                                    break;
-                            }
-
-                            if (ChildInheritance.TryGetValue(parentEntry.ImagePath, out List<FirewallExceptionV3> exList))
-                            {
-                                var subj = new ExecutableSubject(procPath);
-                                foreach (var userEx in exList)
-                                    if (!EnforcementPolicy.IsExpired(userEx.CreationDate, (int)userEx.Timer, DateTime.Now))
-                                        GetRulesForException(new FirewallExceptionV3(subj, userEx.Policy), rules, rawSocketExceptions, (ulong)FilterWeights.UserPermit, (ulong)FilterWeights.UserBlock);
-
-                                if (!ChildInheritedSubjectExes.ContainsKey(procPath))
-                                    ChildInheritedSubjectExes.Add(procPath, new HashSet<string>());
-                                ChildInheritedSubjectExes[procPath].Add(parentEntry.ImagePath);
-                                break;
-                            }
+                            if (!ChildInheritedSubjectExes.ContainsKey(procPath))
+                                ChildInheritedSubjectExes.Add(procPath, new HashSet<string>());
+                            ChildInheritedSubjectExes[procPath].Add(parentPath);
                         }
                     }
                 }   // if (ChildInheritance ...
@@ -405,10 +459,12 @@ namespace pylorak.TinyWall
             lock (InheritanceGuard)
             {
                 var previousSubjects = UserSubjectExes;
+                var previousPackages = UserSubjectPackages;
                 var previousInheritance = ChildInheritance;
                 var previousInheritedSubjects = ChildInheritedSubjectExes;
                 bool committed = false;
                 UserSubjectExes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                UserSubjectPackages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 ChildInheritance = new Dictionary<string, List<FirewallExceptionV3>>();
                 ChildInheritedSubjectExes = new Dictionary<string, HashSet<string>>();
                 try
@@ -475,6 +531,7 @@ namespace pylorak.TinyWall
                     if (!committed)
                     {
                         UserSubjectExes = previousSubjects;
+                        UserSubjectPackages = previousPackages;
                         ChildInheritance = previousInheritance;
                         ChildInheritedSubjectExes = previousInheritedSubjects;
                         // The previous policy may stay in force; update permits do not.
@@ -2756,59 +2813,30 @@ namespace pylorak.TinyWall
 
                 lock (InheritanceGuard)
                 {
-                    // Skip if we have a user-defined rule for this path
-                    if (UserSubjectExes.Contains(path))
-                        return;
-
-                    // This list will hold parents that we already checked for a process.
-                    // Used to avoid infinite loop when parent-PID info is unreliable.
-                    var pidsChecked = new HashSet<uint>();
+                    // Package SIDs are only needed, and only looked up, if a package has a rule
+                    string? PackageOf(uint processId) => UserSubjectPackages.Count == 0 ? null : GetPackageSid(processId);
 
                     // Start walking up the process tree
-                    for (var parentPid = pid; ;)
+                    string? parentPath = RuleInheritance.FindInheritedParent(path, PackageOf(pid),
+                        RunningAncestors(pid, PackageOf),
+                        UserSubjectExes, UserSubjectPackages, ChildInheritance.ContainsKey,
+                        p => ChildInheritedSubjectExes.TryGetValue(path, out var childVar) && childVar.Contains(p));
+
+                    if (parentPath != null)
                     {
-                        if (!ProcessManager.GetParentProcess(parentPid, ref parentPid))
-                            // We reached the top of the process tree (with non-existent parent)
-                            break;
+                        newExceptions = new List<FirewallExceptionV3>();
 
-                        if (parentPid == 0)
-                            // We reached top of process tree (with idle process)
-                            break;
+                        foreach (var userEx in ChildInheritance[parentPath])
+                            if (!EnforcementPolicy.IsExpired(userEx.CreationDate, (int)userEx.Timer, DateTime.Now))
+                                newExceptions.Add(new FirewallExceptionV3(new ExecutableSubject(path), userEx.Policy)
+                                {
+                                    Timer = userEx.Timer,
+                                    CreationDate = userEx.CreationDate
+                                });
 
-                        if (pidsChecked.Contains(parentPid))
-                            // We've been here before, damn it. Avoid looping eternally...
-                            break;
-
-                        pidsChecked.Add(parentPid);
-
-                        string parentPath = ProcessManager.GetProcessPath(parentPid, ref ProcessStartWatcher_Sbuilder);
-                        if (string.IsNullOrEmpty(parentPath))
-                            continue;
-
-                        // Skip if we have already processed this parent-child combination
-                        if (ChildInheritedSubjectExes.TryGetValue(path, out var childVar))
-                        {
-                            if (childVar.Contains(parentPath))
-                                break;
-                        }
-
-                        if (ChildInheritance.TryGetValue(parentPath, out List<FirewallExceptionV3> exList))
-                        {
-                            newExceptions ??= new List<FirewallExceptionV3>();
-
-                            foreach (var userEx in exList)
-                                if (!EnforcementPolicy.IsExpired(userEx.CreationDate, (int)userEx.Timer, DateTime.Now))
-                                    newExceptions.Add(new FirewallExceptionV3(new ExecutableSubject(path), userEx.Policy)
-                                    {
-                                        Timer = userEx.Timer,
-                                        CreationDate = userEx.CreationDate
-                                    });
-
-                            if (!ChildInheritedSubjectExes.ContainsKey(path))
-                                ChildInheritedSubjectExes.Add(path, new HashSet<string>());
-                            ChildInheritedSubjectExes[path].Add(parentPath);
-                            break;
-                        }
+                        if (!ChildInheritedSubjectExes.ContainsKey(path))
+                            ChildInheritedSubjectExes.Add(path, new HashSet<string>());
+                        ChildInheritedSubjectExes[path].Add(parentPath);
                     }
                 }
 
