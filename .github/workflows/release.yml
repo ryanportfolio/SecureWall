@@ -8,7 +8,7 @@ on:
       tag:
         description: Existing prerelease tag to receive the installers
         required: true
-        default: v0.5.2
+        default: v0.5.3
 
 permissions:
   contents: read
