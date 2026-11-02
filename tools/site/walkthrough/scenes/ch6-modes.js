@@ -9,16 +9,16 @@
 //   2300  pointer onto Change mode: highlight, submenu opens to the left
 //   3300  pointer into the submenu onto Block all; 3900 click
 //   4050  menus close; the tray shield turns yellow; the notification slides in
-//   9000  end
+//   5121  end (the first 1085 ms are trimmed)
 (function () {
-  const T = { move: 700, tapTray: 1500, open: 1600, onMode: 2300, sub: 2450, onBlock: 3300, tap: 3900, close: 4050, toast: 4300, dur: 9000 };
+  const T = { move: 700, tapTray: 1500, open: 1600, onMode: 2300, sub: 2450, onBlock: 3300, tap: 3900, close: 4050, toast: 4300, dur: 5121, trim: 1085};
   (window.SCENES = window.SCENES || []).push({
     id: "ch6-modes", order: 6,
     title: "Change the firewall mode from the tray",
     takeaway: "Pick a mode from the tray icon; prompts appear only in Normal protection.",
     cta: { label: "Get SecureWall", href: "/#team" },
     alt: "The pointer clicks the green SecureWall shield in the Windows tray. In the menu it opens Change mode and picks Block all. The shield turns yellow and a notification says the firewall now blocks all inbound and outbound traffic.",
-    duration: T.dur,
+    duration: T.dur - T.trim,
     mount(root, ctx) {
       const U = window.SWUI, { OB } = ctx;
       const stage = OB.h(`<div class="sw-stage"><div class="sw-cam">${U.desktop()}
@@ -39,7 +39,7 @@
       const S = 34, aim = (x, y) => { const m = cam.map(x, y); return ctx.aim(m.x, m.y, S); };
       const tr = U.local(trayIcon), bl = U.local(block);
       const pTray = aim(tr.cx, tr.cy), pMode = aim(mi.x + 170, mi.cy + 3), pBlock = aim(bl.x + 120, bl.cy + 3);
-      ctx.actor([
+      ctx.actor(U.shiftKeys(T.trim, [
         { t: 0, x: 560, y: 300, size: S },
         { t: T.move, x: 560, y: 300 },
         { t: T.tapTray - 220, x: pTray.x, y: pTray.y, ease: "out" },
@@ -50,11 +50,12 @@
         { t: T.tap, tap: true }, { t: T.tap + 180, tap: false },
         { t: T.close + 900, x: pBlock.x - 60, y: pBlock.y - 150, ease: "inOut" },
         { t: T.dur, x: pBlock.x - 64, y: pBlock.y - 152 },
-      ]);
+      ]));
 
       const set = OB.writer();
       return {
         frame(t) {
+          t += T.trim; // the opening that was cut
           const open = t >= T.open && t < T.close;
           set(menu, "visibility", open ? "visible" : "hidden");
           set(modeItem, "class", "sw-mi sw-sub" + (t >= T.onMode - 120 ? " sw-hover" : ""));

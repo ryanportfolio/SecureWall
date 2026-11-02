@@ -8,16 +8,16 @@
 //   2300  camera eases to the centre; the update window opens: "SecureWall 0.5.2 is available"
 //   4200  pointer to Install; 4900 click
 //   5100  "Downloading SecureWall 0.5.2", the progress bar fills
-//   10000 end (download still running: the elevation prompt and setup are not shown)
+//   10000 end (the first 1123 ms are trimmed)
 (function () {
-  const T = { move: 500, tapTray: 1000, open: 1100, onItem: 1600, tapItem: 2000, pan: 2100, win: 2400, move2: 4200, tapInstall: 4900, dl: 5100, dur: 10000 };
+  const T = { move: 500, tapTray: 1000, open: 1100, onItem: 1600, tapItem: 2000, pan: 2100, win: 2400, move2: 4200, tapInstall: 4900, dl: 5100, dur: 10000, trim: 1123};
   (window.SCENES = window.SCENES || []).push({
     id: "ch8-update", order: 8,
     title: "Update from the tray",
     takeaway: "Check for updates downloads, verifies and installs the newest release in place.",
     cta: { label: "Get SecureWall", href: "/#team" },
     alt: "From the SecureWall tray menu the pointer clicks Check for updates. A window says SecureWall 0.5.2 is available, with its release notes. The pointer clicks Install and the window shows the download progressing.",
-    duration: T.dur,
+    duration: T.dur - T.trim,
     mount(root, ctx) {
       const U = window.SWUI, { OB } = ctx;
       const wx = 299, wy = 100;
@@ -35,7 +35,7 @@
       const S = 34, aim = (c, x, y) => { const m = c.map(x, y); return ctx.aim(m.x, m.y, S); };
       const tr = U.local(trayIcon), it = U.local(item), ins = U.local(install);
       const pTray = aim(camA, tr.cx, tr.cy), pItem = aim(camA, it.x + 70, it.cy), pInst = aim(camB, ins.x + ins.w - 8, ins.cy + 5);
-      ctx.actor([
+      ctx.actor(U.shiftKeys(T.trim, [
         { t: 0, x: 560, y: 260, size: S },
         { t: T.move, x: 560, y: 260 },
         { t: T.tapTray - 220, x: pTray.x, y: pTray.y, ease: "out" },
@@ -47,11 +47,12 @@
         { t: T.tapInstall, tap: true }, { t: T.tapInstall + 180, tap: false },
         { t: T.dl + 800, x: pInst.x + 120, y: pInst.y + 60, ease: "inOut" },
         { t: T.dur, x: pInst.x + 124, y: pInst.y + 62 },
-      ]);
+      ]));
 
       const set = OB.writer();
       return {
         frame(t) {
+          t += T.trim; // the opening that was cut
           const u = OB.ease("inOut")(OB.prog(t, T.pan, 700));
           set(camEl, "transform", U.camMix(camA, camB, u).css);
           set(menu, "visibility", t >= T.open && t < T.tapItem + 120 ? "visible" : "hidden");

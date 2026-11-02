@@ -258,6 +258,10 @@
     set(el, "transform", vis && u < 1 ? `scale(${(0.96 + 0.04 * e).toFixed(4)})` : "none");
   }
 
-  window.SWUI = { local, openFx, cam, camMix, P, desktop, shieldSrc, frame, btn, check, list, row, networkActivity, NA_COLS, NA_ROWS, manage, EX_COLS, EX_ROWS,
+  // A chapter that starts part-way into its beat sheet (T.trim): its pointer path moves back
+  // by the same amount, so keys before the new start only set where the pointer comes from.
+  const shiftKeys = (d, keys) => keys.map((k) => Object.assign({}, k, { t: k.t - d }));
+
+  window.SWUI = { shiftKeys, local, openFx, cam, camMix, P, desktop, shieldSrc, frame, btn, check, list, row, networkActivity, NA_COLS, NA_ROWS, manage, EX_COLS, EX_ROWS,
     popup, popupHeight, menu, trayItems, MODE_ITEMS, NA_MENU, password, update, toast, tip, esc };
 })();

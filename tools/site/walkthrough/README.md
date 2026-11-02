@@ -6,20 +6,20 @@ An animated tour of the SecureWall desktop app for secwall.org: eight short chap
 node tools\site\serve-site.mjs tools\site\walkthrough 4318
 ```
 
-Then open `http://127.0.0.1:4318/`. Add `?theme=light` for the light app theme, `?scene=ch4-activity` to open a chapter, `?t=3300` to freeze a moment, `?dev=0` to hide the dev bar. Space pauses, the arrow keys change chapter.
+Then open `http://127.0.0.1:4318/`, or `film.html` to play the whole tour on one timeline and mark stretches to cut (I and O; Copy cuts gives chapter-local times). Add `?theme=light` for the light app theme, `?scene=ch4-activity` to open a chapter, `?t=3300` to freeze a moment, `?dev=0` to hide the dev bar. Space pauses, the arrow keys change chapter.
 
 | # | Chapter | Shows |
 |---|---|---|
 | 1 | `ch1-allow` | The blocked-connection popup; Allow outgoing enables after 1 s and is clicked |
 | 2 | `ch2-ignore` | Ignore on an unsigned app, then Manage, Ignored |
 | 3 | `ch3-always-allow` | Always allow on a signed app, its tooltip, then Manage, Always allow |
-| 4 | `ch4-activity` | Network Activity, right-click Unblock, the Windows notification, the new Allowed row |
+| 4 | `ch4-activity` | Network Activity, right-click Unblock, the Windows notification |
 | 5 | `ch5-rules` | Manage, Application Exceptions, typing in Filter |
 | 6 | `ch6-modes` | Tray menu, Change mode, Block all, yellow tray icon |
 | 7 | `ch7-lock` | Tray Lock, then Allow on a popup asks for the password |
 | 8 | `ch8-update` | Tray Check for updates, the update window, Install, download progress |
 
-The tour runs about 88 seconds: 73 s of chapters and seven 1.8 s gaps.
+The tour runs about 44 seconds. Each chapter ends as its result appears and the next starts at once (`gapMs: 0`); `T.trim` in a scene skips the start of its beat sheet. These cuts came from the owner's review with `film.html`.
 
 ## How the windows are rebuilt
 

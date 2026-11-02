@@ -22,7 +22,8 @@ window.TOUR = {
   // A Windows-sized arrow pointer.
   actor: { src: "actors/cursor.js", id: "cursor", size: 34 },
 
-  gapMs: 1800,
+  // No hold between chapters: each one ends as its result lands (owner review, 2026-11-01).
+  gapMs: 0,
   maxScale: 1.25,
 
   // The popup's Allow blue (BlockedConnectionPopup.Designer.cs).

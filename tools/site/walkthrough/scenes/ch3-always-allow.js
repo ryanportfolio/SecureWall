@@ -9,9 +9,9 @@
 //   5000  click; 5150 popup closes
 //   5500  camera eases to the centre; Manage opens on the Always allow tab with the rule
 //   6300  pointer clicks the NoteSync.exe rule; it selects and Remove enables
-//   9000  end
+//   7103  end (the first 103 ms are trimmed)
 (function () {
-  const T = { move: 900, tip: 2200, tap: 5000, close: 5150, pan: 5300, open: 5500, mark: 6300, dur: 9000 };
+  const T = { move: 900, tip: 2200, tap: 5000, close: 5150, pan: 5300, open: 5500, mark: 6300, dur: 7103, trim: 103};
   const WARN = ["writable"];
   const TIP = "Allow now, and from now on allow any file named NoteSync.exe signed by NoteSync Labs Inc., in any folder. Outbound TCP/UDP only.";
   (window.SCENES = window.SCENES || []).push({
@@ -20,7 +20,7 @@
     takeaway: "For signed apps: allow by file name and publisher, wherever it updates to.",
     cta: { label: "Read the prompt guide", href: "/#public-goods" },
     alt: "A SecureWall popup for NoteSync.exe offers Always allow. Its tooltip says any file named NoteSync.exe signed by NoteSync Labs Inc. is allowed in any folder, outbound TCP/UDP only. The pointer clicks Always allow, and the Manage window lists the rule on its Always allow tab.",
-    duration: T.dur,
+    duration: T.dur - T.trim,
     mount(root, ctx) {
       const U = window.SWUI, { OB } = ctx;
       const ph = U.popupHeight(WARN), px = 1200 - 460 - 16, py = 680 - ph - 16;
@@ -39,7 +39,7 @@
       const S = 34, aim = (c, x, y) => { const m = c.map(x, y); return ctx.aim(m.x, m.y, S); };
       const b = U.local(always), pBtn = aim(camA, b.x + b.w - 10, b.cy + 8);
       const r = U.local(rowEl), pRow = aim(camB, r.x + 150, r.y + 9);
-      ctx.actor([
+      ctx.actor(U.shiftKeys(T.trim, [
         { t: 0, x: 560, y: 300, size: S },
         { t: T.move, x: 560, y: 300 },
         { t: T.tip - 300, x: pBtn.x, y: pBtn.y, ease: "out" },
@@ -49,11 +49,12 @@
         { t: T.mark, tap: true }, { t: T.mark + 180, tap: false },
         { t: T.mark + 900, x: pRow.x + 60, y: pRow.y + 70, ease: "inOut" },
         { t: T.dur, x: pRow.x + 64, y: pRow.y + 72 },
-      ]);
+      ]));
 
       const set = OB.writer();
       return {
         frame(t) {
+          t += T.trim; // the opening that was cut
           const u = OB.ease("inOut")(OB.prog(t, T.pan, 700));
           set(camEl, "transform", U.camMix(camA, camB, u).css);
           set(pop, "visibility", t < T.close ? "visible" : "hidden");

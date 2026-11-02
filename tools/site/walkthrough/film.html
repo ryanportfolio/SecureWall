@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>SecureWall tour: full film</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  html, body { margin: 0; height: 100%; background: #0d1117; color: #e6e8ec; font: 13px/1.4 "Segoe UI", system-ui, sans-serif; }
+  body.light { background: #eef1f5; color: #16161a; }
+  #wrap { display: flex; height: 100%; }
+  #main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  #frame { flex: 1; border: 0; width: 100%; display: block; background: transparent; }
+  #cap { text-align: center; padding: 4px 16px 0; min-height: 40px; }
+  #cap b { display: block; font-size: 16px; }
+  #cap span { opacity: .75; }
+  #bar { display: flex; align-items: center; gap: 12px; padding: 8px 20px 4px; }
+  #play { width: 34px; height: 34px; border-radius: 50%; border: 0; background: #2563eb; color: #fff; font-size: 13px; cursor: pointer; flex: none; }
+  #time { font-variant-numeric: tabular-nums; min-width: 150px; text-align: right; opacity: .85; }
+  /* timeline: chapters, cuts, playhead */
+  #tl { position: relative; flex: 1; height: 34px; cursor: pointer; user-select: none; touch-action: none; }
+  #tl .track { position: absolute; left: 0; right: 0; top: 12px; height: 10px; background: rgba(127,127,127,.28); border-radius: 5px; }
+  #tl .prog { position: absolute; left: 0; top: 12px; height: 10px; background: #2563eb; border-radius: 5px 0 0 5px; }
+  #tl .chap { position: absolute; top: 6px; bottom: 6px; width: 1px; background: rgba(127,127,127,.7); }
+  #tl .chap i { position: absolute; top: -6px; left: 3px; font-style: normal; font-size: 10px; opacity: .7; }
+  #tl .cut { position: absolute; top: 10px; height: 14px; background: rgba(239,68,68,.75); border: 1px solid #ef4444; border-radius: 3px; }
+  #tl .cut.sel { background: rgba(250,204,21,.8); border-color: #facc15; }
+  #tl .pend { position: absolute; top: 4px; bottom: 4px; width: 2px; background: #f59e0b; }
+  #tl .pendspan { position: absolute; top: 10px; height: 14px; background: rgba(245,158,11,.35); }
+  #tl .head { position: absolute; top: 2px; bottom: 2px; width: 2px; margin-left: -1px; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.5); }
+  body.light #tl .head { background: #111; box-shadow: none; }
+  #tools { display: flex; align-items: center; gap: 8px; padding: 4px 20px 14px 66px; flex-wrap: wrap; }
+  button.t { border: 1px solid rgba(127,127,127,.5); background: transparent; color: inherit; border-radius: 6px; padding: 5px 10px; font: inherit; cursor: pointer; }
+  button.t:hover { border-color: #2563eb; }
+  button.t.on { background: #2563eb; border-color: #2563eb; color: #fff; }
+  kbd { font: 11px ui-monospace, monospace; opacity: .7; }
+  /* cut list */
+  #side { width: 340px; flex: none; border-left: 1px solid rgba(127,127,127,.3); display: flex; flex-direction: column; }
+  #side h2 { font-size: 14px; margin: 14px 16px 4px; }
+  #side .hint { margin: 0 16px 8px; opacity: .7; font-size: 12px; }
+  #list { flex: 1; overflow: auto; padding: 0 10px; }
+  .item { border: 1px solid rgba(127,127,127,.35); border-radius: 8px; padding: 8px 10px; margin: 6px 0; cursor: pointer; }
+  .item.sel { border-color: #facc15; }
+  .item .row { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .item b { font-size: 12px; }
+  .item small { opacity: .7; font-variant-numeric: tabular-nums; }
+  .item input { width: 100%; box-sizing: border-box; margin-top: 6px; background: transparent; color: inherit; border: 1px solid rgba(127,127,127,.4); border-radius: 5px; padding: 4px 6px; font: inherit; font-size: 12px; }
+  .item .x { border: 0; background: none; color: #ef4444; cursor: pointer; font-size: 12px; padding: 0; }
+  #sum { padding: 10px 16px; border-top: 1px solid rgba(127,127,127,.3); font-variant-numeric: tabular-nums; }
+  #side .acts { display: flex; gap: 8px; padding: 0 16px 14px; flex-wrap: wrap; }
+  #toast { position: fixed; left: 50%; bottom: 120px; transform: translateX(-50%); background: #16a34a; color: #fff; padding: 6px 14px; border-radius: 6px; opacity: 0; pointer-events: none; transition: opacity .2s; }
+</style></head>
+<body>
+<div id="wrap">
+  <div id="main">
+    <iframe id="frame" title="SecureWall tour"></iframe>
+    <div id="cap" aria-live="polite"><b id="title"></b><span id="take"></span></div>
+    <div id="bar">
+      <button id="play" aria-label="Pause">❚❚</button>
+      <div id="tl" aria-label="Tour timeline"><div class="track"></div><div class="prog" id="prog"></div><div id="marks"></div><div class="head" id="head"></div></div>
+      <span id="time">0:00 / 0:00</span>
+    </div>
+    <div id="tools">
+      <button class="t" id="bIn">Start cut <kbd>I</kbd></button>
+      <button class="t" id="bOut">End cut <kbd>O</kbd></button>
+      <button class="t" id="bSkip">Skip cuts while playing <kbd>S</kbd></button>
+      <span style="opacity:.7">Space play/pause · ←/→ 0.5 s · Shift+←/→ 0.1 s · Delete removes the selected cut</span>
+    </div>
+  </div>
+  <aside id="side">
+    <h2>Cuts</h2>
+    <p class="hint">Scrub to where a dull stretch starts, press I, scrub to its end, press O. Add a note if it helps. Copy the list and paste it into the chat.</p>
+    <div id="list"></div>
+    <div id="sum"></div>
+    <div class="acts"><button class="t" id="bCopy">Copy cuts</button><button class="t" id="bClear">Clear all</button></div>
+  </aside>
+</div>
+<div id="toast"></div>
+<script>
+// Review page: every chapter back to back on one timeline, driving index.html in capture
+// mode through window.__player.set(). Mark stretches to cut; they are saved in this
+// browser (localStorage) and copied as JSON in chapter-local times. ?theme=light
+(function () {
+  const q = new URLSearchParams(location.search);
+  const theme = q.get("theme") || "dark";
+  const GAP = 0; // hold on each chapter's last frame before the next starts (tour.config.js gapMs)
+  const KEY = "sw-film-cuts";
+  if (theme === "light") document.body.classList.add("light");
+  const $ = (id) => document.getElementById(id);
+  const frame = $("frame"), tl = $("tl"), marks = $("marks"), head = $("head"), prog = $("prog");
+  frame.src = "index.html?capture=1&theme=" + encodeURIComponent(theme);
+
+  let P, segs = [], total = 0, T = 0, playing = true, last = 0, shown = "", skip = false, pending = null, sel = -1;
+  // Saved per tour length, so cuts marked on an older cut of the tour never land on the wrong frames.
+  let cuts = [];
+  const save = () => localStorage.setItem(KEY + ":" + total, JSON.stringify(cuts));
+  const fmt = (ms) => { const s = ms / 1000; return Math.floor(s / 60) + ":" + (s % 60).toFixed(1).padStart(4, "0"); };
+  const pct = (ms) => (ms / total * 100).toFixed(3) + "%";
+  const segAt = (t) => { for (const s of segs) if (t < s.start + s.dur + GAP) return s; return segs[segs.length - 1]; };
+  // Where a global time sits: inside a chapter, or in the hold after it.
+  const where = (t) => { const s = segAt(t), local = t - s.start; return local <= s.dur ? { id: s.id, t: Math.round(local) } : { id: s.id, t: s.dur, gap: Math.round(local - s.dur) }; };
+  const label = (t) => { const w = where(t); return w.gap != null ? `${w.id} hold +${(w.gap / 1000).toFixed(1)} s` : `${w.id} ${(w.t / 1000).toFixed(1)} s`; };
+
+  function toast(msg) { const el = $("toast"); el.textContent = msg; el.style.opacity = 1; clearTimeout(toast.h); toast.h = setTimeout(() => el.style.opacity = 0, 1400); }
+
+  function render() {
+    const s = segAt(T);
+    P.set({ scene: s.id, t: Math.min(s.dur, Math.max(0, T - s.start)) });
+    if (shown !== s.id) { shown = s.id; $("title").textContent = s.title; $("take").textContent = s.takeaway; }
+    head.style.left = pct(T); prog.style.width = pct(T);
+    const cutMs = cuts.reduce((a, c) => a + (c.b - c.a), 0);
+    $("time").textContent = `${fmt(T)} / ${fmt(total)}`;
+    drawPending();
+  }
+  function drawMarks() {
+    marks.innerHTML = segs.map((s, i) => `<div class="chap" style="left:${pct(s.start)}"><i>${i + 1}</i></div>`).join("")
+      + cuts.map((c, i) => `<div class="cut${i === sel ? " sel" : ""}" data-i="${i}" style="left:${pct(c.a)};width:${pct(c.b - c.a)}"></div>`).join("")
+      + '<div id="pend"></div>';
+    drawList();
+  }
+  function drawPending() {
+    const el = document.getElementById("pend"); if (!el) return;
+    if (pending == null) { el.innerHTML = ""; return; }
+    const a = Math.min(pending, T), b = Math.max(pending, T);
+    el.innerHTML = `<div class="pendspan" style="left:${pct(a)};width:${pct(b - a)}"></div><div class="pend" style="left:${pct(pending)}"></div>`;
+  }
+  function drawList() {
+    const list = $("list");
+    if (!cuts.length) list.innerHTML = '<p class="hint" style="margin:8px 6px">No cuts yet.</p>';
+    else list.innerHTML = cuts.map((c, i) => `<div class="item${i === sel ? " sel" : ""}" data-i="${i}">
+        <div class="row"><b>${i + 1}. ${label(c.a)} → ${label(c.b)}</b><button class="x" data-del="${i}" title="Remove">remove</button></div>
+        <small>${fmt(c.a)} – ${fmt(c.b)} · ${((c.b - c.a) / 1000).toFixed(1)} s</small>
+        <input data-note="${i}" placeholder="Note (optional)" value="${(c.note || "").replace(/"/g, "&quot;")}"></div>`).join("");
+    const cutMs = cuts.reduce((a, c) => a + (c.b - c.a), 0);
+    $("sum").textContent = `${cuts.length} cut${cuts.length === 1 ? "" : "s"}: ${(cutMs / 1000).toFixed(1)} s of ${fmt(total)} → ${fmt(total - cutMs)}`;
+  }
+  function addCut(a, b) {
+    if (b - a < 100) { toast("Too short"); return; }
+    // Merge with any overlapping cut.
+    for (const c of cuts.slice()) if (c.a <= b && c.b >= a) { a = Math.min(a, c.a); b = Math.max(b, c.b); cuts.splice(cuts.indexOf(c), 1); }
+    cuts.push({ a: Math.round(a), b: Math.round(b), note: "" });
+    cuts.sort((x, y) => x.a - y.a);
+    sel = cuts.findIndex((c) => c.a === Math.round(a));
+    save(); drawMarks(); toast(`Cut ${((b - a) / 1000).toFixed(1)} s`);
+  }
+  function setPlaying(v) { playing = v; $("play").textContent = v ? "❚❚" : "▶"; $("play").setAttribute("aria-label", v ? "Pause" : "Play"); if (v && T >= total) T = 0; }
+  function seek(t) { T = Math.max(0, Math.min(total, t)); render(); }
+
+  function loop(now) {
+    if (playing) {
+      T += Math.min(100, now - last);
+      if (skip) for (const c of cuts) if (T >= c.a && T < c.b) T = c.b;
+      if (T >= total) { T = total; setPlaying(false); }
+      render();
+    }
+    last = now;
+    requestAnimationFrame(loop);
+  }
+
+  // Export: each cut split into chapter-local parts, so the scenes can be retimed.
+  function exportCuts() {
+    const out = cuts.map((c, i) => {
+      const parts = [];
+      for (const s of segs) {
+        const a = Math.max(c.a, s.start), b = Math.min(c.b, s.start + s.dur + GAP);
+        if (b <= a) continue;
+        const la = a - s.start, lb = b - s.start;
+        if (la < s.dur) parts.push({ scene: s.id, fromMs: Math.round(la), toMs: Math.round(Math.min(lb, s.dur)) });
+        if (lb > s.dur) parts.push({ scene: s.id, holdAfterMs: Math.round(lb - Math.max(la, s.dur)) });
+      }
+      return { n: i + 1, note: c.note || undefined, parts };
+    });
+    return JSON.stringify({ tour: "SecureWall", theme, totalMs: total, holdMs: GAP, cuts: out }, null, 1);
+  }
+
+  frame.addEventListener("load", () => {
+    frame.contentDocument.addEventListener("click", () => setPlaying(!playing));
+    // Keys pressed while the picture has focus: handled here, never by the player's own shortcuts.
+    frame.contentWindow.addEventListener("keydown", (e) => { e.stopImmediatePropagation(); onKey(e); }, true);
+    const wait = () => {
+      P = frame.contentWindow.__player;
+      if (!P || !P.ready) { setTimeout(wait, 50); return; }
+      let start = 0;
+      segs = P.scenes().map((s) => { const seg = { id: s.id, title: s.title, takeaway: s.takeaway, dur: s.duration, start }; start += s.duration + GAP; return seg; });
+      total = start - GAP;
+      try { cuts = JSON.parse(localStorage.getItem(KEY + ":" + total) || "[]"); } catch { cuts = []; }
+      drawMarks(); render();
+      last = performance.now();
+      requestAnimationFrame(loop);
+    };
+    wait();
+  });
+
+  // Timeline: drag to scrub, click a red cut to select it.
+  const tAt = (e) => { const r = tl.getBoundingClientRect(); return (e.clientX - r.left) / r.width * total; };
+  let dragging = false, resume = false;
+  tl.addEventListener("pointerdown", (e) => {
+    const cut = e.target.closest(".cut");
+    if (cut) { sel = +cut.dataset.i; drawMarks(); }
+    dragging = true; resume = playing; setPlaying(false); tl.setPointerCapture(e.pointerId); seek(tAt(e));
+  });
+  tl.addEventListener("pointermove", (e) => { if (dragging) seek(tAt(e)); });
+  tl.addEventListener("pointerup", () => { dragging = false; if (resume) setPlaying(true); });
+
+  $("list").addEventListener("click", (e) => {
+    const del = e.target.closest("[data-del]");
+    if (del) { cuts.splice(+del.dataset.del, 1); sel = -1; save(); drawMarks(); return; }
+    if (e.target.matches("input")) return;
+    const it = e.target.closest(".item");
+    if (it) { sel = +it.dataset.i; setPlaying(false); seek(Math.max(0, cuts[sel].a - 1000)); drawMarks(); }
+  });
+  $("list").addEventListener("input", (e) => { const i = e.target.dataset.note; if (i != null) { cuts[+i].note = e.target.value; save(); } });
+
+  function startCut() { pending = T; drawPending(); toast("Cut starts here. Press O at its end."); }
+  function endCut() { if (pending == null) { toast("Press I at the start first"); return; } const a = Math.min(pending, T), b = Math.max(pending, T); pending = null; addCut(a, b); }
+  function toggleSkip() { skip = !skip; $("bSkip").classList.toggle("on", skip); toast(skip ? "Playing without the cuts" : "Playing everything"); }
+  $("play").addEventListener("click", () => setPlaying(!playing));
+  $("bIn").addEventListener("click", startCut);
+  $("bOut").addEventListener("click", endCut);
+  $("bSkip").addEventListener("click", toggleSkip);
+  $("bClear").addEventListener("click", () => { if (cuts.length && confirm("Remove every cut?")) { cuts = []; sel = -1; save(); drawMarks(); } });
+  $("bCopy").addEventListener("click", async () => {
+    const text = exportCuts();
+    try { await navigator.clipboard.writeText(text); toast("Copied. Paste it into the chat."); }
+    catch { prompt("Copy this:", text); }
+  });
+
+  function onKey(e) {
+    if (e.target.matches && e.target.matches("input")) return;
+    const k = e.key.toLowerCase();
+    if (e.code === "Space") { e.preventDefault(); setPlaying(!playing); }
+    else if (k === "i") startCut();
+    else if (k === "o") endCut();
+    else if (k === "s") toggleSkip();
+    else if (k === "escape") { pending = null; drawPending(); }
+    else if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); setPlaying(false); seek(T + (e.key === "ArrowLeft" ? -1 : 1) * (e.shiftKey ? 100 : 500)); }
+    else if ((e.key === "Delete" || e.key === "Backspace") && sel >= 0) { cuts.splice(sel, 1); sel = -1; save(); drawMarks(); }
+  }
+  document.addEventListener("keydown", onKey);
+})();
+</script>
+</body></html>

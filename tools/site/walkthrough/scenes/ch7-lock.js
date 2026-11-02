@@ -8,16 +8,16 @@
 //   2900  popup for PhotoDrop.exe appears; 3900 Allow arms
 //   4700  click Allow outgoing; 5000 the password dialog opens in front
 //   5600  the passphrase types in as dots
-//   10000 end
+//   6041 end (the first 751 ms are trimmed)
 (function () {
-  const T = { move: 400, tapTray: 1100, open: 1200, onLock: 1700, tapLock: 2100, show: 2900, arm: 3900, tapAllow: 4700, pw: 5000, type: 5600, dur: 10000 };
+  const T = { move: 400, tapTray: 1100, open: 1200, onLock: 1700, tapLock: 2100, show: 2900, arm: 3900, tapAllow: 4700, pw: 5000, type: 5600, dur: 6041, trim: 751};
   (window.SCENES = window.SCENES || []).push({
     id: "ch7-lock", order: 7,
     title: "Lock SecureWall with a password",
     takeaway: "With a password set, lock from the tray; changes then need it.",
     cta: { label: "Get SecureWall", href: "/#team" },
     alt: "The pointer opens the SecureWall tray menu and clicks Lock. When a popup then asks about PhotoDrop.exe and the pointer clicks Allow outgoing, a Password - SecureWall dialog asks for the passphrase, and dots type into it.",
-    duration: T.dur,
+    duration: T.dur - T.trim,
     mount(root, ctx) {
       const U = window.SWUI, { OB } = ctx;
       const px = 1200 - 460 - 16, py = 680 - U.popupHeight() - 16;
@@ -38,7 +38,7 @@
       const S = 34, aim = (x, y) => { const m = cam.map(x, y); return ctx.aim(m.x, m.y, S); };
       const tr = U.local(trayIcon), lk = U.local(lock), al = U.local(allow);
       const pTray = aim(tr.cx, tr.cy), pLock = aim(lk.x + 50, lk.cy), pAllow = aim(al.x + al.w - 12, al.cy + 8);
-      ctx.actor([
+      ctx.actor(U.shiftKeys(T.trim, [
         { t: 0, x: 560, y: 260, size: S },
         { t: T.move, x: 560, y: 260 },
         { t: T.tapTray - 220, x: pTray.x, y: pTray.y, ease: "out" },
@@ -50,11 +50,12 @@
         { t: T.tapAllow, tap: true }, { t: T.tapAllow + 180, tap: false },
         { t: T.type, x: pAllow.x + 30, y: pAllow.y + 40, ease: "inOut" },
         { t: T.dur, x: pAllow.x + 34, y: pAllow.y + 42 },
-      ]);
+      ]));
 
       const set = OB.writer();
       return {
         frame(t) {
+          t += T.trim; // the opening that was cut
           set(menu, "visibility", t >= T.open && t < T.tapLock + 120 ? "visible" : "hidden");
           set(lock, "class", "sw-mi" + (t >= T.onLock - 120 ? " sw-hover" : ""));
           set(trayIcon, "class", "sw-tray-icon" + (t >= T.tapTray - 220 && t < T.tapLock + 120 ? " sw-hot" : ""));

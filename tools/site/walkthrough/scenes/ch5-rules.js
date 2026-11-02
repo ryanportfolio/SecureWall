@@ -7,9 +7,9 @@
 //   700   pointer travels to Filter; 1600 click, caret blinks
 //   2100  "note" types in; the list narrows on each letter (NoteSync.exe stays)
 //   3700  pointer moves to the remaining row and clicks it; Modify and Remove enable
-//   8000  end
+//   5199  end (the first 109 ms are trimmed)
 (function () {
-  const T = { move: 700, tapFilter: 1600, type: 2100, cps: 4, tapRow: 4000, dur: 8000 };
+  const T = { move: 700, tapFilter: 1600, type: 2100, cps: 4, tapRow: 4000, dur: 5199, trim: 109};
   const WORD = "note";
   (window.SCENES = window.SCENES || []).push({
     id: "ch5-rules", order: 5,
@@ -17,7 +17,7 @@
     takeaway: "Type in Filter to narrow the exception list by app name.",
     cta: { label: "Get SecureWall", href: "/#team" },
     alt: "The Manage window lists three application exceptions. The pointer clicks the Filter box and types note; the list narrows to NoteSync.exe, which the pointer then selects.",
-    duration: T.dur,
+    duration: T.dur - T.trim,
     mount(root, ctx) {
       const U = window.SWUI, { OB } = ctx;
       const mx = 225, my = 112;
@@ -35,7 +35,7 @@
       const S = 34, aim = (x, y) => { const m = cam.map(x, y); return ctx.aim(m.x, m.y, S); };
       const f = U.local(filter), first = U.local(rowsEl);
       const pF = aim(f.x + 160, f.cy + 2), pRow = aim(first.x + 112, first.y + 9);
-      ctx.actor([
+      ctx.actor(U.shiftKeys(T.trim, [
         { t: 0, x: 900, y: 560, size: S },
         { t: T.move, x: 900, y: 560 },
         { t: T.tapFilter - 220, x: pF.x, y: pF.y, ease: "out" },
@@ -45,11 +45,12 @@
         { t: T.tapRow, tap: true }, { t: T.tapRow + 180, tap: false },
         { t: T.tapRow + 900, x: pRow.x + 70, y: pRow.y + 80, ease: "inOut" },
         { t: T.dur, x: pRow.x + 74, y: pRow.y + 82 },
-      ]);
+      ]));
 
       const set = OB.writer();
       return {
         frame(t) {
+          t += T.trim; // the opening that was cut
           const focused = t >= T.tapFilter;
           set(filter, "class", "sw-text" + (focused ? " sw-focus" : ""));
           const typed = OB.typed(WORD, t, T.type, T.cps);
