@@ -58,11 +58,40 @@ namespace pylorak.TinyWall.Prompting
         // A clicked control that takes focus calls SetFocus, which activates the popup
         // whenever another SecureWall window is in the foreground. The popup's controls
         // therefore never take focus.
+        //
+        // A disabled flat button keeps its BackColor, so a disabled Allow looked as clickable
+        // as an enabled one. While disabled it takes a neutral grey and restores its own
+        // colors when enabled again. The popup has one palette in the light and dark themes.
         internal sealed class NoFocusButton : Button
         {
+            internal static readonly Color DisabledBackColor = Color.FromArgb(243, 244, 246);
+            internal static readonly Color DisabledForeColor = Color.FromArgb(156, 163, 175);
+            private Color _enabledBackColor;
+            private Color _enabledForeColor;
+            private bool _showingDisabled;
+
             internal NoFocusButton()
             {
                 SetStyle(ControlStyles.Selectable, false);
+            }
+
+            protected override void OnEnabledChanged(EventArgs e)
+            {
+                if (!Enabled && !_showingDisabled)
+                {
+                    _enabledBackColor = BackColor;
+                    _enabledForeColor = ForeColor;
+                    _showingDisabled = true;
+                    BackColor = DisabledBackColor;
+                    ForeColor = DisabledForeColor;
+                }
+                else if (Enabled && _showingDisabled)
+                {
+                    _showingDisabled = false;
+                    BackColor = _enabledBackColor;
+                    ForeColor = _enabledForeColor;
+                }
+                base.OnEnabledChanged(e);
             }
         }
 
@@ -123,12 +152,17 @@ namespace pylorak.TinyWall.Prompting
                 : prompt.ExecutablePath;
             destinationLabel.Text = $"Destination: {ProtocolText(prompt.Protocol)}  {prompt.RemoteAddress}:{prompt.RemotePort}";
             statusLabel.Text = string.Empty;
+            bool coversServices = prompt.CanAllow && prompt.CoveredServiceNames.Length > 0;
             noticeLabel.Text = prompt.CanAllow
                 ? "Allow permanently permits this app, package, or service to reach all destinations and ports over TCP/UDP."
-                : PromptNoticeText.Blocked(prompt.AllowBlocker, prompt.ServiceName);
+                : PromptNoticeText.Blocked(prompt.AllowBlocker, prompt.ServiceName, prompt.ExecutablePath);
+            if (coversServices)
+                noticeLabel.Text = PromptNoticeText.CoveredServices(prompt.CoveredServiceNames);
             toolTip.SetToolTip(
                 allowButton,
-                prompt.CanAllow
+                coversServices
+                    ? PromptNoticeText.CoveredServicesTooltip
+                    : prompt.CanAllow
                     ? "Permanent outbound TCP/UDP access to all destinations and ports. The shown destination does not limit this rule."
                     : PromptNoticeText.BlockedTooltip(prompt.AllowBlocker));
             toolTip.SetToolTip(
@@ -200,9 +234,10 @@ namespace pylorak.TinyWall.Prompting
                 PromptIdentityKind.AmbiguousService when prompt.AmbiguousServiceNames.Length > 0 =>
                     $"Shared service host: {string.Join(", ", prompt.AmbiguousServiceNames)}",
                 PromptIdentityKind.AmbiguousService => "Shared Windows service host",
-                _ => string.IsNullOrWhiteSpace(prompt.ExecutablePath)
-                    ? "Unknown application"
-                    : Path.GetFileName(prompt.ExecutablePath),
+                _ when string.IsNullOrWhiteSpace(prompt.ExecutablePath) => "Unknown application",
+                _ when prompt.CoveredServiceNames.Length > 0 =>
+                    $"{Path.GetFileName(prompt.ExecutablePath)} (program and Windows services)",
+                _ => Path.GetFileName(prompt.ExecutablePath),
             };
         }
 

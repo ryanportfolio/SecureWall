@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace pylorak.TinyWall.Prompting
@@ -263,7 +264,8 @@ namespace pylorak.TinyWall.Prompting
             first.AllowBlocker == second.AllowBlocker &&
             string.Equals(first.ExecutablePath, second.ExecutablePath, StringComparison.OrdinalIgnoreCase) &&
             string.Equals(first.ServiceName, second.ServiceName, StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(first.PackageSid, second.PackageSid, StringComparison.OrdinalIgnoreCase);
+            string.Equals(first.PackageSid, second.PackageSid, StringComparison.OrdinalIgnoreCase) &&
+            first.CoveredServiceNames.SequenceEqual(second.CoveredServiceNames, StringComparer.OrdinalIgnoreCase);
 
         private void AllowRequested(object? sender, EventArgs eventArgs) => RequestAllow(alwaysAllow: false);
         private void AlwaysAllowRequested(object? sender, EventArgs eventArgs) => RequestAllow(alwaysAllow: true);

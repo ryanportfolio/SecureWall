@@ -40,7 +40,8 @@ namespace pylorak.TinyWall.Prompting
             string? packageSid,
             string? serviceName,
             IReadOnlyList<string>? ambiguousServiceNames,
-            PromptAllowBlocker allowBlocker = PromptAllowBlocker.None)
+            PromptAllowBlocker allowBlocker = PromptAllowBlocker.None,
+            IReadOnlyList<string>? coveredServiceNames = null)
         {
             Kind = kind;
             AllowBlocker = kind == PromptIdentityKind.AmbiguousService
@@ -51,6 +52,7 @@ namespace pylorak.TinyWall.Prompting
             PackageSid = packageSid;
             ServiceName = serviceName;
             AmbiguousServiceNames = ambiguousServiceNames ?? Array.Empty<string>();
+            CoveredServiceNames = coveredServiceNames ?? Array.Empty<string>();
         }
 
         internal PromptIdentityKind Kind { get; }
@@ -59,6 +61,9 @@ namespace pylorak.TinyWall.Prompting
         internal string? PackageSid { get; }
         internal string? ServiceName { get; }
         internal IReadOnlyList<string> AmbiguousServiceNames { get; }
+        // Services whose image is this executable. Non-empty only for ForServiceExecutable:
+        // an executable rule for the path also matches them.
+        internal IReadOnlyList<string> CoveredServiceNames { get; }
         internal PromptAllowBlocker AllowBlocker { get; }
         internal bool CanAllow => AllowBlocker == PromptAllowBlocker.None;
 
@@ -88,6 +93,24 @@ namespace pylorak.TinyWall.Prompting
                 null,
                 null,
                 PromptAllowBlocker.ServiceRegistrationUnknown);
+        }
+
+        // An executable that runs no service in this process but is the image of the named
+        // services. Allow writes an executable rule, which those services match too, so the
+        // popup names them. The key includes them, so a prompt for the same path without
+        // services (or with other ones) stays separate.
+        internal static PromptIdentity ForServiceExecutable(string executablePath, IEnumerable<string> serviceNames)
+        {
+            string path = Require(executablePath, nameof(executablePath));
+            string[] services = SortedNames(serviceNames, nameof(serviceNames));
+            return new PromptIdentity(
+                PromptIdentityKind.Executable,
+                $"exe:{Canonical(path)}|services:{string.Join("|", services.Select(Canonical))}",
+                path,
+                null,
+                null,
+                null,
+                coveredServiceNames: Array.AsReadOnly(services));
         }
 
         internal static PromptIdentity ForPackage(string packageSid, string? executablePath)
@@ -145,18 +168,7 @@ namespace pylorak.TinyWall.Prompting
             IEnumerable<string> serviceNames)
         {
             string path = Require(executablePath, nameof(executablePath));
-            if (serviceNames == null)
-                throw new ArgumentNullException(nameof(serviceNames));
-
-            string[] services = serviceNames
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-                .Select(name => name.Trim())
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-
-            if (services.Length == 0)
-                throw new ArgumentException("At least one service name is required.", nameof(serviceNames));
+            string[] services = SortedNames(serviceNames, nameof(serviceNames));
 
             string joinedNames = string.Join("|", services.Select(Canonical));
             ReadOnlyCollection<string> readOnlyNames = Array.AsReadOnly(services);
@@ -201,6 +213,23 @@ namespace pylorak.TinyWall.Prompting
                 return ForAmbiguousServices(executablePath, services);
 
             return ForExecutable(executablePath);
+        }
+
+        private static string[] SortedNames(IEnumerable<string> serviceNames, string parameterName)
+        {
+            if (serviceNames == null)
+                throw new ArgumentNullException(parameterName);
+
+            string[] services = serviceNames
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Select(name => name.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            if (services.Length == 0)
+                throw new ArgumentException("At least one service name is required.", parameterName);
+            return services;
         }
 
         private static string Require(string value, string parameterName)

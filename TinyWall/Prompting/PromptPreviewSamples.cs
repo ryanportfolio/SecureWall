@@ -11,6 +11,10 @@ namespace pylorak.TinyWall.Prompting
         internal const string NoWarningsSwitch = "/nowarnings";
         internal const string WarningsSwitch = "/warnings";
         internal const string ExecutableSwitch = "/executable";
+        internal const string ServiceExeSwitch = "/serviceexe";
+        internal const string SharedHostSwitch = "/sharedhost";
+        internal const string SampleServiceExecutable = @"C:\Program Files (x86)\Example\Updater\1.0.0.0\updater.exe";
+        internal static readonly string[] SampleCoveredServices = { "ExampleUpdaterInternalService1.0.0.0", "ExampleUpdaterService1.0.0.0" };
 
         // Every warning line by default, whatever the sample executable looks like on disk;
         // "/nowarnings" shows the popup without them, and "/warnings writable,recent" shows
@@ -69,6 +73,24 @@ namespace pylorak.TinyWall.Prompting
                 prompt.SubjectKind = PromptIdentityKind.Executable;
                 prompt.ExecutablePath = args[executable + 1];
                 prompt.ServiceName = null;
+                prompt.RemoteAddress = "203.0.113.20";
+                prompt.RemotePort = 443;
+                prompt.Protocol = 6;
+                return prompt;
+            }
+
+            // "/promptpreview /serviceexe" shows an executable that is also the image of two
+            // services, with an Allow that covers them; "/sharedhost" shows the same file when
+            // the services could not all be named, with Allow disabled.
+            bool serviceExe = HasSwitch(args, ServiceExeSwitch);
+            if (serviceExe || HasSwitch(args, SharedHostSwitch))
+            {
+                prompt.SubjectKind = serviceExe ? PromptIdentityKind.Executable : PromptIdentityKind.AmbiguousService;
+                prompt.CanAllow = serviceExe;
+                prompt.AllowBlocker = serviceExe ? PromptAllowBlocker.None : PromptAllowBlocker.AmbiguousService;
+                prompt.ExecutablePath = SampleServiceExecutable;
+                prompt.ServiceName = null;
+                prompt.CoveredServiceNames = serviceExe ? (string[])SampleCoveredServices.Clone() : Array.Empty<string>();
                 prompt.RemoteAddress = "203.0.113.20";
                 prompt.RemotePort = 443;
                 prompt.Protocol = 6;

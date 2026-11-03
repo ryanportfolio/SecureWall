@@ -23,6 +23,14 @@ internal static class ServiceAttributionTests
             yield return ("SID notice quotes the service name in the sc.exe command", SidNoticeQuotesServiceName);
             yield return ("popup notice and Allow tooltip come from the notice text helper", PopupUsesNoticeText);
             yield return ("prompt preview has a service SID notice variant", PromptPreviewSidNotice);
+            yield return ("service inventory names every service of a resolved executable", InventoryNamesServices);
+            yield return ("a service executable outside Windows that runs no service is allowable and names its services", ServiceExecutableIsAllowable);
+            yield return ("a service executable stays shared when its services cannot all be named or it is a Windows host", ServiceExecutableStaysShared);
+            yield return ("only plain paths outside the Windows directory count as outside it", WindowsDirectoryCheck);
+            yield return ("a service executable prompt is never Always allowed", ServiceExecutableHasNoAlwaysAllow);
+            yield return ("covered services round trip and appear in the popup notice", CoveredServicesNotice);
+            yield return ("disabled Allow points to Application Exceptions", DisabledAllowPointsToManage);
+            yield return ("prompt preview has service executable variants", PromptPreviewServiceExecutable);
         }
     }
 
@@ -234,7 +242,7 @@ internal static class ServiceAttributionTests
     private static void PopupUsesNoticeText()
     {
         string popup = PromptTransactionIntegrationTests.Source("TinyWall/Prompting/BlockedConnectionPopup.cs");
-        AssertEx.True(popup.Contains("PromptNoticeText.Blocked(prompt.AllowBlocker, prompt.ServiceName)"), "The notice must come from PromptNoticeText.Blocked.");
+        AssertEx.True(popup.Contains("PromptNoticeText.Blocked(prompt.AllowBlocker, prompt.ServiceName, prompt.ExecutablePath)"), "The notice must come from PromptNoticeText.Blocked.");
         AssertEx.True(popup.Contains("PromptNoticeText.BlockedTooltip(prompt.AllowBlocker)"), "The tooltip must come from PromptNoticeText.BlockedTooltip.");
         AssertEx.False(popup.Contains("sc.exe") || popup.Contains("sidtype"), "The popup must not build the admin command itself.");
         AssertEx.True(popup.Contains("FitNoticeLabel();"), "The notice label must be fitted to its text.");
@@ -289,6 +297,203 @@ internal static class ServiceAttributionTests
             .Select(blocker => PromptNoticeText.Blocked(blocker, "svc") + "|" + PromptNoticeText.BlockedTooltip(blocker));
         AssertEx.Equal(4, texts.Distinct().Count(), "Two blockers share popup wording.");
     }
+
+    private const string Updater = @"C:\Program Files (x86)\Google\GoogleUpdater\157.0.8089.0\updater.exe";
+    private static readonly string[] UpdaterServices = { "GoogleUpdaterService157.0.8089.0", "GoogleUpdaterInternalService157.0.8089.0" };
+
+    private static void InventoryNamesServices()
+    {
+        var inventory = ServiceExecutableInventory.Build(new[]
+        {
+            new ServiceImageRegistration(UpdaterServices[0], "\"" + Updater + "\" --system --windows-service --service=update"),
+            new ServiceImageRegistration(UpdaterServices[1], "\"" + Updater + "\" --system --windows-service --service=update-internal"),
+            new ServiceImageRegistration("Other", "\"C:\\Program Files\\Other\\other.exe\""),
+        }, Windows);
+
+        AssertEx.Equal(ServiceRegistrationStatus.Registered, inventory.Lookup(Updater));
+        AssertEx.SequenceEqual(new[] { UpdaterServices[1], UpdaterServices[0] }, inventory.RegisteredServices(Updater));
+        AssertEx.SequenceEqual(new[] { UpdaterServices[1], UpdaterServices[0] }, inventory.RegisteredServices(Updater.ToUpperInvariant()));
+        AssertEx.Equal(0, inventory.RegisteredServices(@"C:\Program Files\Mozilla Firefox\firefox.exe").Count);
+        AssertEx.Equal(0, inventory.RegisteredServices(string.Empty).Count);
+
+        // An unresolved registration that names the file might be one more service, so the
+        // list is withheld even though the path itself is registered.
+        var incomplete = ServiceExecutableInventory.Build(new[]
+        {
+            new ServiceImageRegistration(UpdaterServices[0], "\"" + Updater + "\" --system"),
+            new ServiceImageRegistration("Unquoted", @"C:\Program Files (x86)\Google\Other Updater\updater.exe --system"),
+        }, Windows);
+        AssertEx.Equal(ServiceRegistrationStatus.Registered, incomplete.Lookup(Updater));
+        AssertEx.Equal(0, incomplete.RegisteredServices(Updater).Count);
+    }
+
+    private static void ServiceExecutableIsAllowable()
+    {
+        var updater = Candidate(Updater);
+        var identity = ServiceAttribution.Resolve(updater, Audit(updater), Array.Empty<string>(),
+            executableIsRegisteredService: true, registeredServices: UpdaterServices, windowsDirectory: Windows,
+            processStillRunning: () => true);
+        AssertEx.Equal(PromptIdentityKind.Executable, identity.Kind);
+        AssertEx.Equal(PromptAllowBlocker.None, identity.AllowBlocker);
+        AssertEx.SequenceEqual(new[] { UpdaterServices[1], UpdaterServices[0] }, identity.CoveredServiceNames);
+        AssertEx.True(identity.Key != PromptIdentity.ForExecutable(Updater).Key,
+            "A service executable prompt shares a key with a plain executable prompt.");
+        AssertEx.True(identity.Key != PromptIdentity.ForServiceExecutable(Updater, new[] { UpdaterServices[0] }).Key,
+            "Prompts covering different services share a key.");
+        AssertEx.True(PromptAllowPolicy.TryCreate(identity, _ => true, out var policy, out _) && policy != null);
+        AssertEx.Equal("*", policy!.AllowedRemoteTcpConnectPorts);
+        AssertEx.Equal<string?>(null, policy.AllowedLocalTcpListenerPorts);
+
+        var queue = new PromptQueue(new TestClock());
+        var added = queue.Enqueue(identity, updater.RemoteAddress, updater.RemotePort, updater.Protocol);
+        AssertEx.True(queue.GetPending()[0].CanAllow);
+        AssertEx.Equal(PromptActionStatus.Allowed, queue.Allow(added.Token, _ => true).Status);
+
+        // Services running in the process still take precedence.
+        AssertEx.Equal(PromptIdentityKind.Service, ServiceAttribution.Resolve(updater, null, new[] { UpdaterServices[0] },
+            executableIsRegisteredService: true, serviceSidType: _ => ServiceSidPolicy.SidTypeUnrestricted,
+            registeredServices: UpdaterServices, windowsDirectory: Windows).Kind);
+    }
+
+    private static void ServiceExecutableStaysShared()
+    {
+        var updater = Candidate(Updater);
+        void Shared(DropCandidate candidate, IReadOnlyList<string>? names, string? windows, bool uncertain = false,
+            string[]? running = null, bool correlated = true, Func<bool>? alive = null)
+        {
+            var identity = ServiceAttribution.Resolve(candidate, correlated ? Audit(candidate) : null, running ?? Array.Empty<string>(),
+                executableIsRegisteredService: true, snapshotUncertain: uncertain,
+                registeredServices: names, windowsDirectory: windows,
+                processStillRunning: alive ?? (() => true));
+            AssertEx.Equal(PromptIdentityKind.AmbiguousService, identity.Kind);
+            AssertEx.False(identity.CanAllow);
+            AssertEx.Equal(0, identity.CoveredServiceNames.Count);
+            AssertEx.False(PromptAllowPolicy.TryCreate(identity, _ => true, out _, out _));
+        }
+
+        // A drop never matched to an audit event has no PID, so "runs no service" is unproven.
+        Shared(updater, UpdaterServices, Windows, correlated: false);
+        // A process that exited before the SCM snapshot, or a reused PID, is missing from it.
+        Shared(updater, UpdaterServices, Windows, alive: () => false);
+        AssertEx.Equal(PromptIdentityKind.AmbiguousService, ServiceAttribution.Resolve(updater, Audit(updater),
+            Array.Empty<string>(), executableIsRegisteredService: true,
+            registeredServices: UpdaterServices, windowsDirectory: Windows).Kind);
+        // The process is opened only once every other condition holds.
+        Func<bool> unasked = () => throw new InvalidOperationException("Liveness checked for an ineligible drop.");
+        Shared(Candidate(@"C:\Windows\System32\dllhost.exe"), new[] { "COMSysApp" }, Windows, alive: unasked);
+        Shared(updater, UpdaterServices, Windows, uncertain: true, alive: unasked);
+        Shared(updater, UpdaterServices, Windows, correlated: false, alive: unasked);
+        Shared(updater, null, Windows);
+        Shared(updater, Array.Empty<string>(), Windows);
+        Shared(updater, UpdaterServices, null);
+        Shared(updater, UpdaterServices, Windows, uncertain: true);
+        Shared(updater, UpdaterServices, Windows, running: new[] { "A", "B" });
+        Shared(Candidate(@"C:\Windows\System32\dllhost.exe"), new[] { "COMSysApp" }, Windows);
+        Shared(Candidate(@"c:\windows\SysWOW64\dllhost.exe"), new[] { "COMSysApp" }, @"C:\Windows\");
+        Shared(Candidate(@"C:\Program Files\Host\svchost.exe"), new[] { "Odd" }, Windows);
+    }
+
+    private static void WindowsDirectoryCheck()
+    {
+        AssertEx.False(ServiceAttribution.IsInWindowsDirectory(Updater, Windows));
+        AssertEx.False(ServiceAttribution.IsInWindowsDirectory(@"C:\WindowsApps\x.exe", Windows));
+        AssertEx.False(ServiceAttribution.IsInWindowsDirectory(@"D:\Windows\x.exe", Windows));
+        AssertEx.True(ServiceAttribution.IsInWindowsDirectory(@"C:\Windows\System32\dllhost.exe", Windows));
+        AssertEx.True(ServiceAttribution.IsInWindowsDirectory(@"C:\WINDOWS\x.exe", @"c:\windows\"));
+        foreach (string odd in new[]
+        {
+            @"\\?\C:\Program Files\x.exe", @"\Device\HarddiskVolume3\Program Files\x.exe", @"\\server\share\x.exe",
+            @"C:\Program Files\..\Windows\x.exe", @"C:\Program Files\.\x.exe", "C:/Windows/x.exe", "System", string.Empty,
+        })
+            AssertEx.True(ServiceAttribution.IsInWindowsDirectory(odd, Windows), odd);
+        AssertEx.True(ServiceAttribution.IsInWindowsDirectory(Updater, null));
+        AssertEx.True(ServiceAttribution.IsInWindowsDirectory(Updater, " "));
+    }
+
+    private static void ServiceExecutableHasNoAlwaysAllow()
+    {
+        string service = PromptTransactionIntegrationTests.Source("TinyWall/TinyWallService.cs");
+        int queue = service.IndexOf("private bool TryQueueAlwaysAllow(", StringComparison.Ordinal);
+        AssertEx.True(queue >= 0 && service.IndexOf("identity.CoveredServiceNames.Count != 0", queue, StringComparison.Ordinal) is int at &&
+            at > queue && at < queue + 600, "Automatic Always allow must skip service executables.");
+        AssertEx.True(service.Contains("allowPolicy.Identity.CoveredServiceNames.Count != 0"), "ALLOW_PROMPT_ALWAYS must refuse service executables.");
+        string popup = PromptTransactionIntegrationTests.Source("TinyWall/Prompting/BlockedConnectionPopup.AlwaysAllow.cs");
+        AssertEx.True(popup.Contains("prompt.CoveredServiceNames.Length == 0"), "The popup must not offer Always allow.");
+        string missed = PromptTransactionIntegrationTests.Source("TinyWall/TinyWallController.MissedPrompts.cs");
+        AssertEx.True(missed.Contains("prompt.CoveredServiceNames.Length == 0") &&
+            missed.Contains("if (alwaysAllow && prompt.CoveredServiceNames.Length != 0)"), "The missed list must not offer Always allow.");
+    }
+
+    private static void CoveredServicesNotice()
+    {
+        var queue = new PromptQueue(new TestClock());
+        queue.Enqueue(PromptIdentity.ForServiceExecutable(Updater, UpdaterServices), "142.251.16.100", 443, 6);
+        var dto = PromptWireDto.FromPrompt(queue.GetPending()[0]);
+        var copy = JsonSerializer.Deserialize<PromptWireDto>(JsonSerializer.Serialize(dto))!;
+        AssertEx.True(copy.CanAllow);
+        AssertEx.Equal(PromptIdentityKind.Executable, copy.SubjectKind);
+        AssertEx.SequenceEqual(new[] { UpdaterServices[1], UpdaterServices[0] }, copy.CoveredServiceNames);
+        var plainQueue = new PromptQueue(new TestClock());
+        plainQueue.Enqueue(PromptIdentity.ForExecutable(Updater), "192.0.2.1", 443, 6);
+        AssertEx.Equal(0, PromptWireDto.FromPrompt(plainQueue.GetPending()[0]).CoveredServiceNames.Length);
+
+        string two = PromptNoticeText.CoveredServices(copy.CoveredServiceNames);
+        AssertEx.Equal("This file also runs as the Windows services GoogleUpdaterInternalService157.0.8089.0 and " +
+            "GoogleUpdaterService157.0.8089.0. Allow permanently permits this program and those services to reach all " +
+            "destinations and ports over TCP/UDP.", two);
+        AssertEx.True(PromptNoticeText.CoveredServices(new[] { "Solo" }).StartsWith(
+            "This file also runs as the Windows service Solo. Allow permanently permits this program and that service", StringComparison.Ordinal));
+        string four = PromptNoticeText.CoveredServices(new[] { "A", "B", "C", "D" });
+        AssertEx.True(four.Contains("services A, B, C and D."), four);
+        AssertEx.Throws<ArgumentException>(() => PromptNoticeText.CoveredServices(Array.Empty<string>()));
+
+        string popup = PromptTransactionIntegrationTests.Source("TinyWall/Prompting/BlockedConnectionPopup.cs");
+        AssertEx.True(popup.Contains("noticeLabel.Text = PromptNoticeText.CoveredServices(prompt.CoveredServiceNames);"));
+        AssertEx.True(popup.Contains("PromptNoticeText.CoveredServicesTooltip"));
+    }
+
+    private static void DisabledAllowPointsToManage()
+    {
+        string host = PromptNoticeText.Blocked(PromptAllowBlocker.AmbiguousService, null, @"C:\Windows\System32\svchost.exe");
+        AssertEx.True(host.Contains("add a rule for that service in Manage, Application Exceptions"), host);
+        string file = PromptNoticeText.Blocked(PromptAllowBlocker.AmbiguousService, null, Updater);
+        AssertEx.True(file.Contains("add a rule for it in Manage, Application Exceptions") &&
+            file.Contains("also covers the services that run the same file"), file);
+        AssertEx.Equal(host, PromptNoticeText.Blocked(PromptAllowBlocker.AmbiguousService, null));
+        string unknown = PromptNoticeText.Blocked(PromptAllowBlocker.ServiceRegistrationUnknown, null, Updater);
+        AssertEx.True(unknown.Contains("Manage, Application Exceptions"), unknown);
+    }
+
+    private static void PromptPreviewServiceExecutable()
+    {
+        var now = DateTimeOffset.UtcNow;
+        PromptWireDto allowable = PromptPreviewSamples.Create(new[] { "/promptpreview", "/serviceexe" }, now);
+        AssertEx.True(allowable.CanAllow);
+        AssertEx.Equal(PromptIdentityKind.Executable, allowable.SubjectKind);
+        AssertEx.Equal(2, allowable.CoveredServiceNames.Length);
+        allowable.CoveredServiceNames[0] = "Mutated";
+        AssertEx.True(PromptPreviewSamples.SampleCoveredServices[0] != "Mutated", "The preview sample array was shared.");
+
+        PromptWireDto shared = PromptPreviewSamples.Create(new[] { "/promptpreview", "/sharedhost" }, now);
+        AssertEx.False(shared.CanAllow);
+        AssertEx.Equal(PromptIdentityKind.AmbiguousService, shared.SubjectKind);
+        AssertEx.Equal(PromptAllowBlocker.AmbiguousService, shared.AllowBlocker);
+        AssertEx.Equal(0, shared.CoveredServiceNames.Length);
+    }
+
+    // The Security audit event that correlates with the candidate, giving it a process ID.
+    private static BlockedConnectionAuditEvent Audit(DropCandidate candidate) => new(
+        candidate.TimestampUtc,
+        4242,
+        candidate.ApplicationPath,
+        ConnectionDirection.Outbound,
+        candidate.LocalAddress,
+        candidate.LocalPort,
+        candidate.RemoteAddress,
+        candidate.RemotePort,
+        candidate.Protocol,
+        candidate.FilterRuntimeId,
+        null);
 
     private static DropCandidate Candidate(string applicationPath) => new(
         new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero),

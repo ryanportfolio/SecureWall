@@ -21,11 +21,12 @@ namespace pylorak.TinyWall.Prompting
     // registry and caches the result; this class decides what each registration means.
     internal sealed class ServiceExecutableInventory
     {
-        private readonly HashSet<string> _executables;
+        // Resolved executable path -> the services whose image path names it, sorted.
+        private readonly Dictionary<string, string[]> _executables;
         private readonly string[] _unresolvedCommands;
 
         private ServiceExecutableInventory(
-            HashSet<string> executables,
+            Dictionary<string, string[]> executables,
             string[] unresolvedCommands,
             string[] unresolvedServices,
             string[] unusableServices)
@@ -51,7 +52,7 @@ namespace pylorak.TinyWall.Prompting
             if (registrations == null)
                 throw new ArgumentNullException(nameof(registrations));
 
-            var executables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var executables = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
             var unresolvedCommands = new List<string>();
             var unresolvedServices = new List<string>();
             var unusableServices = new List<string>();
@@ -72,7 +73,9 @@ namespace pylorak.TinyWall.Prompting
                 string? executable = ServiceImagePath.TryExtractExecutable(command, windowsDirectory);
                 if (executable != null)
                 {
-                    executables.Add(executable);
+                    if (!executables.TryGetValue(executable, out List<string>? names))
+                        executables.Add(executable, names = new List<string>());
+                    names.Add(registration.ServiceName);
                     continue;
                 }
 
@@ -81,7 +84,11 @@ namespace pylorak.TinyWall.Prompting
             }
 
             return new ServiceExecutableInventory(
-                executables,
+                executables.ToDictionary(
+                    entry => entry.Key,
+                    entry => entry.Value.Distinct(StringComparer.OrdinalIgnoreCase)
+                        .OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToArray(),
+                    StringComparer.OrdinalIgnoreCase),
                 unresolvedCommands.ToArray(),
                 unresolvedServices.OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToArray(),
                 unusableServices.OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToArray());
@@ -91,10 +98,28 @@ namespace pylorak.TinyWall.Prompting
         {
             if (string.IsNullOrWhiteSpace(normalizedPath))
                 return ServiceRegistrationStatus.Unknown;
-            if (_executables.Contains(normalizedPath))
+            if (_executables.ContainsKey(normalizedPath))
                 return ServiceRegistrationStatus.Registered;
+            return NamedByUnresolvedCommand(normalizedPath)
+                ? ServiceRegistrationStatus.Unknown
+                : ServiceRegistrationStatus.NotRegistered;
+        }
+
+        // The services whose image path is this executable, or none when the list could be
+        // incomplete: an unresolved registration that names the file might be one more.
+        internal IReadOnlyList<string> RegisteredServices(string normalizedPath)
+        {
+            if (string.IsNullOrWhiteSpace(normalizedPath) ||
+                !_executables.TryGetValue(normalizedPath, out string[]? names) ||
+                NamedByUnresolvedCommand(normalizedPath))
+                return Array.Empty<string>();
+            return Array.AsReadOnly(names);
+        }
+
+        private bool NamedByUnresolvedCommand(string normalizedPath)
+        {
             if (_unresolvedCommands.Length == 0)
-                return ServiceRegistrationStatus.NotRegistered;
+                return false;
 
             string fileName;
             try
@@ -103,10 +128,10 @@ namespace pylorak.TinyWall.Prompting
             }
             catch (ArgumentException)
             {
-                return ServiceRegistrationStatus.Unknown;
+                return true;
             }
             if (fileName.Length == 0)
-                return ServiceRegistrationStatus.Unknown;
+                return true;
 
             // An unresolved command could start this executable only if it names the file:
             // either in full, or without ".exe" at a token end, which CreateProcess extends.
@@ -117,9 +142,9 @@ namespace pylorak.TinyWall.Prompting
             {
                 if (command.IndexOf(fileName, StringComparison.OrdinalIgnoreCase) >= 0 ||
                     (stem != null && stem.Length > 0 && NamesStemAtTokenEnd(command, stem)))
-                    return ServiceRegistrationStatus.Unknown;
+                    return true;
             }
-            return ServiceRegistrationStatus.NotRegistered;
+            return false;
         }
 
         private static bool NamesStemAtTokenEnd(string command, string stem)
