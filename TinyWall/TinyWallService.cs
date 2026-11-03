@@ -79,6 +79,7 @@ namespace pylorak.TinyWall
         private readonly object InheritanceGuard = new();
         private HashSet<string> UserSubjectExes = new(StringComparer.OrdinalIgnoreCase);        // All executables with pre-configured rules.
         private HashSet<string> UserSubjectPackages = new(StringComparer.OrdinalIgnoreCase);    // All AppContainer package SIDs with pre-configured rules.
+        private HashSet<string> UserExecutableWideExes = new(StringComparer.OrdinalIgnoreCase); // Executables with a rule for the whole executable, not one service.
         // UserSubjectExes as last committed (app and special-profile rules); never changed after
         // publication, so the prompt timer thread reads it without InheritanceGuard.
         private volatile HashSet<string> CommittedRuleExecutables = new(StringComparer.OrdinalIgnoreCase);
@@ -287,6 +288,8 @@ namespace pylorak.TinyWall
                     {
                         string exePath = exe.ExecutablePath;
                         UserSubjectExes.Add(exePath);
+                        if (ex.Subject.SubjectType == SubjectType.Executable)
+                            UserExecutableWideExes.Add(exePath);
                         if (ex.ChildProcessesInherit)
                         {
                             // We might have multiple rules with the same exePath, so we maintain a list of exceptions
@@ -342,7 +345,7 @@ namespace pylorak.TinyWall
 
                         string? parentPath = RuleInheritance.FindInheritedParent(procPath, PackageOf(pair.Key),
                             SnapshotAncestors(procTree, pair.Value, pidsChecked, PackageOf),
-                            UserSubjectExes, UserSubjectPackages, ChildInheritance.ContainsKey,
+                            UserSubjectExes, UserExecutableWideExes, UserSubjectPackages, ChildInheritance.ContainsKey,
                             p => ChildInheritedSubjectExes.TryGetValue(procPath, out var childVal) && childVal.Contains(p));
 
                         if (parentPath != null)
@@ -460,11 +463,13 @@ namespace pylorak.TinyWall
             {
                 var previousSubjects = UserSubjectExes;
                 var previousPackages = UserSubjectPackages;
+                var previousExecutableWide = UserExecutableWideExes;
                 var previousInheritance = ChildInheritance;
                 var previousInheritedSubjects = ChildInheritedSubjectExes;
                 bool committed = false;
                 UserSubjectExes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 UserSubjectPackages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                UserExecutableWideExes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 ChildInheritance = new Dictionary<string, List<FirewallExceptionV3>>();
                 ChildInheritedSubjectExes = new Dictionary<string, HashSet<string>>();
                 try
@@ -532,6 +537,7 @@ namespace pylorak.TinyWall
                     {
                         UserSubjectExes = previousSubjects;
                         UserSubjectPackages = previousPackages;
+                        UserExecutableWideExes = previousExecutableWide;
                         ChildInheritance = previousInheritance;
                         ChildInheritedSubjectExes = previousInheritedSubjects;
                         // The previous policy may stay in force; update permits do not.
@@ -2819,7 +2825,7 @@ namespace pylorak.TinyWall
                     // Start walking up the process tree
                     string? parentPath = RuleInheritance.FindInheritedParent(path, PackageOf(pid),
                         RunningAncestors(pid, PackageOf),
-                        UserSubjectExes, UserSubjectPackages, ChildInheritance.ContainsKey,
+                        UserSubjectExes, UserExecutableWideExes, UserSubjectPackages, ChildInheritance.ContainsKey,
                         p => ChildInheritedSubjectExes.TryGetValue(path, out var childVar) && childVar.Contains(p));
 
                     if (parentPath != null)

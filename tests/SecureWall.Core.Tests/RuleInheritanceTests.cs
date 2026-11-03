@@ -18,6 +18,7 @@ internal static class RuleInheritanceTests
             yield return ("inheritance: ruled ancestor that inherits still passes rules", RuledInheritingAncestorPasses);
             yield return ("inheritance: exe path rule still skips inheritance", ExeRuleSkipsInheritance);
             yield return ("inheritance: already inherited parent ends the walk", AlreadyInheritedEndsWalk);
+            yield return ("inheritance: service-scoped rule on an ancestor does not stop the walk", ServiceRuledAncestorDoesNotStopWalk);
         }
     }
 
@@ -37,8 +38,9 @@ internal static class RuleInheritanceTests
         HashSet<string> exeRules,
         HashSet<string> packageRules,
         HashSet<string> inheriting,
-        Func<string, bool>? alreadyInherited = null) =>
-        RuleInheritance.FindInheritedParent(path, packageSid, ancestors, exeRules, packageRules,
+        Func<string, bool>? alreadyInherited = null,
+        HashSet<string>? ancestorExeRules = null) =>
+        RuleInheritance.FindInheritedParent(path, packageSid, ancestors, exeRules, ancestorExeRules ?? exeRules, packageRules,
             inheriting.Contains, alreadyInherited ?? (_ => false));
 
     // services.exe: HardBlock + ChildProcessesInherit. svchost.exe: own TcpUdpOnly, not inheriting.
@@ -101,5 +103,17 @@ internal static class RuleInheritanceTests
         AssertEx.Equal<string?>(null, Find(Tool, null,
             new (string?, string?)[] { (Services, null) },
             Set(Services), Set(), Set(Services), p => p == Services));
+    }
+
+    // A service rule (Windows_Update's wuauserv) puts svchost.exe in the child-skip set but not in the
+    // executable-wide set, so svchost-hosted processes still inherit from services.exe.
+    private static void ServiceRuledAncestorDoesNotStopWalk()
+    {
+        AssertEx.Equal<string?>(Services, Find(Tool, null,
+            new (string?, string?)[] { (SvcHost, null), (Services, null) },
+            Set(Services, SvcHost), Set(), Set(Services), ancestorExeRules: Set(Services)));
+        AssertEx.Equal<string?>(null, Find(Tool, null,
+            new (string?, string?)[] { (SvcHost, null), (Services, null) },
+            Set(Services, SvcHost), Set(), Set(Services), ancestorExeRules: Set(Services, SvcHost)));
     }
 }

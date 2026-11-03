@@ -25,6 +25,9 @@ namespace pylorak.TinyWall
         /// first and is read only as far as needed. The walk ends at the first ancestor that passes rules
         /// to children, whose path is returned, or at the first ancestor with its own rule that does not,
         /// which yields null. Ancestors with neither a path nor a rule are skipped.
+        /// The process's own rule is looked up in <paramref name="exeRules"/>, which also holds
+        /// service-scoped rules; an ancestor's in <paramref name="ancestorExeRules"/>, which holds only
+        /// executable-wide rules, so a service rule on a host such as svchost.exe does not stop the walk.
         /// <paramref name="alreadyInherited"/> ends the walk with null when the process already inherits
         /// from the ancestor reached.
         /// </summary>
@@ -33,6 +36,7 @@ namespace pylorak.TinyWall
             string? packageSid,
             IEnumerable<(string? Path, string? PackageSid)> ancestors,
             ISet<string> exeRules,
+            ISet<string> ancestorExeRules,
             ISet<string> packageRules,
             Func<string, bool> passesRulesToChildren,
             Func<string, bool> alreadyInherited)
@@ -51,7 +55,7 @@ namespace pylorak.TinyWall
                         return parentPath;
                 }
 
-                if (HasOwnRule(parentPath, parentPackageSid, exeRules, packageRules))
+                if (HasOwnRule(parentPath, parentPackageSid, ancestorExeRules, packageRules))
                     return null;
             }
 
