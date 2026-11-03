@@ -229,10 +229,10 @@ namespace pylorak.TinyWall
             }
         }
 
-        // With Restart Manager off, setup's "Files in Use" page lists every process holding
-        // SecureWall.exe that has a titled window, so an open Manage window stopped the update
-        // there. The tray has no titled window; setup closes it and starts the new one itself.
-        // Closing Manage discards unsaved changes, as Cancel does.
+        // With Restart Manager off, setup's "Files in Use" page lists every process holding a
+        // file it replaces that has a titled window, so an open Manage window stopped the update
+        // there. The tray has no titled window; the upgrade's stop step closes it and setup
+        // normally starts the new one. Closing Manage discards unsaved changes, as Cancel does.
         private void CloseWindowsForSetup()
         {
             foreach (Form open in ActiveForms.ToArray())
