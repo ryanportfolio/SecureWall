@@ -290,7 +290,9 @@ namespace pylorak.TinyWall
                         UserSubjectExes.Add(exePath);
                         if (ex.Subject.SubjectType == SubjectType.Executable)
                             UserExecutableWideExes.Add(exePath);
-                        if (ex.ChildProcessesInherit)
+                        // A service rule's path is its host (e.g. svchost.exe). Inheritance matches ancestors
+                        // by path alone, so it would reach the children of every instance of that host.
+                        if (ex.ChildProcessesInherit && ex.Subject.SubjectType != SubjectType.Service)
                         {
                             // We might have multiple rules with the same exePath, so we maintain a list of exceptions
                             if (!ChildInheritance.ContainsKey(exePath))
