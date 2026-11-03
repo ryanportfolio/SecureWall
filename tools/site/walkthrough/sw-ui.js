@@ -203,7 +203,7 @@
     const seg = "font-family:'Segoe UI',system-ui,sans-serif;font-size:12px;letter-spacing:0.2px";
     // Notes fill the space between the details and the notice; while downloading, the
     // progress bar docks above the buttons and pushes the notice up by its 18 px. The notice
-    // is 80 px tall since v0.5.5 (16 px more than update.png), taken from the notes. The
+    // is 80 px tall since release 0.5.5 (16 px more than update.png), taken from the notes. The
     // notes' padding and border add 8 px to their height, so they end where the notice starts.
     const dl = o.state === "downloading", lift = dl ? 18 : 0;
     const notes = `<div style="position:absolute;left:12px;top:94px;${seg}">Release notes from GitHub:</div>
