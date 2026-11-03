@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Threading;
 using System.Threading.Tasks;
@@ -25,11 +27,15 @@ namespace pylorak.TinyWall
         // holds one permit per process, so a second check must not start while an earlier one
         // (whose window may already be closed) can still release it.
         private bool UpdateBusy;
+        // The elevated `/apply-update` step, kept until it refuses or the setup it started ends.
+        // The tray opens no window meanwhile (SetupRunning).
+        private Process? SetupStep;
 
         private void InitUpdatesMenu()
         {
             TrayMenu.Items.Insert(TrayMenu.Items.IndexOf(toolStripMenuItem5) + 1, mnuCheckForUpdates);
             mnuCheckForUpdates.Click += (_, _) => CheckForUpdates(null);
+            BlockedConnectionPopup.RefuseDialogs = RefuseWhileSetupRuns;
         }
 
         // includePrereleases: Manage passes its checkbox, which may not be saved yet.
@@ -129,7 +135,7 @@ namespace pylorak.TinyWall
                     installing = UpdateBusy = true;
                     try
                     {
-                        await InstallUpdate(dialog, result, platform, installToken);
+                        await InstallUpdate(dialog, result, platform, includePrereleases, installToken);
                     }
                     catch (Exception exception)
                     {
@@ -145,7 +151,8 @@ namespace pylorak.TinyWall
             };
         }
 
-        private async Task InstallUpdate(UpdateDialog dialog, ReleaseCheckResult result, string platform, CancellationToken cancellation)
+        private async Task InstallUpdate(UpdateDialog dialog, ReleaseCheckResult result, string platform, bool? includePrereleases,
+            CancellationToken cancellation)
         {
             // Installing changes the firewall, so it needs the password too (decision 6).
             if (!EnsureUnlockedServer())
@@ -153,6 +160,11 @@ namespace pylorak.TinyWall
 
             ReleaseManifest manifest = result.Manifest!;
             GitHubRelease release = result.Release!;
+            if (OtherWindowOpen(dialog))
+            {
+                dialog.ShowNote(CloseOtherWindowsNote);
+                return;
+            }
             dialog.ShowBusy("Downloading SecureWall " + ReleaseVersion.Format(manifest.Version), "The installer is checked against the release's SHA256SUMS.txt before anything is installed.");
             var progress = new Progress<(long Received, long Total)>(p => { if (!dialog.IsDisposed) dialog.ShowDownloadProgress(p.Received, p.Total); });
 
@@ -209,10 +221,22 @@ namespace pylorak.TinyWall
                 user = identity.User!.Value;
             string arguments = UpdateApplyPolicy.Switch + " \"" + package + "\" \"" +
                 Path.Combine(folder, ReleaseCheck.ManifestAsset) + "\" " + ReleaseManifest.Sha256Hex(result.ManifestBytes) + " " + user;
+            // A dialog opened while the download ran would stay open through setup.
+            if (OtherWindowOpen(dialog))
+            {
+                dialog.ShowAvailable(release, manifest, Utils.TinyWallVersion);
+                dialog.ShowNote(CloseOtherWindowsNote);
+                return;
+            }
             try
             {
                 SaveUpdateSetting(settings => settings.UpdateStartedFromVersion = version);
-                Utils.StartProcessAndForget(Utils.ExecutablePath, arguments, true);
+                SetupStep?.Dispose();
+                SetupStep = Utils.StartProcess(Utils.ExecutablePath, arguments, true);
+                // Manage's unsaved "Include prereleases" choice found this release; closing
+                // Manage below would discard it.
+                if (includePrereleases is bool chosen && chosen != ControllerSettings.Load().IncludePrereleases)
+                    SaveUpdateSetting(settings => settings.UpdateIncludePrereleases = chosen);
                 dialog.Close();
                 CloseWindowsForSetup();
             }
@@ -238,6 +262,91 @@ namespace pylorak.TinyWall
             foreach (Form open in ActiveForms.ToArray())
                 open.Close();
         }
+
+        private const string CloseOtherWindowsNote = "Close SecureWall's other windows, such as a message, a file picker or the exception editor, then click Install again.";
+
+        // A visible titled window of this thread that CloseWindowsForSetup would leave open: a
+        // dialog shown without an owner from the tray, a balloon or a prompt, or one that a
+        // tracked window owns (closing its owner mid-dialog is not safe).
+        private bool OtherWindowOpen(Form except)
+        {
+            var tracked = new HashSet<IntPtr> { except.Handle };
+            foreach (Form open in ActiveForms)
+            {
+                if (open.IsHandleCreated)
+                    tracked.Add(open.Handle);
+            }
+            bool found = false;
+            EnumThreadWindows(GetCurrentThreadId(), (window, _) =>
+            {
+                found = !tracked.Contains(window) && IsWindowVisible(window) && GetWindowTextLength(window) > 0;
+                return !found;
+            }, IntPtr.Zero);
+            return found;
+        }
+
+        // A window opened during setup's wizard would bring its "Files in Use" page back, so the
+        // tray opens none until the elevated step refuses or the setup it started ends. Setup's
+        // msiexec runs on this session; the Windows Installer service's own runs on session 0.
+        // The stop step closes this tray when the upgrade goes ahead.
+        private bool SetupRunning()
+        {
+            if (SetupStep == null)
+                return false;
+            bool running;
+            try
+            {
+                running = !SetupStep.HasExited || (SetupStep.ExitCode == 0 && SessionHasMsiexec());
+            }
+            catch (Exception exception) when (exception is InvalidOperationException || exception is Win32Exception)
+            {
+                running = SessionHasMsiexec();
+            }
+            if (!running)
+            {
+                SetupStep.Dispose();
+                SetupStep = null;
+            }
+            return running;
+        }
+
+        private static bool SessionHasMsiexec()
+        {
+            int session;
+            using (Process self = Process.GetCurrentProcess())
+                session = self.SessionId;
+            bool found = false;
+            foreach (Process process in Process.GetProcessesByName("msiexec"))
+            {
+                using (process)
+                    found |= process.SessionId == session;
+            }
+            return found;
+        }
+
+        private bool RefuseWhileSetupRuns()
+        {
+            if (!SetupRunning())
+                return false;
+            ShowBalloonTip("SecureWall setup is running. Finish or cancel it first.", ToolTipIcon.Info);
+            return true;
+        }
+
+        private delegate bool EnumThreadWindowsProc(IntPtr window, IntPtr parameter);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool EnumThreadWindows(int threadId, EnumThreadWindowsProc callback, IntPtr parameter);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool IsWindowVisible(IntPtr window);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "GetWindowTextLengthW")]
+        private static extern int GetWindowTextLength(IntPtr window);
+
+        [DllImport("kernel32.dll")]
+        private static extern int GetCurrentThreadId();
 
         // Runs `work` while the service holds an update permit for this controller, and ends the
         // permit afterwards whatever happens. Modes that already allow outbound traffic need none.

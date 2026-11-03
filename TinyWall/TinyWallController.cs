@@ -716,6 +716,11 @@ namespace pylorak.TinyWall
         private void TrayMenu_Opening(object sender, CancelEventArgs e)
         {
             e.Cancel = false;
+            if (RefuseWhileSetupRuns())
+            {
+                e.Cancel = true;
+                return;
+            }
             if (FirewallState.Mode == FirewallMode.Unknown)
             {
                 if (!TinyWallDoctor.IsServiceRunning(Utils.LOG_ID_GUI, false))
@@ -1205,6 +1210,8 @@ namespace pylorak.TinyWall
             Locked = GlobalInstances.Controller.IsServerLocked;
             if (!Locked)
                 return PromptUnlockResult.AlreadyUnlocked;
+            if (RefuseWhileSetupRuns())
+                return PromptUnlockResult.NotUnlocked;
             return EnsureUnlockedServer() ? PromptUnlockResult.Unlocked : PromptUnlockResult.NotUnlocked;
         }
 
@@ -1305,7 +1312,7 @@ namespace pylorak.TinyWall
                 Utils.SafeNativeMethods.DoMouseRightClick();
             }
             
-            if (e.Button == System.Windows.Forms.MouseButtons.Middle)
+            if (e.Button == System.Windows.Forms.MouseButtons.Middle && !RefuseWhileSetupRuns())
             {
                 mnuConnections_Click(sender, e);
             }
@@ -1313,6 +1320,8 @@ namespace pylorak.TinyWall
 
         private void Tray_BalloonTipClicked(object sender, EventArgs e)
         {
+            if (BalloonClickedCallback != null && RefuseWhileSetupRuns())
+                return;
             BalloonClickedCallback?.Invoke(Tray, new AnyEventArgs(BalloonClickedCallbackArgument));
         }
 
