@@ -356,7 +356,7 @@ namespace pylorak.TinyWall
                                     GetRulesForException(new FirewallExceptionV3(subj, userEx.Policy), rules, rawSocketExceptions, (ulong)FilterWeights.UserPermit, (ulong)FilterWeights.UserBlock);
 
                             if (!ChildInheritedSubjectExes.ContainsKey(procPath))
-                                ChildInheritedSubjectExes.Add(procPath, new HashSet<string>());
+                                ChildInheritedSubjectExes.Add(procPath, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
                             ChildInheritedSubjectExes[procPath].Add(parentPath);
                         }
                     }
@@ -2841,7 +2841,7 @@ namespace pylorak.TinyWall
                                 });
 
                         if (!ChildInheritedSubjectExes.ContainsKey(path))
-                            ChildInheritedSubjectExes.Add(path, new HashSet<string>());
+                            ChildInheritedSubjectExes.Add(path, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
                         ChildInheritedSubjectExes[path].Add(parentPath);
                     }
                 }
