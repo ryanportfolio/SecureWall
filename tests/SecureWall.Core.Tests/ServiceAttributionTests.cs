@@ -330,7 +330,7 @@ internal static class ServiceAttributionTests
     private static void ServiceExecutableIsAllowable()
     {
         var updater = Candidate(Updater);
-        var identity = ServiceAttribution.Resolve(updater, null, Array.Empty<string>(),
+        var identity = ServiceAttribution.Resolve(updater, Audit(updater), Array.Empty<string>(),
             executableIsRegisteredService: true, registeredServices: UpdaterServices, windowsDirectory: Windows);
         AssertEx.Equal(PromptIdentityKind.Executable, identity.Kind);
         AssertEx.Equal(PromptAllowBlocker.None, identity.AllowBlocker);
@@ -358,9 +358,9 @@ internal static class ServiceAttributionTests
     {
         var updater = Candidate(Updater);
         void Shared(DropCandidate candidate, IReadOnlyList<string>? names, string? windows, bool uncertain = false,
-            string[]? running = null)
+            string[]? running = null, bool correlated = true)
         {
-            var identity = ServiceAttribution.Resolve(candidate, null, running ?? Array.Empty<string>(),
+            var identity = ServiceAttribution.Resolve(candidate, correlated ? Audit(candidate) : null, running ?? Array.Empty<string>(),
                 executableIsRegisteredService: true, snapshotUncertain: uncertain,
                 registeredServices: names, windowsDirectory: windows);
             AssertEx.Equal(PromptIdentityKind.AmbiguousService, identity.Kind);
@@ -369,6 +369,8 @@ internal static class ServiceAttributionTests
             AssertEx.False(PromptAllowPolicy.TryCreate(identity, _ => true, out _, out _));
         }
 
+        // A drop never matched to an audit event has no PID, so "runs no service" is unproven.
+        Shared(updater, UpdaterServices, Windows, correlated: false);
         Shared(updater, null, Windows);
         Shared(updater, Array.Empty<string>(), Windows);
         Shared(updater, UpdaterServices, null);
@@ -466,6 +468,20 @@ internal static class ServiceAttributionTests
         AssertEx.Equal(PromptAllowBlocker.AmbiguousService, shared.AllowBlocker);
         AssertEx.Equal(0, shared.CoveredServiceNames.Length);
     }
+
+    // The Security audit event that correlates with the candidate, giving it a process ID.
+    private static BlockedConnectionAuditEvent Audit(DropCandidate candidate) => new(
+        candidate.TimestampUtc,
+        4242,
+        candidate.ApplicationPath,
+        ConnectionDirection.Outbound,
+        candidate.LocalAddress,
+        candidate.LocalPort,
+        candidate.RemoteAddress,
+        candidate.RemotePort,
+        candidate.Protocol,
+        candidate.FilterRuntimeId,
+        null);
 
     private static DropCandidate Candidate(string applicationPath) => new(
         new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero),
