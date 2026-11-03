@@ -74,10 +74,14 @@ namespace pylorak.TinyWall.Prompting
             }
         }
 
+        // Set by the controller: true (after telling the user) while an update's setup runs,
+        // when the dialogs below would bring back setup's "Files in Use" page.
+        internal static Func<bool>? RefuseDialogs;
+
         private async void AiButtonClick(object? sender, EventArgs eventArgs)
         {
             PromptWireDto? prompt = _aiCurrentPrompt;
-            if (prompt == null || _aiButton == null)
+            if (prompt == null || _aiButton == null || RefuseDialogs?.Invoke() == true)
                 return;
 
             ControllerSettings cfg = ActiveConfig.Controller;

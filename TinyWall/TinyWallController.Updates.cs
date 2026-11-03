@@ -35,6 +35,7 @@ namespace pylorak.TinyWall
         {
             TrayMenu.Items.Insert(TrayMenu.Items.IndexOf(toolStripMenuItem5) + 1, mnuCheckForUpdates);
             mnuCheckForUpdates.Click += (_, _) => CheckForUpdates(null);
+            BlockedConnectionPopup.RefuseDialogs = RefuseWhileSetupRuns;
         }
 
         // includePrereleases: Manage passes its checkbox, which may not be saved yet.
