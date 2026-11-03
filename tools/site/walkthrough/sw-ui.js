@@ -202,17 +202,18 @@
   function update(o) {
     const seg = "font-family:'Segoe UI',system-ui,sans-serif;font-size:12px;letter-spacing:0.2px";
     // Notes fill the space between the details and the notice; while downloading, the
-    // progress bar docks above the buttons and pushes the notice up by its 18 px.
+    // progress bar docks above the buttons and pushes the notice up by its 18 px. The notice
+    // is 80 px tall since v0.5.5 (16 px more than update.png), taken from the notes.
     const dl = o.state === "downloading", lift = dl ? 18 : 0;
     const notes = `<div style="position:absolute;left:12px;top:94px;${seg}">Release notes from GitHub:</div>
-        <div class="sw-text" style="left:12px;top:116px;width:576px;height:${236 - lift}px;white-space:pre-wrap;line-height:15px;padding:3px 22px 3px 4px;background:#f0f0f0;border-color:#adadad;${seg}"><div class="sw-vscroll"></div>This is an unsigned alpha prerelease. SecureWall can now check GitHub for a newer release and install it, and the Network Activity list no longer moves while it refreshes.
+        <div class="sw-text" style="left:12px;top:116px;width:576px;height:${220 - lift}px;white-space:pre-wrap;line-height:15px;padding:3px 22px 3px 4px;background:#f0f0f0;border-color:#adadad;${seg}"><div class="sw-vscroll"></div>This is an unsigned alpha prerelease. SecureWall can now check GitHub for a newer release and install it, and the Network Activity list no longer moves while it refreshes.
 
 ## Changes
 
 ### Check for updates
 
 - **Where.** **Check for updates** is in the tray menu and on the Maintenance tab in Manage. It runs only when you choose it; SecureWall never checks on its own. If SecureWall is locked, it asks for the password first.</div>
-        <div style="position:absolute;left:12px;top:${356 - lift}px;width:576px;line-height:16px;${seg}">Installing stops SecureWall and blocks all connections to other computers until the new version starts, usually under a minute. Open connections drop. Windows asks for administrator permission, then setup shows its own window.</div>`;
+        <div style="position:absolute;left:12px;top:${340 - lift}px;width:576px;line-height:16px;${seg}">Installing stops SecureWall and blocks all connections to other computers until the new version starts, usually under a minute. Open connections drop. Windows asks for administrator permission, then setup shows its own window. Manage closes without saving, so apply or cancel your changes there first.</div>`;
     // ShowBusy after ShowAvailable (InstallUpdate): new heading and details, the notes and
     // notice stay, Install and Skip hide, Later becomes Cancel.
     const body = dl
