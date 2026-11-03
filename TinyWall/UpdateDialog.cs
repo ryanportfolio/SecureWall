@@ -65,10 +65,11 @@ namespace pylorak.TinyWall
             {
                 Dock = DockStyle.Bottom,
                 AutoSize = false,
-                Height = 64,
+                Height = 80,
                 Visible = false,
                 Text = "Installing stops SecureWall and blocks all connections to other computers until the new version starts, " +
-                    "usually under a minute. Open connections drop. Windows asks for administrator permission, then setup shows its own window.",
+                    "usually under a minute. Open connections drop. Windows asks for administrator permission, then setup shows its own window. " +
+                    "Manage closes without saving, so apply or cancel your changes there first.",
             };
             Progress = new ProgressBar { Dock = DockStyle.Bottom, Height = 18, Style = ProgressBarStyle.Marquee, MarqueeAnimationSpeed = 30 };
 
