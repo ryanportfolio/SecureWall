@@ -409,8 +409,8 @@ namespace pylorak.TinyWall
                 var previousInheritedSubjects = ChildInheritedSubjectExes;
                 bool committed = false;
                 UserSubjectExes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                ChildInheritance = new Dictionary<string, List<FirewallExceptionV3>>();
-                ChildInheritedSubjectExes = new Dictionary<string, HashSet<string>>();
+                ChildInheritance = new Dictionary<string, List<FirewallExceptionV3>>(StringComparer.OrdinalIgnoreCase);
+                ChildInheritedSubjectExes = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
                 try
                 {
                     var rawSocketExceptions = new List<RuleDef>();
