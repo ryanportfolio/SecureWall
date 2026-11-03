@@ -194,7 +194,10 @@ namespace pylorak.TinyWall
 
             // Update rule/policy fields
 
-            chkInheritToChildren.Checked = TmpExceptionSettings[0].ChildProcessesInherit;
+            // The service does not pass a service rule to child processes; see AssembleActiveRules.
+            bool canInherit = TmpExceptionSettings[0].Subject.SubjectType != SubjectType.Service;
+            chkInheritToChildren.Enabled = canInherit;
+            chkInheritToChildren.Checked = canInherit && TmpExceptionSettings[0].ChildProcessesInherit;
 
             switch (TmpExceptionSettings[0].Policy.PolicyType)
             {
@@ -302,7 +305,7 @@ namespace pylorak.TinyWall
 
         private void btnOK_Click(object sender, EventArgs e)
         {
-            TmpExceptionSettings[0].ChildProcessesInherit = chkInheritToChildren.Checked;
+            TmpExceptionSettings[0].ChildProcessesInherit = chkInheritToChildren.Enabled && chkInheritToChildren.Checked;
 
             if (radBlock.Checked)
             {
@@ -413,6 +416,9 @@ namespace pylorak.TinyWall
             {
                 TmpExceptionSettings[0] = Utils.DeepClone(TmpExceptionSettings[0]);
                 TmpExceptionSettings[0].RegenerateId();
+                // A service's stored flag was never shown, so it must not reappear for the new subject.
+                if (TmpExceptionSettings[0].Subject.SubjectType == SubjectType.Service)
+                    TmpExceptionSettings[0].ChildProcessesInherit = false;
                 TmpExceptionSettings[0].Subject = subject;
             }
             else
