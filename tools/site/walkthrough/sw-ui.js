@@ -203,10 +203,11 @@
     const seg = "font-family:'Segoe UI',system-ui,sans-serif;font-size:12px;letter-spacing:0.2px";
     // Notes fill the space between the details and the notice; while downloading, the
     // progress bar docks above the buttons and pushes the notice up by its 18 px. The notice
-    // is 80 px tall since v0.5.5 (16 px more than update.png), taken from the notes.
+    // is 80 px tall since v0.5.5 (16 px more than update.png), taken from the notes. The
+    // notes' padding and border add 8 px to their height, so they end where the notice starts.
     const dl = o.state === "downloading", lift = dl ? 18 : 0;
     const notes = `<div style="position:absolute;left:12px;top:94px;${seg}">Release notes from GitHub:</div>
-        <div class="sw-text" style="left:12px;top:116px;width:576px;height:${220 - lift}px;white-space:pre-wrap;line-height:15px;padding:3px 22px 3px 4px;background:#f0f0f0;border-color:#adadad;${seg}"><div class="sw-vscroll"></div>This is an unsigned alpha prerelease. SecureWall can now check GitHub for a newer release and install it, and the Network Activity list no longer moves while it refreshes.
+        <div class="sw-text" style="left:12px;top:116px;width:576px;height:${216 - lift}px;white-space:pre-wrap;line-height:15px;padding:3px 22px 3px 4px;background:#f0f0f0;border-color:#adadad;${seg}"><div class="sw-vscroll"></div>This is an unsigned alpha prerelease. SecureWall can now check GitHub for a newer release and install it, and the Network Activity list no longer moves while it refreshes.
 
 ## Changes
 
