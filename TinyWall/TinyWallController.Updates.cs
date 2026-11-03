@@ -214,6 +214,7 @@ namespace pylorak.TinyWall
                 SaveUpdateSetting(settings => settings.UpdateStartedFromVersion = version);
                 Utils.StartProcessAndForget(Utils.ExecutablePath, arguments, true);
                 dialog.Close();
+                CloseWindowsForSetup();
             }
             catch (Win32Exception exception) when (exception.NativeErrorCode == 1223)
             {
@@ -226,6 +227,16 @@ namespace pylorak.TinyWall
                 SaveUpdateSetting(settings => settings.UpdateStartedFromVersion = string.Empty);
                 dialog.ShowMessage("Update not installed", "The update step could not start: " + exception.Message);
             }
+        }
+
+        // With Restart Manager off, setup's "Files in Use" page lists every process holding a
+        // file it replaces that has a titled window, so an open Manage window stopped the update
+        // there. The tray has no titled window; the upgrade's stop step closes it and setup
+        // normally starts the new one. Closing Manage discards unsaved changes, as Cancel does.
+        private void CloseWindowsForSetup()
+        {
+            foreach (Form open in ActiveForms.ToArray())
+                open.Close();
         }
 
         // Runs `work` while the service holds an update permit for this controller, and ends the
