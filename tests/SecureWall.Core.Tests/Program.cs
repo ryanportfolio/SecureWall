@@ -90,6 +90,7 @@ internal static class Program
             .Concat(ControllerActivityTests.Cases)
             .Concat(AiExplainHardeningTests.Cases)
             .Concat(AiHelpPermitTests.Cases)
+            .Concat(RuleInheritanceTests.Cases)
             .Concat(InstallerDiagnosticsTests.Cases)
             .Concat(ProfileMergeTests.Cases)
             .Concat(UpdateFeedRemovalTests.Cases)
