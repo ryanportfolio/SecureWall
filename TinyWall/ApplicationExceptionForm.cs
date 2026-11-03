@@ -416,6 +416,9 @@ namespace pylorak.TinyWall
             {
                 TmpExceptionSettings[0] = Utils.DeepClone(TmpExceptionSettings[0]);
                 TmpExceptionSettings[0].RegenerateId();
+                // A service's stored flag was never shown, so it must not reappear for the new subject.
+                if (TmpExceptionSettings[0].Subject.SubjectType == SubjectType.Service)
+                    TmpExceptionSettings[0].ChildProcessesInherit = false;
                 TmpExceptionSettings[0].Subject = subject;
             }
             else
