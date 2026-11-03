@@ -17,8 +17,11 @@ namespace pylorak.TinyWall
 
         // Catalog health is reported by ReportHealth in the service log, separately from the
         // per-executable answers. Unknown means "cannot rule out", never "is a service".
-        internal ServiceRegistrationStatus Lookup(string applicationPath)
+        // registeredServices lists the services that run this file when the list is complete,
+        // and is empty otherwise (see ServiceExecutableInventory.RegisteredServices).
+        internal ServiceRegistrationStatus Lookup(string applicationPath, out IReadOnlyList<string> registeredServices)
         {
+            registeredServices = Array.Empty<string>();
             string normalizedPath;
             try
             {
@@ -37,7 +40,10 @@ namespace pylorak.TinyWall
                 if (DateTime.UtcNow >= NextRefreshUtc)
                     Refresh();
 
-                return Inventory?.Lookup(normalizedPath) ?? ServiceRegistrationStatus.Unknown;
+                if (Inventory == null)
+                    return ServiceRegistrationStatus.Unknown;
+                registeredServices = Inventory.RegisteredServices(normalizedPath);
+                return Inventory.Lookup(normalizedPath);
             }
         }
 

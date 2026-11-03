@@ -1794,6 +1794,11 @@ namespace pylorak.TinyWall
                         " is not an executable with a valid embedded signature.", Utils.LOG_ID_SERVICE);
                     return false;
                 }
+                if (allowPolicy.Identity.CoveredServiceNames.Count != 0)
+                {
+                    Utils.Log("Refused Always allow: " + path + " is the executable of Windows services.", Utils.LOG_ID_SERVICE);
+                    return false;
+                }
                 AlwaysAllowRule.AddTo(candidate.ActiveProfile.AlwaysAllowRules,
                     new AlwaysAllowRule(Path.GetFileName(path!), signer.Subject, signer.Name));
             }
@@ -3180,7 +3185,8 @@ namespace pylorak.TinyWall
 
             try
             {
-                ServiceRegistrationStatus registration = ServiceExecutables.Lookup(candidate.ApplicationPath);
+                ServiceRegistrationStatus registration = ServiceExecutables.Lookup(
+                    candidate.ApplicationPath, out IReadOnlyList<string> registeredServices);
                 PromptIdentity identity = ServiceAttribution.Resolve(
                     candidate,
                     auditEvent,
@@ -3188,7 +3194,9 @@ namespace pylorak.TinyWall
                     registration == ServiceRegistrationStatus.Registered,
                     snapshotUncertain,
                     registration == ServiceRegistrationStatus.Unknown,
-                    QueryServiceSidType);
+                    QueryServiceSidType,
+                    registeredServices,
+                    Environment.GetFolderPath(Environment.SpecialFolder.Windows));
                 if (TryQueueAlwaysAllow(identity, candidate.TimestampUtc))
                     return () => { };
                 // Ignored apps stay blocked; only the prompt is skipped.
@@ -3234,7 +3242,9 @@ namespace pylorak.TinyWall
         // queue) leaves it to the prompt.
         private bool TryQueueAlwaysAllow(PromptIdentity identity, DateTimeOffset dropUtc)
         {
+            // A file that is also a service's image is always prompted: its rule covers those services.
             if (identity.Kind != PromptIdentityKind.Executable || !identity.CanAllow ||
+                identity.CoveredServiceNames.Count != 0 ||
                 identity.ExecutablePath is not string path || !PromptAllowPolicy.RequiresExistenceCheck(path))
                 return false;
             ServerConfiguration config = ActiveConfig.Service;

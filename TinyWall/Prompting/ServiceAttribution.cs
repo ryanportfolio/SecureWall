@@ -17,7 +17,9 @@ namespace pylorak.TinyWall.Prompting
             bool executableIsRegisteredService = false,
             bool snapshotUncertain = false,
             bool registrationUnknown = false,
-            Func<string, uint?>? serviceSidType = null)
+            Func<string, uint?>? serviceSidType = null,
+            IReadOnlyList<string>? registeredServices = null,
+            string? windowsDirectory = null)
         {
             if (candidate == null)
                 throw new ArgumentNullException(nameof(candidate));
@@ -52,8 +54,20 @@ namespace pylorak.TinyWall.Prompting
             if (services.Length > 1)
                 return PromptIdentity.ForAmbiguousServices(candidate.ApplicationPath, services);
 
-            if (executableIsRegisteredService || IsServiceHost(candidate.ApplicationPath))
+            if (IsServiceHost(candidate.ApplicationPath))
                 return PromptIdentity.ForUnattributedServiceHost(candidate.ApplicationPath);
+
+            // The process runs no service, but its file is the image of registered services.
+            // An executable rule for it would also cover those services, so it is offered only
+            // when the popup can name every one of them, and never for a file in the Windows
+            // directory, whose shared hosts (dllhost.exe and the like) run unrelated code.
+            if (executableIsRegisteredService)
+            {
+                return registeredServices != null && registeredServices.Count != 0 &&
+                    !IsInWindowsDirectory(candidate.ApplicationPath, windowsDirectory)
+                    ? PromptIdentity.ForServiceExecutable(candidate.ApplicationPath, registeredServices)
+                    : PromptIdentity.ForUnattributedServiceHost(candidate.ApplicationPath);
+            }
 
             // The inventory could not rule out a service registration for this file. Show the
             // executable as itself, not as a service host, and keep Allow disabled.
@@ -68,6 +82,26 @@ namespace pylorak.TinyWall.Prompting
                 Path.GetFileName(applicationPath),
                 "svchost.exe",
                 StringComparison.OrdinalIgnoreCase);
+
+        // Only a plain drive-letter path outside the Windows directory counts as outside it.
+        // Anything else (no known Windows directory, an NT or \\?\ form, a UNC path, a "."
+        // or ".." segment) is treated as inside, which keeps Allow disabled.
+        internal static bool IsInWindowsDirectory(string applicationPath, string? windowsDirectory)
+        {
+            if (string.IsNullOrWhiteSpace(windowsDirectory) || string.IsNullOrWhiteSpace(applicationPath))
+                return true;
+            string path = applicationPath.Trim();
+            if (path.Length < 3 || !IsAsciiLetter(path[0]) || path[1] != ':' || path[2] != '\\' ||
+                path.IndexOf(@"\.\", StringComparison.Ordinal) >= 0 ||
+                path.IndexOf(@"\..\", StringComparison.Ordinal) >= 0 ||
+                path.IndexOf('/') >= 0)
+                return true;
+            string root = windowsDirectory!.Trim().TrimEnd('\\') + @"\";
+            return path.StartsWith(root, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsAsciiLetter(char c) =>
+            (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
     }
 
     internal static class ServiceSidPolicy

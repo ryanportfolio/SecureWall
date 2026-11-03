@@ -22,7 +22,10 @@ namespace pylorak.TinyWall.Prompting
         {
             _alwaysAllowSigner = null;
             _signerToken = prompt.Token;
+            // Not for a file that is also a service's image: later copies would be allowed, and
+            // their services with them, without a prompt naming those services.
             bool eligible = prompt.SubjectKind == PromptIdentityKind.Executable && prompt.CanAllow &&
+                prompt.CoveredServiceNames.Length == 0 &&
                 !string.IsNullOrWhiteSpace(prompt.ExecutablePath);
             alwaysAllowButton.Visible = eligible;
             toolTip.SetToolTip(alwaysAllowButton, "Checking the file's signature.");

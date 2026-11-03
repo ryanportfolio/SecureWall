@@ -62,13 +62,14 @@ namespace pylorak.TinyWall
                 {
                     ToolTipText = prompt.CanAllow
                         ? (prompt.ExecutablePath ?? prompt.PackageSid ?? string.Empty)
-                        : PromptNoticeText.Blocked(prompt.AllowBlocker, prompt.ServiceName),
+                        : PromptNoticeText.Blocked(prompt.AllowBlocker, prompt.ServiceName, prompt.ExecutablePath),
                     Tag = prompt,
                 };
                 var allow = new ToolStripMenuItem("Allow");
                 allow.Click += (_, _) => AllowMissedPrompt(prompt, alwaysAllow: false);
                 item.DropDownItems.Add(allow);
-                if (prompt.SubjectKind == PromptIdentityKind.Executable && prompt.CanAllow)
+                if (prompt.SubjectKind == PromptIdentityKind.Executable && prompt.CanAllow &&
+                    prompt.CoveredServiceNames.Length == 0)
                 {
                     var always = new ToolStripMenuItem("Always allow (any folder, same publisher)");
                     always.Click += (_, _) => AllowMissedPrompt(prompt, alwaysAllow: true);
@@ -106,7 +107,7 @@ namespace pylorak.TinyWall
             if (!prompt.CanAllow)
             {
                 Utils.ShowMessageBox(
-                    $"SecureWall cannot allow {name} from here.\n{PromptNoticeText.Blocked(prompt.AllowBlocker, prompt.ServiceName)}",
+                    $"SecureWall cannot allow {name} from here.\n{PromptNoticeText.Blocked(prompt.AllowBlocker, prompt.ServiceName, prompt.ExecutablePath)}",
                     Resources.Messages.TinyWall, TaskDialogCommonButtons.Ok, TaskDialogIcon.Information);
                 return;
             }
@@ -129,6 +130,8 @@ namespace pylorak.TinyWall
 
             string where = prompt.ExecutablePath ?? prompt.PackageSid ?? string.Empty;
             AlwaysAllowRule? rule = null;
+            if (alwaysAllow && prompt.CoveredServiceNames.Length != 0)
+                return;
             if (alwaysAllow)
             {
                 SignedFileIdentity? signer = subject is ExecutableSubject ? SignedFileIdentity.TryRead(prompt.ExecutablePath) : null;
@@ -141,8 +144,11 @@ namespace pylorak.TinyWall
                 }
                 rule = new AlwaysAllowRule(name, signer.Subject, signer.Name);
             }
+            string services = prompt.CoveredServiceNames.Length == 0
+                ? string.Empty
+                : "\n\n" + PromptNoticeText.CoveredServices(prompt.CoveredServiceNames);
             string question = rule == null
-                ? $"Allow {name} to make outgoing connections?\n{where}\n\nThis creates a permanent rule for outgoing TCP and UDP connections to all destinations and ports, the same rule as Allow in the prompt. It was blocked while connecting to {prompt.RemoteAddress}:{prompt.RemotePort}."
+                ? $"Allow {name} to make outgoing connections?\n{where}\n\nThis creates a permanent rule for outgoing TCP and UDP connections to all destinations and ports, the same rule as Allow in the prompt. It was blocked while connecting to {prompt.RemoteAddress}:{prompt.RemotePort}.{services}"
                 : $"Always allow {name} signed by {rule.SignerName}?\n{where}\n\nThis allows this copy now, and any later file named {name} with a valid signature from {rule.SignerName}, in any folder. Each gets the same outgoing-only TCP and UDP rule as Allow in the prompt. Remove the rule under Manage, Always allow.";
             if (Utils.ShowMessageBox(question, Resources.Messages.TinyWall,
                     TaskDialogCommonButtons.Yes | TaskDialogCommonButtons.No, TaskDialogIcon.Warning) != DialogResult.Yes)
