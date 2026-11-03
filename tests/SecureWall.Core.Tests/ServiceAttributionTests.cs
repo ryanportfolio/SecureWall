@@ -331,7 +331,8 @@ internal static class ServiceAttributionTests
     {
         var updater = Candidate(Updater);
         var identity = ServiceAttribution.Resolve(updater, Audit(updater), Array.Empty<string>(),
-            executableIsRegisteredService: true, registeredServices: UpdaterServices, windowsDirectory: Windows);
+            executableIsRegisteredService: true, registeredServices: UpdaterServices, windowsDirectory: Windows,
+            processStillRunning: () => true);
         AssertEx.Equal(PromptIdentityKind.Executable, identity.Kind);
         AssertEx.Equal(PromptAllowBlocker.None, identity.AllowBlocker);
         AssertEx.SequenceEqual(new[] { UpdaterServices[1], UpdaterServices[0] }, identity.CoveredServiceNames);
@@ -358,11 +359,12 @@ internal static class ServiceAttributionTests
     {
         var updater = Candidate(Updater);
         void Shared(DropCandidate candidate, IReadOnlyList<string>? names, string? windows, bool uncertain = false,
-            string[]? running = null, bool correlated = true)
+            string[]? running = null, bool correlated = true, Func<bool>? alive = null)
         {
             var identity = ServiceAttribution.Resolve(candidate, correlated ? Audit(candidate) : null, running ?? Array.Empty<string>(),
                 executableIsRegisteredService: true, snapshotUncertain: uncertain,
-                registeredServices: names, windowsDirectory: windows);
+                registeredServices: names, windowsDirectory: windows,
+                processStillRunning: alive ?? (() => true));
             AssertEx.Equal(PromptIdentityKind.AmbiguousService, identity.Kind);
             AssertEx.False(identity.CanAllow);
             AssertEx.Equal(0, identity.CoveredServiceNames.Count);
@@ -371,6 +373,16 @@ internal static class ServiceAttributionTests
 
         // A drop never matched to an audit event has no PID, so "runs no service" is unproven.
         Shared(updater, UpdaterServices, Windows, correlated: false);
+        // A process that exited before the SCM snapshot, or a reused PID, is missing from it.
+        Shared(updater, UpdaterServices, Windows, alive: () => false);
+        AssertEx.Equal(PromptIdentityKind.AmbiguousService, ServiceAttribution.Resolve(updater, Audit(updater),
+            Array.Empty<string>(), executableIsRegisteredService: true,
+            registeredServices: UpdaterServices, windowsDirectory: Windows).Kind);
+        // The process is opened only once every other condition holds.
+        Func<bool> unasked = () => throw new InvalidOperationException("Liveness checked for an ineligible drop.");
+        Shared(Candidate(@"C:\Windows\System32\dllhost.exe"), new[] { "COMSysApp" }, Windows, alive: unasked);
+        Shared(updater, UpdaterServices, Windows, uncertain: true, alive: unasked);
+        Shared(updater, UpdaterServices, Windows, correlated: false, alive: unasked);
         Shared(updater, null, Windows);
         Shared(updater, Array.Empty<string>(), Windows);
         Shared(updater, UpdaterServices, null);

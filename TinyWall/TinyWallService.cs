@@ -3196,7 +3196,9 @@ namespace pylorak.TinyWall
                     registration == ServiceRegistrationStatus.Unknown,
                     QueryServiceSidType,
                     registeredServices,
-                    Environment.GetFolderPath(Environment.SpecialFolder.Windows));
+                    Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+                    () => auditEvent != null && BlockedProcessLiveness.IsSameLiveProcess(
+                        auditEvent.ProcessId, candidate.ApplicationPath, candidate.TimestampUtc));
                 if (TryQueueAlwaysAllow(identity, candidate.TimestampUtc))
                     return () => { };
                 // Ignored apps stay blocked; only the prompt is skipped.

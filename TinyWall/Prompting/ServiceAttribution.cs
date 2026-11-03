@@ -19,7 +19,8 @@ namespace pylorak.TinyWall.Prompting
             bool registrationUnknown = false,
             Func<string, uint?>? serviceSidType = null,
             IReadOnlyList<string>? registeredServices = null,
-            string? windowsDirectory = null)
+            string? windowsDirectory = null,
+            Func<bool>? processStillRunning = null)
         {
             if (candidate == null)
                 throw new ArgumentNullException(nameof(candidate));
@@ -62,12 +63,16 @@ namespace pylorak.TinyWall.Prompting
             // when the popup can name every one of them, and never for a file in the Windows
             // directory, whose shared hosts (dllhost.exe and the like) run unrelated code.
             // "Runs no service" needs evidence: a drop never matched to an audit event has no
-            // PID, so its empty service list proves nothing and it stays a shared host.
+            // PID, and a process that exited before the SCM snapshot (or whose PID was reused)
+            // is missing from it, so an empty service list proves nothing in either case.
+            // processStillRunning, asked last because it opens the process, confirms the
+            // audited process outlived the snapshot.
             if (executableIsRegisteredService)
             {
                 return auditEvent != null &&
                     registeredServices != null && registeredServices.Count != 0 &&
-                    !IsInWindowsDirectory(candidate.ApplicationPath, windowsDirectory)
+                    !IsInWindowsDirectory(candidate.ApplicationPath, windowsDirectory) &&
+                    processStillRunning?.Invoke() == true
                     ? PromptIdentity.ForServiceExecutable(candidate.ApplicationPath, registeredServices)
                     : PromptIdentity.ForUnattributedServiceHost(candidate.ApplicationPath);
             }
