@@ -70,3 +70,7 @@ User controller logs use LocalApplicationData/SecureWall/logs. Actual privileged
 ## 2026-11-01: SecureWall.exe switches from Git Bash
 
 - Git Bash rewrites a leading-slash argument into a path: `SecureWall.exe /protocolselftest` arrives as `C:/Program Files/Git/protocolselftest`, which the exe does not recognize, so it starts a real tray controller on the owner's desktop and the call returns exit 1 at once. Run `/protocolselftest`, `/pipeintegrationtest` and other switches through PowerShell (`Start-Process ... -Wait -PassThru`, commands.md "Safe debug verification") or prefix `MSYS_NO_PATHCONV=1`. Another session had to kill the stray controller.
+
+## 2026-11-03: A version in any site file blocks the release site job
+
+- `tools/release/update-secwall-site.mjs` fails the release's `site` job if any file of the live deployment still contains `v<old>`, `Version <old>` or the old JSON-LD version after it rewrites `index.html` and `build/*.js`. Comments count: a walkthrough comment "since v0.5.5" in `tools/site/walkthrough/sw-ui.js`, deployed to `/walkthrough/`, stopped the v0.5.6 site update. Write versions in site files without the leading `v` (for example "release 0.5.5"), and when a site file needs fixing, redeploy it with `patch-secwall-site.mjs` before rerunning `secwall-site`.
