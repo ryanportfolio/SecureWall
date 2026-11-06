@@ -59,7 +59,7 @@ $project = Read-RepoFile 'TinyWall\TinyWall.csproj'
 Assert-True ($project -match '<AssemblyName>SecureWall</AssemblyName>') 'application assembly is SecureWall.exe'
 Assert-True ($project -match '<Product>SecureWall</Product>') 'application product metadata is SecureWall'
 Assert-True ($project -match '<AssemblyTitle>SecureWall</AssemblyTitle>') 'application title is SecureWall'
-Assert-True ($project -match '<Version>0\.5\.6</Version>') 'application version is 0.5.6'
+Assert-True ($project -match '<Version>0\.5\.7</Version>') 'application version is 0.5.7'
 
 $product = Read-RepoFile 'MsiSetup\Product.wxs'
 Assert-True ($product -match '<\?define ProductName="SecureWall" \?>') 'MSI product name is SecureWall'
@@ -452,7 +452,7 @@ if ($ArtifactsDirectory) {
         foreach ($name in $expectedMsi) {
             $msiPath = Join-Path $artifactRoot $name
             Assert-True ((Get-MsiProperty $installer $msiPath 'ProductName') -eq 'SecureWall') "$name ProductName is SecureWall"
-            Assert-True ((Get-MsiProperty $installer $msiPath 'ProductVersion') -eq '0.5.6.0') "$name ProductVersion is 0.5.6.0"
+            Assert-True ((Get-MsiProperty $installer $msiPath 'ProductVersion') -eq '0.5.7.0') "$name ProductVersion is 0.5.7.0"
             Assert-True ((Get-MsiProperty $installer $msiPath 'ALLUSERS') -eq '1') "$name is per-machine"
             Assert-True ($null -eq (Get-MsiProperty $installer $msiPath 'SECUREWALL_FAULT_TEST')) "$name is not an upgrade fault-test package"
         }
