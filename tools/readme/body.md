@@ -54,7 +54,7 @@ dotnet restore TinyWall\TinyWall.csproj
 & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\MSBuild.exe" TinyWall\TinyWall.csproj /t:Build /p:Configuration=Debug /p:RestorePackages=false
 ```
 
-Debug builds add `/protocolselftest`, `/pipeintegrationtest` and `/promptpreview`, which check IPC serialization, the authenticated pipe and the popup without starting the service or touching WFP. `tools\release\Build-SecureWallRelease.ps1` builds the three MSIs and their SHA-256 manifest with WiX 3.14.1 and installs nothing. Real firewall behavior counts as verified only after the VM matrix in [docs/TESTING.md](docs/TESTING.md) runs on an expendable Windows VM.
+Debug builds add `/protocolselftest`, `/pipeintegrationtest` and `/promptpreview`, which check IPC serialization, the authenticated pipe and the popup without starting the service or touching WFP. `tools\release\Build-SecureWallRelease.ps1` builds the three MSIs and their SHA-256 manifest with WiX 3.14.1 and installs nothing. Real firewall behavior counts as verified only after the manual matrix in [docs/TESTING.md](docs/TESTING.md) runs on an installed system.
 
 ## Documentation
 

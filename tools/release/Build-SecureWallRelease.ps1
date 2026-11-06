@@ -16,8 +16,8 @@ param(
     # Upgrade row that builds at or below 0.5.0 leave out. Those packages go
     # to artifacts\version-check and are never attached to a release. The
     # shared outputs in TinyWall\bin, MsiSetup\Sources and MsiSetup\bin keep
-    # this version until the next build without it; the bundle builders in
-    # tools\manual and tools\vm refuse such an executable.
+    # this version until the next build without it; the bundle builder in
+    # tools\manual refuses such an executable.
     [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+\z')]
     [string]$ValidationVersion,
 

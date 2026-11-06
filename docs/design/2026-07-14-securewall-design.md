@@ -185,7 +185,7 @@ Fresh settings show all categories. Filters, sorting, process/service identity, 
 
 Pure queue, token, eligibility, correlation, and allow-policy logic is isolated from WinForms/WFP and tested first in a dependency-free console test harness. Integration tests use fake clocks and fake policy writers. The production project must build for `net48` on Windows.
 
-No automated test enables the real firewall. Real WFP integration requires an expendable local Windows VM or physical test machine with local console access. The manual matrix includes executable, UWP, single-service `svchost`, ambiguous shared-service host, Ignore, timeout, password lock, explicit block, blocklist, reboot, controller exit, service restart, and uninstall recovery.
+No automated test enables the real firewall. Real WFP integration requires an installed system with local console access. The manual matrix includes executable, UWP, single-service `svchost`, ambiguous shared-service host, Ignore, timeout, password lock, explicit block, blocklist, reboot, controller exit, service restart, and uninstall recovery.
 
 Installing or activating the firewall is intentionally excluded from unattended verification because a default-deny firewall can sever remote access. It requires explicit local-console confirmation.
 

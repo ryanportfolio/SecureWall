@@ -13,7 +13,7 @@ param(
 # Builds the in-place upgrade fault-test packages (docs/HARDENING-VALIDATION.md,
 # "In-place upgrade") into artifacts\upgrade-fault-test\<version>, so the old and
 # the new version's fault builds from two checkouts sit side by side. They carry fault points
-# and visible stamps, are for disposable VMs only and are never released. The
+# and visible stamps, are for testing only and are never released. The
 # release builder refuses them and the installer contract test fails on them.
 
 $ErrorActionPreference = 'Stop'

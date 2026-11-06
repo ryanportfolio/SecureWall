@@ -199,10 +199,10 @@ Assert-True ($null -eq $wix.SelectSingleNode('//*[@ForceDeleteOnUninstall="yes"]
 $wixProject = Read-RepoFile 'MsiSetup\MsiSetup.wixproj'
 Assert-True ($product -match '(?s)<\?ifdef PreUpgradeVersion \?>\s*<\?undef OldestUpgradeableVersion \?>\s*<\?define OldestUpgradeableVersion="\$\(var\.PreUpgradeVersion\)" \?>' -and $product -match "(?s)<\?ifndef PreUpgradeVersion \?>\s*<UpgradeVersion OnlyDetect='no' MigrateFeatures='yes' Property='OLDER_UPGRADEABLE_FOUND'.*?/>\s*<\?endif \?>" -and $wixProject -match "VersionLessThanOrEquals\('\`$\(SecureWallVersion\)', '0\.5\.0'\)") 'builds at or below 0.5.0, v0.5.0 included, keep a valid Upgrade table with no upgradeable range'
 
-# Fault injection for the upgrade VM cases lives only in the UpgradeFaultTest configuration.
+# Fault injection for the upgrade test cases lives only in the UpgradeFaultTest configuration.
 Assert-True ($product -match '(?s)<\?ifdef UpgradeFaultTest \?>\s*<!--.*?-->\s*<Property Id="SECUREWALL_FAULT_TEST" Value="1" />\s*<\?endif \?>') 'fault-test packages carry a property release checks can refuse'
 Assert-True ($product -match '(?s)<\?ifdef UpgradeFaultTest \?>\s*<\?define PackageName="SecureWall \(fault test\)" \?>\s*<\?else \?>\s*<\?define PackageName="\$\(var\.ProductName\)" \?>' -and $product -match '<Product Id="\*" Codepage="1250" Name="\$\(var\.PackageName\)"') 'fault-test packages show a (fault test) ProductName suffix'
-Assert-True ((Test-Path -LiteralPath (Join-Path $repoRoot 'tools\vm\Build-SecureWallUpgradeFaultTest.ps1') -PathType Leaf) -and (Read-RepoFile 'tools\vm\Build-SecureWallUpgradeFaultTest.ps1') -match "artifacts\\upgrade-fault-test") 'fault-test packages have their own builder and output folder'
+Assert-True ((Test-Path -LiteralPath (Join-Path $repoRoot 'tools\fault-test\Build-SecureWallUpgradeFaultTest.ps1') -PathType Leaf) -and (Read-RepoFile 'tools\fault-test\Build-SecureWallUpgradeFaultTest.ps1') -match "artifacts\\upgrade-fault-test") 'fault-test packages have their own builder and output folder'
 Assert-True ($wixProject -match "(?s)Condition="" '\`$\(Configuration\)' == 'UpgradeFaultTest' "">\s*<DefineConstants>UpgradeFaultTest</DefineConstants>") 'only the UpgradeFaultTest installer configuration defines the fault property'
 Assert-True ($project -match "(?s)<PropertyGroup Condition=""'\`$\(Configuration\)' == 'UpgradeFaultTest'"">.*?UPGRADE_FAULT_TEST.*?\+upgrade-fault-test</InformationalVersion>" -and ([regex]::Matches($project, 'UPGRADE_FAULT_TEST')).Count -eq 1) 'only the UpgradeFaultTest application configuration compiles fault points and marks its version'
 $faultSource = Read-RepoFile 'TinyWall\Installer\UpgradeFault.cs'
@@ -279,7 +279,7 @@ Assert-True ($prepareSources -match "'SecureWall\.exe'") 'staging requires Secur
 Assert-True ($prepareSources -match 'ProgramFiles\\SecureWall') 'staging targets SecureWall payload directory'
 
 # Defaults are MSI payload under Program Files. Only the guarded SYSTEM entry
-# may seed machine data; static source checks do not replace hostile-path VM tests.
+# may seed machine data; static source checks do not replace hostile-path tests on an installed system.
 $defaultsDir = $wix.SelectSingleNode('//w:Directory[@Id="INSTALLDIR"]/w:Directory[@Id="DataDefaultsDir"]', $ns)
 Assert-True ($null -ne $defaultsDir -and $defaultsDir.Name -eq 'data-defaults') 'defaults install beneath protected INSTALLDIR/data-defaults'
 Assert-True ($null -eq $wix.SelectSingleNode('//w:Directory[@Id="CommonAppDataFolder"] | //w:DirectoryRef[@Id="CommonAppDataFolder"]', $ns)) 'MSI has no ProgramData destination tree'
@@ -413,7 +413,7 @@ Assert-True ($releaseWorkflow -notmatch 'ValidationVersion') 'release workflow n
 $ciWorkflow = Read-RepoFile '.github\workflows\ci.yml'
 Assert-True ($ciWorkflow -match 'Build-SecureWallRelease\.ps1[^\r\n]*`\s+-ValidationVersion\s+0\.5\.1\s') 'CI validates the upgradeable row in a 0.5.1 build'
 Assert-True ($builder -match "\[version\]\`$ValidationVersion -le \[version\]'0\.5\.0'") 'release builder refuses a validation version with no upgradeable row'
-foreach ($bundleScript in 'tools\manual\Prepare-SecureWallManualTestBundle.ps1', 'tools\vm\Prepare-SecureWallVmBundle.ps1') {
+foreach ($bundleScript in 'tools\manual\Prepare-SecureWallManualTestBundle.ps1') {
     Assert-True ((Read-RepoFile $bundleScript) -match '\$builtVersion -ne "\$projectVersion\.0"') "$bundleScript refuses an executable built at another version"
 }
 Assert-True ($releaseWorkflow -notmatch 'UpgradeFaultTest' -and $ciWorkflow -notmatch 'UpgradeFaultTest') 'release and CI workflows never build the fault-test configuration'

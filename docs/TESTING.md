@@ -25,17 +25,15 @@ Source checks must confirm:
 - default-block, block and every other filter registration failure propagates and rolls back instead of being swallowed; only an optional WSL 2 permit failure is logged and skipped;
 - Network Activity shows observed allows and blocks, exact TCP states, and local-only listener wording, with one-second refresh.
 
-Build all three MSI packages and `tests\SecureWall.NetworkProbe`, then run `tools\vm\Prepare-SecureWallVmBundle.ps1` to create an ignored, hash-manifested VM bundle. Its guarded runner verifies the selected MSI hash and baseline connectivity, installs that MSI silently, checks the WFP provider, drives separate Allow and Ignore probes, captures 5157/WFP/audit evidence, uninstalls through MSI, and compares service, provider, task, audit policy, firewall rules, notification flags and hosts state. This guided path does not execute every failure case below.
-
 The additional pre-switch fault, reboot, identity and MSI matrix is in [HARDENING-VALIDATION.md](HARDENING-VALIDATION.md). Source tests and package ICE validation do not substitute for it.
 
 ## Installer source evidence
 
 Run `tests/installer/Test-SecureWallInstaller.ps1` without an artifacts argument for non-enforcing source checks. This checks XML declarations, guarded seeding order and JSON defaults without building or installing. An artifacts argument requires separately built packages and does not prove live behavior.
 
-## Manual local-console VM matrix
+## Manual local-console matrix
 
-Do not run this matrix on the development host. Use an expendable Windows VM with a named clean snapshot and local/virtual console recovery. The runner in `tools\vm` enforces VM, hostname, elevation, TinyWall-absence, SecureWall-absence, target, and explicit-confirmation guards before installation.
+Run this matrix at the PC's own keyboard and screen, with administrator access and the recovery installers saved locally (`docs/LIVE-TESTING.md`, "Before switching"). TinyWall must be uninstalled first.
 
 | Case | Expected result |
 |---|---|
