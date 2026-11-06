@@ -41,8 +41,10 @@ namespace pylorak.TinyWall.Prompting
             string? serviceName,
             IReadOnlyList<string>? ambiguousServiceNames,
             PromptAllowBlocker allowBlocker = PromptAllowBlocker.None,
-            IReadOnlyList<string>? coveredServiceNames = null)
+            IReadOnlyList<string>? coveredServiceNames = null,
+            bool serviceRunUnconfirmed = false)
         {
+            ServiceRunUnconfirmed = serviceRunUnconfirmed;
             Kind = kind;
             AllowBlocker = kind == PromptIdentityKind.AmbiguousService
                 ? PromptAllowBlocker.AmbiguousService
@@ -64,6 +66,9 @@ namespace pylorak.TinyWall.Prompting
         // Services whose image is this executable. Non-empty only for ForServiceExecutable:
         // an executable rule for the path also matches them.
         internal IReadOnlyList<string> CoveredServiceNames { get; }
+        // Set with CoveredServiceNames when SecureWall could not prove that the process ran
+        // no service. The rule is the same executable rule; the popup offers it as "Allow anyway".
+        internal bool ServiceRunUnconfirmed { get; }
         internal PromptAllowBlocker AllowBlocker { get; }
         internal bool CanAllow => AllowBlocker == PromptAllowBlocker.None;
 
@@ -98,19 +103,26 @@ namespace pylorak.TinyWall.Prompting
         // An executable that runs no service in this process but is the image of the named
         // services. Allow writes an executable rule, which those services match too, so the
         // popup names them. The key includes them, so a prompt for the same path without
-        // services (or with other ones) stays separate.
-        internal static PromptIdentity ForServiceExecutable(string executablePath, IEnumerable<string> serviceNames)
+        // services (or with other ones) stays separate. serviceRunUnconfirmed marks a drop whose
+        // process may have run one of those services; it gets its own key so its "Allow anyway"
+        // wording never merges into a confirmed prompt.
+        internal static PromptIdentity ForServiceExecutable(
+            string executablePath,
+            IEnumerable<string> serviceNames,
+            bool serviceRunUnconfirmed = false)
         {
             string path = Require(executablePath, nameof(executablePath));
             string[] services = SortedNames(serviceNames, nameof(serviceNames));
             return new PromptIdentity(
                 PromptIdentityKind.Executable,
-                $"exe:{Canonical(path)}|services:{string.Join("|", services.Select(Canonical))}",
+                $"exe:{Canonical(path)}|services:{string.Join("|", services.Select(Canonical))}" +
+                    (serviceRunUnconfirmed ? "|unconfirmed" : string.Empty),
                 path,
                 null,
                 null,
                 null,
-                coveredServiceNames: Array.AsReadOnly(services));
+                coveredServiceNames: Array.AsReadOnly(services),
+                serviceRunUnconfirmed: serviceRunUnconfirmed);
         }
 
         internal static PromptIdentity ForPackage(string packageSid, string? executablePath)

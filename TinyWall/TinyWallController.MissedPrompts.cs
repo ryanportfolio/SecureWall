@@ -65,7 +65,7 @@ namespace pylorak.TinyWall
                         : PromptNoticeText.Blocked(prompt.AllowBlocker, prompt.ServiceName, prompt.ExecutablePath),
                     Tag = prompt,
                 };
-                var allow = new ToolStripMenuItem("Allow");
+                var allow = new ToolStripMenuItem(prompt.ServiceRunUnconfirmed && prompt.CoveredServiceNames.Length > 0 ? "Allow anyway" : "Allow");
                 allow.Click += (_, _) => AllowMissedPrompt(prompt, alwaysAllow: false);
                 item.DropDownItems.Add(allow);
                 if (prompt.SubjectKind == PromptIdentityKind.Executable && prompt.CanAllow &&
@@ -146,7 +146,7 @@ namespace pylorak.TinyWall
             }
             string services = prompt.CoveredServiceNames.Length == 0
                 ? string.Empty
-                : "\n\n" + PromptNoticeText.CoveredServices(prompt.CoveredServiceNames);
+                : "\n\n" + PromptNoticeText.CoveredServices(prompt.CoveredServiceNames, prompt.ServiceRunUnconfirmed);
             string question = rule == null
                 ? $"Allow {name} to make outgoing connections?\n{where}\n\nThis creates a permanent rule for outgoing TCP and UDP connections to all destinations and ports, the same rule as Allow in the prompt. It was blocked while connecting to {prompt.RemoteAddress}:{prompt.RemotePort}.{services}"
                 : $"Always allow {name} signed by {rule.SignerName}?\n{where}\n\nThis allows this copy now, and any later file named {name} with a valid signature from {rule.SignerName}, in any folder. Each gets the same outgoing-only TCP and UDP rule as Allow in the prompt. Remove the rule under Manage, Always allow.";

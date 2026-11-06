@@ -33,10 +33,25 @@ namespace pylorak.TinyWall.Prompting
             if (!string.IsNullOrWhiteSpace(packageSid))
                 return PromptIdentity.ForPackage(packageSid!, candidate.ApplicationPath);
 
+            // An executable rule for a file that is the image of registered services also
+            // covers those services, so it is offered only when the popup can name every one
+            // of them, and never for a file in the Windows directory, whose shared hosts
+            // (svchost.exe, dllhost.exe and the like) run unrelated code.
+            bool namesEveryService = executableIsRegisteredService &&
+                registeredServices != null && registeredServices.Count != 0 &&
+                !IsServiceHost(candidate.ApplicationPath) &&
+                !IsInWindowsDirectory(candidate.ApplicationPath, windowsDirectory);
+
             // Uncertainty dominates even a single stable name in a transitioning PID.
             // A cached negative executable catalog cannot override missing SCM evidence.
+            // Whichever of its services the process ran, it ran this file, so the
+            // executable rule is still on offer, as "Allow anyway".
             if (snapshotUncertain)
-                return PromptIdentity.ForUnattributedServiceHost(candidate.ApplicationPath);
+            {
+                return namesEveryService
+                    ? PromptIdentity.ForServiceExecutable(candidate.ApplicationPath, registeredServices!, serviceRunUnconfirmed: true)
+                    : PromptIdentity.ForUnattributedServiceHost(candidate.ApplicationPath);
+            }
 
             string[] services = serviceNames
                 .Where(name => !string.IsNullOrWhiteSpace(name))
@@ -58,23 +73,20 @@ namespace pylorak.TinyWall.Prompting
             if (IsServiceHost(candidate.ApplicationPath))
                 return PromptIdentity.ForUnattributedServiceHost(candidate.ApplicationPath);
 
-            // The process runs no service, but its file is the image of registered services.
-            // An executable rule for it would also cover those services, so it is offered only
-            // when the popup can name every one of them, and never for a file in the Windows
-            // directory, whose shared hosts (dllhost.exe and the like) run unrelated code.
-            // "Runs no service" needs evidence: a drop never matched to an audit event has no
-            // PID, and a process that exited before the SCM snapshot (or whose PID was reused)
-            // is missing from it, so an empty service list proves nothing in either case.
-            // processStillRunning, asked last because it opens the process, confirms the
-            // audited process outlived the snapshot.
+            // The process runs no service in the snapshot, but its file is the image of
+            // registered services (see namesEveryService). "Runs no service" needs evidence: a
+            // drop never matched to an audit event has no PID, and a process that exited before
+            // the SCM snapshot (or whose PID was reused) is missing from it, so an empty service
+            // list proves nothing in either case. processStillRunning, asked last because it
+            // opens the process, confirms the audited process outlived the snapshot. Without
+            // that proof the same rule is offered as "Allow anyway".
             if (executableIsRegisteredService)
             {
-                return auditEvent != null &&
-                    registeredServices != null && registeredServices.Count != 0 &&
-                    !IsInWindowsDirectory(candidate.ApplicationPath, windowsDirectory) &&
-                    processStillRunning?.Invoke() == true
-                    ? PromptIdentity.ForServiceExecutable(candidate.ApplicationPath, registeredServices)
-                    : PromptIdentity.ForUnattributedServiceHost(candidate.ApplicationPath);
+                if (!namesEveryService)
+                    return PromptIdentity.ForUnattributedServiceHost(candidate.ApplicationPath);
+                bool runsNoService = auditEvent != null && processStillRunning?.Invoke() == true;
+                return PromptIdentity.ForServiceExecutable(
+                    candidate.ApplicationPath, registeredServices!, serviceRunUnconfirmed: !runsNoService);
             }
 
             // The inventory could not rule out a service registration for this file. Show the

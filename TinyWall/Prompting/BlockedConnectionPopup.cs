@@ -157,7 +157,12 @@ namespace pylorak.TinyWall.Prompting
                 ? "Allow permanently permits this app, package, or service to reach all destinations and ports over TCP/UDP."
                 : PromptNoticeText.Blocked(prompt.AllowBlocker, prompt.ServiceName, prompt.ExecutablePath);
             if (coversServices)
-                noticeLabel.Text = PromptNoticeText.CoveredServices(prompt.CoveredServiceNames);
+                noticeLabel.Text = PromptNoticeText.CoveredServices(prompt.CoveredServiceNames, prompt.ServiceRunUnconfirmed);
+            bool allowAnyway = coversServices && prompt.ServiceRunUnconfirmed;
+            allowButton.Text = allowAnyway ? PromptNoticeText.AllowAnywayButtonText : PromptNoticeText.AllowButtonText;
+            allowButton.AccessibleName = allowAnyway
+                ? "Allow outgoing connections anyway, for this program and its services"
+                : "Allow outgoing connections";
             toolTip.SetToolTip(
                 allowButton,
                 coversServices

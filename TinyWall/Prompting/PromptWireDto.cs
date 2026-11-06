@@ -15,6 +15,7 @@ namespace pylorak.TinyWall.Prompting
         public string? ServiceName { get; set; }
         public string[] AmbiguousServiceNames { get; set; } = Array.Empty<string>();
         public string[] CoveredServiceNames { get; set; } = Array.Empty<string>();
+        public bool ServiceRunUnconfirmed { get; set; }
         public DateTimeOffset FirstSeenUtc { get; set; }
         public DateTimeOffset LastSeenUtc { get; set; }
         public DateTimeOffset ExpiresUtc { get; set; }
@@ -41,6 +42,7 @@ namespace pylorak.TinyWall.Prompting
                     ? (string[])names.Clone()
                     : new System.Collections.Generic.List<string>(prompt.Identity.AmbiguousServiceNames).ToArray(),
                 CoveredServiceNames = new System.Collections.Generic.List<string>(prompt.Identity.CoveredServiceNames).ToArray(),
+                ServiceRunUnconfirmed = prompt.Identity.ServiceRunUnconfirmed,
                 FirstSeenUtc = prompt.FirstSeenUtc,
                 LastSeenUtc = prompt.LastSeenUtc,
                 ExpiresUtc = prompt.ExpiresUtc,
