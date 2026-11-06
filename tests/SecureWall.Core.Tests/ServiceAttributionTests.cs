@@ -249,7 +249,7 @@ internal static class ServiceAttributionTests
         AssertEx.True(popup.Contains("FitNoticeLabel();"), "The notice label must be fitted to its text.");
     }
 
-    // Debug-only /promptpreview variants let the owner check the SID notice layout on a VM
+    // Debug-only /promptpreview variants let the owner check the SID notice layout
     // without a real SID-type NONE service.
     private static void PromptPreviewSidNotice()
     {

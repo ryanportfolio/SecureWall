@@ -53,7 +53,7 @@
 		<OutputPath>bin\$(Configuration)\</OutputPath>
 		<IntermediateOutputPath>obj\$(Platform)\$(Configuration)\</IntermediateOutputPath>
 	</PropertyGroup>
-	<!-- In-place upgrade VM test packages (docs/HARDENING-VALIDATION.md). Never released:
+	<!-- In-place upgrade fault-test packages (docs/HARDENING-VALIDATION.md). Never released:
 	     the installer contract test refuses a package with SECUREWALL_FAULT_TEST. -->
 	<PropertyGroup Condition=" '$(Configuration)' == 'UpgradeFaultTest' ">
 		<DefineConstants>UpgradeFaultTest</DefineConstants>

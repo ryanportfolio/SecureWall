@@ -42,7 +42,7 @@ unless the user explicitly asks in the current session.
 - A persistent write can replace the file and then throw during the installed-file flush. Compensate on attempted writes, retain recovery evidence on failure, and withdraw runtime grants when recovery fails.
 - Content flushing and process-failure recovery do not prove power-loss ordering of journal rename/delete or physical-media durability. Do not describe these as verified crash-safe filesystem commits.
 - Existing corrupt or unreadable configuration must fail closed; only confirmed absence selects defaults. Hosts restoration failure must remain visible and prevent successful teardown; absent original backup alone is valid.
-- Windows_Update must retain its exact `wuauserv` service rule without an executable-wide `svchost.exe` web allow. Actual update functionality, strict boot DNS/DHCP blocking and all failure paths remain VM checks.
+- Windows_Update must retain its exact `wuauserv` service rule without an executable-wide `svchost.exe` web allow. Actual update functionality, strict boot DNS/DHCP blocking and all failure paths remain manual checks on an installed system.
 
 ## 2026-09-12: controller repair and user logs
 

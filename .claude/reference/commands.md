@@ -33,22 +33,11 @@ $exe = Resolve-Path TinyWall\bin\Debug\SecureWall.exe
 & $exe /promptpreview
 ```
 
-`/pipeintegrationtest` exercises the real transport without starting the service or WFP. It rejects the synthetic endpoint under production authentication, then uses an explicit same-process test exception for positive exchanges. It does not establish standard-user authentication against the actual SYSTEM service; that remains a VM case. Run it under a normal interactive desktop token; a restricted automation token can be rejected by the pipe ACL and return `1`. `/promptpreview` is visible and interactive but does not start the service or register filters.
+`/pipeintegrationtest` exercises the real transport without starting the service or WFP. It rejects the synthetic endpoint under production authentication, then uses an explicit same-process test exception for positive exchanges. It does not establish standard-user authentication against the actual SYSTEM service; that remains a manual case on an installed system. Run it under a normal interactive desktop token; a restricted automation token can be rejected by the pipe ACL and return `1`. `/promptpreview` is visible and interactive but does not start the service or register filters.
 
 `/uipreview tray|connections|manage|update|password` (Debug only) opens the tray menu, Network Activity, Manage, the update window or the password dialog with the walkthrough's sample data (`TinyWall/UiPreviewSamples.cs`), without the service, the real pipe or WFP. `/dark` picks the dark theme, `/database MsiSetup\Sources\CommonAppData\SecureWall\profiles.json` fills Special Exceptions, and `/capture <png>` saves the window about 1.5 s after it opens, faded nearly invisible, then exits. `/promptpreview` takes `/capture` too, plus `/executable <path> /signer "<name>"` (an executable with a signer shows Always allow) and `/warnings unsigned,writable,recent`. `/serviceexe` shows a program that is also the file of two services, with an Allow that covers them; `/allowanyway` shows it when SecureWall could not tell whether the program or a service connected, with Allow anyway; `/sharedhost` shows the same file with Allow disabled. Captures go under `D:\screenshots\SecureWall\`. `tools/site/walkthrough/README.md` has examples.
 
-Debug builds retain production identity checks. `/selfhosted` and `/service` launched from a build directory are unsupported: real controller exchanges require the protected installed executable and the SCM-registered SYSTEM service. Use the synthetic tests for local development and an installed service in a disposable VM for integration testing. Do not run `/install` or activate the real service without the explicit VM/local-console approval described in `docs/TESTING.md`.
-
-## Isolated-VM bundle
-
-After building all three Release MSI packages and the dependency-free network probe:
-
-```powershell
-dotnet build tests\SecureWall.NetworkProbe\SecureWall.NetworkProbe.csproj --configuration Release
-& .\tools\vm\Prepare-SecureWallVmBundle.ps1 -Configuration Release
-```
-
-Move the emitted zip to an expendable snapshotted Windows VM. Follow `tools\vm\README.md`; never run the privileged validation runner on the development host.
+Debug builds retain production identity checks. `/selfhosted` and `/service` launched from a build directory are unsupported: real controller exchanges require the protected installed executable and the SCM-registered SYSTEM service. Use the synthetic tests for local development and an installed service for integration testing. Do not run `/install` or activate the real service without the explicit approval and local-console access described in `docs/TESTING.md`.
 
 ## MSI packages
 
@@ -60,7 +49,7 @@ $wixRoot = (Resolve-Path '.tmp\tools\wix314').Path
 & .\tests\installer\Test-SecureWallInstaller.ps1 -ArtifactsDirectory artifacts\release
 ```
 
-Expected output: `artifacts\release\SecureWall_x86.msi`, `SecureWall_x64.msi`, `SecureWall_arm64.msi`, and `SHA256SUMS.txt`, with no ICE warnings or errors. `tools\vm\Build-SecureWallUpgradeFaultTest.ps1 -WixRoot $wixRoot` builds the in-place upgrade fault-test packages into `artifacts\upgrade-fault-test\<version>`; never release them (`docs/HARDENING-VALIDATION.md`, "In-place upgrade"). Restricted automation tokens that cannot access Windows Installer may use `-SuppressValidation` only for a local packaging smoke test; CI and release builds never suppress ICE validation. `-ValidationVersion` (above 0.5.0; CI passes 0.5.1) writes its packages to `artifacts\version-check` but also rebuilds `TinyWall\bin`, `MsiSetup\Sources` and `MsiSetup\bin` at that version; run a normal build before preparing a VM or manual bundle, which refuse an executable whose version differs from `TinyWall.csproj`.
+Expected output: `artifacts\release\SecureWall_x86.msi`, `SecureWall_x64.msi`, `SecureWall_arm64.msi`, and `SHA256SUMS.txt`, with no ICE warnings or errors. `tools\fault-test\Build-SecureWallUpgradeFaultTest.ps1 -WixRoot $wixRoot` builds the in-place upgrade fault-test packages into `artifacts\upgrade-fault-test\<version>`; never release them (`docs/HARDENING-VALIDATION.md`, "In-place upgrade"). Restricted automation tokens that cannot access Windows Installer may use `-SuppressValidation` only for a local packaging smoke test; CI and release builds never suppress ICE validation. `-ValidationVersion` (above 0.5.0; CI passes 0.5.1) writes its packages to `artifacts\version-check` but also rebuilds `TinyWall\bin`, `MsiSetup\Sources` and `MsiSetup\bin` at that version; run a normal build before preparing a manual bundle, which refuses an executable whose version differs from `TinyWall.csproj`.
 
 To check setup pages after a UI change, capture all eleven, including the removal variants, to PNG from an interactive desktop. The script opens the MSI as a Windows Installer session and shows each page through `DoAction`; it never runs the execute sequence, so nothing is installed even when it clicks Install. Pages are faded nearly invisible while captured but may flash briefly. Screenshots belong outside the repository.
 

@@ -27,7 +27,7 @@ not `dotnet build`, because the project contains COM references. The debug
 
 Real install, boot-time filters, audit policy, service attribution, and network
 behavior are authoritative only after the manual matrix in `docs/TESTING.md`
-runs on an expendable local-console Windows VM. Never claim production firewall
+runs on an installed system at its local console. Never claim production firewall
 verification from build/tests/preview alone.
 - Browser per session, never shared. The desktop app's Browser pane (`mcp__Claude_Browser__*`, `preview_start`) is one Chrome per app: a second session or subagent gets "Another task's Chrome owns browser slot". The official playwright plugin is one persistent profile: the second connection gets "Browser is already in use ... use --isolated" and deadlocks. Parallel or subagent browser work uses `@playwright/mcp --isolated` (in-memory profile; copy `.mcp.json` from claude-starter).
 
@@ -71,8 +71,8 @@ WFP state; the interactive controller owns tray UI. Machine data lives under
 `%AppData%\SecureWall`.
 
 Ask before downloading runtime/build dependencies. Installing/uninstalling the
-service, registering WFP filters, changing audit policy outside a disposable VM,
-or running the real firewall requires explicit user approval and confirmed local
+service, registering WFP filters, changing audit policy, or running the real
+firewall requires explicit user approval and confirmed local
 console access. Never install over remote-only access.
 
 Every GitHub release also updates https://secwall.org. `release.yml` deploys the

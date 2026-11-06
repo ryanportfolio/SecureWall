@@ -9,7 +9,7 @@ using pylorak.TinyWall.Prompting;
 
 namespace pylorak.TinyWall.Installer
 {
-    // Fault points for the in-place upgrade VM cases (docs/HARDENING-VALIDATION.md,
+    // Fault points for the in-place upgrade test cases (docs/HARDENING-VALIDATION.md,
     // "In-place upgrade"). Only the UpgradeFaultTest build configuration defines
     // UPGRADE_FAULT_TEST; every other build drops each Trip call, its argument and
     // this method's body, so Release artifacts contain no fault injection. That

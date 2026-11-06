@@ -1,9 +1,8 @@
 [
   { "path": "docs/INSTALL.md", "what": "Installers, upgrades, update checks, logs and recovery" },
   { "path": "docs/SECURITY.md", "what": "Threat model, prompt rules, service and WFP behavior, recovery rules" },
-  { "path": "docs/TESTING.md", "what": "Build and test commands, the privileged VM matrix" },
+  { "path": "docs/TESTING.md", "what": "Build and test commands, the manual test matrix" },
   { "path": "docs/HARDENING-VALIDATION.md", "what": "Reboot, audit-policy and WFP hardening checks" },
-  { "path": "tools/vm/README.md", "what": "Running the real-firewall validation on an expendable Windows VM" },
   { "path": "docs/LIVE-TESTING.md", "what": "Trying SecureWall in daily use, and rolling back to TinyWall" },
   { "path": "docs/DIAGNOSTIC-COVERAGE.md", "what": "What the diagnostic logs record and what they cannot show" },
   { "path": "tools/diagnostics/README.md", "what": "Local support-bundle collector" },
