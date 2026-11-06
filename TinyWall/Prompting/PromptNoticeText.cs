@@ -36,7 +36,9 @@ namespace pylorak.TinyWall.Prompting
 
         // Shown instead of the usual Allow notice when the executable is also the image of
         // Windows services: an executable rule matches those services too.
-        internal static string CoveredServices(IReadOnlyList<string> serviceNames)
+        // serviceRunUnconfirmed: SecureWall could not tell whether the blocked process was the
+        // program or one of those services. The rule is the same; the wording says so.
+        internal static string CoveredServices(IReadOnlyList<string> serviceNames, bool serviceRunUnconfirmed = false)
         {
             if (serviceNames == null || serviceNames.Count == 0)
                 throw new ArgumentException("At least one service name is required.", nameof(serviceNames));
@@ -45,9 +47,19 @@ namespace pylorak.TinyWall.Prompting
                 ? $"the Windows service {serviceNames[0]}"
                 : $"the Windows services {JoinNames(serviceNames)}";
             string those = serviceNames.Count == 1 ? "that service" : "those services";
+            if (serviceRunUnconfirmed)
+            {
+                string one = serviceNames.Count == 1 ? "that service" : "one of those services";
+                return $"This file also runs as {services}. SecureWall could not tell whether the program or {one} " +
+                    $"made this connection. Allow anyway permanently permits this program and {those} " +
+                    "to reach all destinations and ports over TCP/UDP.";
+            }
             return $"This file also runs as {services}. Allow permanently permits this program and {those} " +
                 "to reach all destinations and ports over TCP/UDP.";
         }
+
+        internal const string AllowAnywayButtonText = "Allow anyway";
+        internal const string AllowButtonText = "Allow outgoing";
 
         internal const string CoveredServicesTooltip =
             "Permanent outbound TCP/UDP access to all destinations and ports for this file, also when it runs as the services named here. " +

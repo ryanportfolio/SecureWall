@@ -13,6 +13,7 @@ namespace pylorak.TinyWall.Prompting
         internal const string ExecutableSwitch = "/executable";
         internal const string ServiceExeSwitch = "/serviceexe";
         internal const string SharedHostSwitch = "/sharedhost";
+        internal const string AllowAnywaySwitch = "/allowanyway";
         internal const string SampleServiceExecutable = @"C:\Program Files (x86)\Example\Updater\1.0.0.0\updater.exe";
         internal static readonly string[] SampleCoveredServices = { "ExampleUpdaterInternalService1.0.0.0", "ExampleUpdaterService1.0.0.0" };
 
@@ -80,9 +81,11 @@ namespace pylorak.TinyWall.Prompting
             }
 
             // "/promptpreview /serviceexe" shows an executable that is also the image of two
-            // services, with an Allow that covers them; "/sharedhost" shows the same file when
-            // the services could not all be named, with Allow disabled.
-            bool serviceExe = HasSwitch(args, ServiceExeSwitch);
+            // services, with an Allow that covers them; "/allowanyway" shows the same file when
+            // SecureWall could not tell whether the program or a service connected; "/sharedhost"
+            // shows it when the services could not all be named, with Allow disabled.
+            bool serviceExe = HasSwitch(args, ServiceExeSwitch) || HasSwitch(args, AllowAnywaySwitch);
+            prompt.ServiceRunUnconfirmed = HasSwitch(args, AllowAnywaySwitch);
             if (serviceExe || HasSwitch(args, SharedHostSwitch))
             {
                 prompt.SubjectKind = serviceExe ? PromptIdentityKind.Executable : PromptIdentityKind.AmbiguousService;

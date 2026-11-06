@@ -26,6 +26,7 @@ internal static class ServiceAttributionTests
             yield return ("service inventory names every service of a resolved executable", InventoryNamesServices);
             yield return ("a service executable outside Windows that runs no service is allowable and names its services", ServiceExecutableIsAllowable);
             yield return ("a service executable stays shared when its services cannot all be named or it is a Windows host", ServiceExecutableStaysShared);
+            yield return ("a service executable whose service run is unproven offers Allow anyway", ServiceExecutableAllowAnyway);
             yield return ("only plain paths outside the Windows directory count as outside it", WindowsDirectoryCheck);
             yield return ("a service executable prompt is never Always allowed", ServiceExecutableHasNoAlwaysAllow);
             yield return ("covered services round trip and appear in the popup notice", CoveredServicesNotice);
@@ -371,26 +372,67 @@ internal static class ServiceAttributionTests
             AssertEx.False(PromptAllowPolicy.TryCreate(identity, _ => true, out _, out _));
         }
 
-        // A drop never matched to an audit event has no PID, so "runs no service" is unproven.
-        Shared(updater, UpdaterServices, Windows, correlated: false);
-        // A process that exited before the SCM snapshot, or a reused PID, is missing from it.
-        Shared(updater, UpdaterServices, Windows, alive: () => false);
-        AssertEx.Equal(PromptIdentityKind.AmbiguousService, ServiceAttribution.Resolve(updater, Audit(updater),
-            Array.Empty<string>(), executableIsRegisteredService: true,
-            registeredServices: UpdaterServices, windowsDirectory: Windows).Kind);
         // The process is opened only once every other condition holds.
         Func<bool> unasked = () => throw new InvalidOperationException("Liveness checked for an ineligible drop.");
         Shared(Candidate(@"C:\Windows\System32\dllhost.exe"), new[] { "COMSysApp" }, Windows, alive: unasked);
-        Shared(updater, UpdaterServices, Windows, uncertain: true, alive: unasked);
-        Shared(updater, UpdaterServices, Windows, correlated: false, alive: unasked);
         Shared(updater, null, Windows);
         Shared(updater, Array.Empty<string>(), Windows);
         Shared(updater, UpdaterServices, null);
-        Shared(updater, UpdaterServices, Windows, uncertain: true);
+        Shared(updater, null, Windows, uncertain: true);
+        Shared(Candidate(@"C:\Windows\System32\svchost.exe"), new[] { "Dnscache" }, Windows, uncertain: true);
         Shared(updater, UpdaterServices, Windows, running: new[] { "A", "B" });
         Shared(Candidate(@"C:\Windows\System32\dllhost.exe"), new[] { "COMSysApp" }, Windows);
         Shared(Candidate(@"c:\windows\SysWOW64\dllhost.exe"), new[] { "COMSysApp" }, @"C:\Windows\");
         Shared(Candidate(@"C:\Program Files\Host\svchost.exe"), new[] { "Odd" }, Windows);
+    }
+
+    private static void ServiceExecutableAllowAnyway()
+    {
+        var updater = Candidate(Updater);
+        PromptIdentity Unconfirmed(bool uncertain = false, bool correlated = true, Func<bool>? alive = null)
+        {
+            var identity = ServiceAttribution.Resolve(updater, correlated ? Audit(updater) : null, Array.Empty<string>(),
+                executableIsRegisteredService: true, snapshotUncertain: uncertain,
+                registeredServices: UpdaterServices, windowsDirectory: Windows, processStillRunning: alive);
+            AssertEx.Equal(PromptIdentityKind.Executable, identity.Kind);
+            AssertEx.True(identity.CanAllow);
+            AssertEx.True(identity.ServiceRunUnconfirmed);
+            AssertEx.Equal(2, identity.CoveredServiceNames.Count);
+            AssertEx.True(PromptAllowPolicy.TryCreate(identity, _ => true, out _, out _));
+            return identity;
+        }
+
+        Func<bool> unasked = () => throw new InvalidOperationException("Liveness checked for an unconfirmed drop.");
+        // A drop never matched to an audit event has no PID, so "runs no service" is unproven.
+        PromptIdentity uncorrelated = Unconfirmed(correlated: false, alive: unasked);
+        // A process that exited before the SCM snapshot, or a reused PID, is missing from it.
+        Unconfirmed(alive: () => false);
+        Unconfirmed();
+        // An uncertain snapshot for this PID: whichever service ran, it ran this file.
+        Unconfirmed(uncertain: true, alive: unasked);
+
+        PromptIdentity confirmed = PromptIdentity.ForServiceExecutable(Updater, UpdaterServices);
+        AssertEx.False(confirmed.ServiceRunUnconfirmed);
+        AssertEx.True(uncorrelated.Key != confirmed.Key, "Unconfirmed and confirmed prompts share a key.");
+
+        var queue = new PromptQueue(new TestClock());
+        queue.Enqueue(uncorrelated, updater.RemoteAddress, updater.RemotePort, updater.Protocol);
+        var dto = PromptWireDto.FromPrompt(queue.GetPending()[0]);
+        var copy = JsonSerializer.Deserialize<PromptWireDto>(JsonSerializer.Serialize(dto))!;
+        AssertEx.True(copy.CanAllow && copy.ServiceRunUnconfirmed);
+
+        string notice = PromptNoticeText.CoveredServices(copy.CoveredServiceNames, copy.ServiceRunUnconfirmed);
+        AssertEx.True(notice.Contains("could not tell whether the program or one of those services made this connection") &&
+            notice.Contains("Allow anyway permanently permits this program and those services"), notice);
+        AssertEx.True(PromptNoticeText.CoveredServices(new[] { "Solo" }, true).Contains("the program or that service"));
+
+        string popup = PromptTransactionIntegrationTests.Source("TinyWall/Prompting/BlockedConnectionPopup.cs");
+        AssertEx.True(popup.Contains("PromptNoticeText.AllowAnywayButtonText"), "The popup must label Allow anyway.");
+        AssertEx.True(popup.Contains("PromptNoticeText.CoveredServices(prompt.CoveredServiceNames, prompt.ServiceRunUnconfirmed)"));
+
+        PromptWireDto preview = PromptPreviewSamples.Create(new[] { "/promptpreview", "/allowanyway" }, DateTimeOffset.UtcNow);
+        AssertEx.True(preview.CanAllow && preview.ServiceRunUnconfirmed && preview.CoveredServiceNames.Length == 2);
+        AssertEx.False(PromptPreviewSamples.Create(new[] { "/promptpreview", "/serviceexe" }, DateTimeOffset.UtcNow).ServiceRunUnconfirmed);
     }
 
     private static void WindowsDirectoryCheck()
@@ -448,7 +490,7 @@ internal static class ServiceAttributionTests
         AssertEx.Throws<ArgumentException>(() => PromptNoticeText.CoveredServices(Array.Empty<string>()));
 
         string popup = PromptTransactionIntegrationTests.Source("TinyWall/Prompting/BlockedConnectionPopup.cs");
-        AssertEx.True(popup.Contains("noticeLabel.Text = PromptNoticeText.CoveredServices(prompt.CoveredServiceNames);"));
+        AssertEx.True(popup.Contains("noticeLabel.Text = PromptNoticeText.CoveredServices(prompt.CoveredServiceNames, prompt.ServiceRunUnconfirmed);"));
         AssertEx.True(popup.Contains("PromptNoticeText.CoveredServicesTooltip"));
     }
 
