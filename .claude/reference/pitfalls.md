@@ -58,6 +58,8 @@ User controller logs use LocalApplicationData/SecureWall/logs. Actual privileged
 
 2026-09-30: `/protocolselftest`, `/pipeintegrationtest` and `/promptpreview` exist only in Debug builds. A Release `SecureWall.exe` given them starts the real controller, shows the machine-data-guard dialog on the desktop and writes Application event 1000. Run them against `bin\Debug` only. From Git Bash, set `MSYS_NO_PATHCONV=1` or the leading `/` is rewritten into a file path and the exe starts with an unknown argument.
 
+2026-11-06: Debug `/promptpreview` and `/uipreview` windows open on the owner's live desktop and look like real SecureWall prompts and windows. The owner took preview prompts (the built-in sample service prompt, a test program's prompt) for real blocks and had to ask whether they came from agent testing. Subagents do not open previews unless their brief allows it; the main session tells the owner what will appear before opening one and closes it when done. For a visual check, prefer `/capture <png>` (commands.md), which fades the window and exits; unattended runs open no interactive preview. A second tray icon is not a preview, since previews never create one: it is a real controller, started by a Release exe given a switch or by a switch Git Bash rewrote (2026-11-01 entry).
+
 ## 2026-09-30: core test registration
 
 2026-09-30: the core test harness has no discovery. A new test class runs only after its `Cases` are concatenated in `tests/SecureWall.Core.Tests/Program.cs`, and product sources it exercises need a `Compile Include` link in the test csproj; an unregistered class compiles and is silently skipped. Parallel branches collide in both files: when merging, keep every registration and link, then confirm the passing count equals the sum of both sides.
@@ -70,7 +72,6 @@ User controller logs use LocalApplicationData/SecureWall/logs. Actual privileged
 ## 2026-11-01: SecureWall.exe switches from Git Bash
 
 - Git Bash rewrites a leading-slash argument into a path: `SecureWall.exe /protocolselftest` arrives as `C:/Program Files/Git/protocolselftest`, which the exe does not recognize, so it starts a real tray controller on the owner's desktop and the call returns exit 1 at once. Run `/protocolselftest`, `/pipeintegrationtest` and other switches through PowerShell (`Start-Process ... -Wait -PassThru`, commands.md "Safe debug verification") or prefix `MSYS_NO_PATHCONV=1`. Another session had to kill the stray controller.
-- Debug `/promptpreview` and `/uipreview` windows open on the owner's live desktop and look like real SecureWall prompts and windows. Preview popups (the built-in sample service prompt, a test program's prompt) and a stray second tray icon were taken for real blocks and a duplicate install, and the owner had to ask whether they came from agent testing. Before opening a preview, tell the owner what will appear, and close it when done. Review subagents must not open previews unless their brief allows it; they check UI by reading the code.
 
 ## 2026-11-03: A version in any site file blocks the release site job
 
