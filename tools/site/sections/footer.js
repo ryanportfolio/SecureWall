@@ -75,15 +75,19 @@
   // where a blurred copy of the "LIVE" glyphs is high. Its mask covers the
   // "LIVE" text rect grown by MOUND_SPREAD_X of its width on each side,
   // MOUND_SPREAD_UP of its height above and MOUND_SPREAD_DOWN below (toward
-  // the viewer); MOUND_BLUR is the blur radius as a fraction of the mound
-  // canvas width. MOUND_GAIN: how far the slope reaches. MOUND_LOD: mip used.
+  // the viewer); MOUND_BLUR is the blur radius (twice the Gaussian's standard
+  // deviation) as a fraction of the mask's width. MOUND_GAIN: how far the
+  // slope reaches. The glyphs are drawn on a MOUND_CANVAS canvas and blurred
+  // at half that size.
   const MOUND_SPREAD_X = 0.3;
   const MOUND_SPREAD_UP = 0.35;
   const MOUND_SPREAD_DOWN = 1.0;
   const MOUND_BLUR = 0.07;
   const MOUND_GAIN = 2.6;
-  const MOUND_LOD = 1;
   const MOUND_CANVAS = [512, 384];
+  // three.js constants for the mound's texture.
+  const HALF_FLOAT_TYPE = 1016;
+  const LINEAR_FILTER = 1006;
   // The footer terrain around the letters is mostly at its top layer
   // already, so raising alone would not show: the mound carves a trench down
   // to the layer at MOUND_FLOOR around the glyphs and climbs from it to the
@@ -152,13 +156,73 @@
       });
 
       // The mound's mask: a blurred copy of the "LIVE" mask on a larger box.
+      // The blur is done here on floats and the texture holds half floats:
+      // the trench is carved over the lowest 6% of the mask, about 15 levels
+      // of an 8-bit canvas, which showed as blocky steps along its rim.
       const mound = { canvas: document.createElement("canvas"), texture: null, box: null, map: null, key: "" };
       mound.canvas.width = MOUND_CANVAS[0];
       mound.canvas.height = MOUND_CANVAS[1];
-      mound.texture = new T.Texture(mound.canvas);
+      const MW = MOUND_CANVAS[0] >> 1;
+      const MH = MOUND_CANVAS[1] >> 1;
+      const moundSrc = new Float32Array(MW * MH);
+      const moundLine = new Float32Array(Math.max(MW, MH));
+      const moundWide = new Float32Array(MW * MH);
+      const moundNear = new Float32Array(MW * MH);
+      // RGBA, rows from the bottom; the shader reads alpha.
+      const moundData = new Uint16Array(MW * MH * 4);
+      // A data texture, built as three.js's DataTexture builds its own.
+      mound.texture = new T.Texture();
+      mound.texture.isDataTexture = true;
+      mound.texture.image = { data: moundData, width: MW, height: MH };
+      mound.texture.type = HALF_FLOAT_TYPE;
+      mound.texture.magFilter = mound.texture.minFilter = LINEAR_FILTER;
+      mound.texture.generateMipmaps = false;
+      mound.texture.flipY = false;
+      mound.texture.unpackAlignment = 1;
 
-      // Grows the "LIVE" text rect r into the mound box and redraws the mound
-      // canvas from the "LIVE" mask, drawn over maskBox, when either changed.
+      // Box blur, size texels wide (odd), of the n texels of a that start at
+      // start, step apart; outside the line counts as 0.
+      function box(a, start, n, step, size) {
+        const r = size >> 1;
+        for (let i = 0; i < n; i++) moundLine[i] = a[start + i * step];
+        let sum = 0;
+        for (let i = 0; i < r && i < n; i++) sum += moundLine[i];
+        for (let i = 0; i < n; i++) {
+          if (i + r < n) sum += moundLine[i + r];
+          a[start + i * step] = sum / size;
+          if (i >= r) sum -= moundLine[i - r];
+        }
+      }
+
+      // Blurs src into dst (MW x MH, row-major) with three box blurs along
+      // each axis, their sizes picked so that together they come close to a
+      // Gaussian of standard deviation sigma (texels).
+      function blur(src, dst, sigma) {
+        dst.set(src);
+        const v = 12 * sigma * sigma;
+        let size = Math.floor(Math.sqrt(v / 3 + 1));
+        if (size % 2 === 0) size--;
+        // Passes at this size; the rest are two texels wider.
+        const narrow = Math.round((v - 3 * size * size - 12 * size - 9) / (-4 * size - 4));
+        for (let pass = 0; pass < 3; pass++) {
+          const s = pass < narrow ? size : size + 2;
+          for (let y = 0; y < MH; y++) box(dst, y * MW, MW, 1, s);
+          for (let x = 0; x < MW; x++) box(dst, x, MH, MW, s);
+        }
+      }
+
+      // v (0..1) as a half float; below 2^-14 it is 0.
+      const f32 = new Float32Array(1);
+      const u32 = new Uint32Array(f32.buffer);
+      function half(v) {
+        if (v >= 1) return 0x3c00;
+        f32[0] = v;
+        const e = ((u32[0] >>> 23) & 0xff) - 112;
+        return e > 0 ? (e << 10) | ((u32[0] & 0x7fffff) >>> 13) : 0;
+      }
+
+      // Grows the "LIVE" text rect r into the mound box and rebuilds the mound
+      // texture from the "LIVE" mask, drawn over maskBox, when either changed.
       function updateMound(r, mask, maskBox) {
         const dx = r.width * MOUND_SPREAD_X;
         const up = r.height * MOUND_SPREAD_UP;
@@ -172,17 +236,29 @@
         const key = `${tex.uuid}|${tex.version}|${Math.round(x)}|${Math.round(y)}|${Math.round(w)}|${Math.round(h)}`;
         if (key === mound.key) return;
         mound.key = key;
-        const ctx = mound.canvas.getContext("2d");
-        // Blur by casting the glyphs' shadow back from off the left edge.
-        const shift = cw * 2;
+        const ctx = mound.canvas.getContext("2d", { willReadFrequently: true });
         ctx.clearRect(0, 0, cw, ch);
-        ctx.shadowColor = "#000";
-        ctx.shadowOffsetX = shift;
-        ctx.shadowBlur = MOUND_BLUR * cw;
-        ctx.drawImage(mask.canvas, x - shift, y, w, h);
-        ctx.shadowBlur = MOUND_BLUR * cw * 0.4;
-        ctx.drawImage(mask.canvas, x - shift, y, w, h);
-        ctx.shadowColor = "transparent";
+        ctx.drawImage(mask.canvas, x, y, w, h);
+        // The glyphs' alpha at half size, each texel the mean of four pixels.
+        const px = ctx.getImageData(0, 0, cw, ch).data;
+        for (let j = 0; j < MH; j++) {
+          for (let i = 0; i < MW; i++) {
+            const p = (2 * j * cw + 2 * i) * 4 + 3;
+            moundSrc[j * MW + i] = (px[p] + px[p + 4] + px[p + cw * 4] + px[p + cw * 4 + 4]) / 1020;
+          }
+        }
+        // A wide blur and a tighter one, layered as two shadows would be.
+        const sigma = (MOUND_BLUR * MW) / 2;
+        blur(moundSrc, moundWide, sigma);
+        blur(moundSrc, moundNear, sigma * 0.4);
+        for (let j = 0; j < MH; j++) {
+          const to = (MH - 1 - j) * MW * 4 + 3;
+          for (let i = 0; i < MW; i++) {
+            const a = moundWide[j * MW + i];
+            const b = moundNear[j * MW + i];
+            moundData[to + i * 4] = half(a + b - a * b);
+          }
+        }
         mound.texture.needsUpdate = true;
       }
 
@@ -474,7 +550,7 @@
             if (placed && mound.map && (eased !== moundStrength || mound.map !== moundMap)) {
               moundStrength = eased;
               moundMap = mound.map;
-              SW.setMound(owner, { mask: mound, map: mound.map, strength: eased, level: PLATEAU, lod: MOUND_LOD, gain: MOUND_GAIN, floor: innerHeight > innerWidth ? undefined : MOUND_FLOOR, layer });
+              SW.setMound(owner, { mask: mound, map: mound.map, strength: eased, level: PLATEAU, lod: 0, gain: MOUND_GAIN, floor: innerHeight > innerWidth ? undefined : MOUND_FLOOR, layer });
             }
             if (!watching && (rise > 0 || inkShown > 0 || phraseShown > 0)) {
               watching = true;
